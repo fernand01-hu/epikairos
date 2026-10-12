@@ -647,7 +647,8 @@ def query_free_rooms(
 
 def get_epita_group_tree() -> Dict[str, Any]:
     """
-    Returns the EPITA organizational tree matching the classic Zeus app.
+    Returns the EPITA Lyon organizational tree matching the classic Zeus app.
+    Contains only Lyon classes (Prepa Lyon & Cycle Ingénieur Lyon).
     """
     return {
         "id": "root",
@@ -655,103 +656,30 @@ def get_epita_group_tree() -> Dict[str, Any]:
         "expanded": True,
         "children": [
             {
-                "id": "adm_epita",
-                "label": "ADM EPITA",
-                "patterns": ["ADM", "ADMINISTRATION"],
-                "children": []
-            },
-            {
-                "id": "bachelor_cyber",
-                "label": "BACHELOR CYBER",
-                "patterns": ["BACHELOR", "CYBER"],
-                "children": [
-                    {"id": "bachelor_b1", "label": "B1 CYBER", "patterns": ["B1 CYBER", "BACHELOR 1"]},
-                    {"id": "bachelor_b2", "label": "B2 CYBER", "patterns": ["B2 CYBER", "BACHELOR 2"]},
-                    {"id": "bachelor_b3", "label": "B3 CYBER", "patterns": ["B3 CYBER", "BACHELOR 3"]}
-                ]
-            },
-            {
                 "id": "prepa",
                 "label": "CLASSES PREPARATOIRES",
                 "expanded": True,
                 "children": [
                     {
-                        "id": "prepa_lyon",
-                        "label": "PREPA LYON",
+                        "id": "spe_lyon",
+                        "label": "SPE Lyon",
                         "expanded": True,
                         "children": [
-                            {
-                                "id": "spe_lyon",
-                                "label": "SPE Lyon",
-                                "expanded": True,
-                                "children": [
-                                    {"id": "spe_lyon_l1", "label": "S3S4 L1", "patterns": ["S3 Lyon L1", "S3S4 L1", "S3 L1"]},
-                                    {"id": "spe_lyon_l2", "label": "S3S4 L2", "patterns": ["S3 Lyon L2", "S3S4 L2", "S3 L2"]},
-                                    {"id": "spe_lyon_l3", "label": "S3S4 L3", "patterns": ["S3 Lyon L3", "S3S4 L3", "S3 L3", "2627 - S3 Lyon L3"]}
-                                ]
-                            },
-                            {
-                                "id": "sup_lyon",
-                                "label": "SUP Lyon",
-                                "expanded": False,
-                                "children": [
-                                    {"id": "sup_lyon_l1", "label": "S1S2 L1", "patterns": ["S1 Lyon L1", "S1S2 L1", "S1 L1"]},
-                                    {"id": "sup_lyon_l2", "label": "S1S2 L2", "patterns": ["S1 Lyon L2", "S1S2 L2", "S1 L2"]},
-                                    {"id": "sup_lyon_l3", "label": "S1S2 L3", "patterns": ["S1 Lyon L3", "S1S2 L3", "S1 L3"]}
-                                ]
-                            }
+                            {"id": "spe_lyon_l1", "label": "S3S4 L1", "patterns": ["S3 Lyon L1", "S3S4 L1", "S3 L1"]},
+                            {"id": "spe_lyon_l2", "label": "S3S4 L2", "patterns": ["S3 Lyon L2", "S3S4 L2", "S3 L2"]},
+                            {"id": "spe_lyon_l3", "label": "S3S4 L3", "patterns": ["S3 Lyon L3", "S3S4 L3", "S3 L3", "2627 - S3 Lyon L3"]},
+                            {"id": "spe_lyon_promo", "label": "Promo SPE Lyon", "patterns": ["2627 - S3 Lyon", "S3 Lyon"]}
                         ]
                     },
                     {
-                        "id": "prepa_paris",
-                        "label": "PREPA PARIS",
+                        "id": "sup_lyon",
+                        "label": "SUP Lyon",
                         "expanded": False,
                         "children": [
-                            {
-                                "id": "spe_paris",
-                                "label": "SPE Paris",
-                                "children": [
-                                    {"id": "spe_paris_p1", "label": "S3S4 P1", "patterns": ["S3 Paris P1", "S3S4 P1"]},
-                                    {"id": "spe_paris_p2", "label": "S3S4 P2", "patterns": ["S3 Paris P2", "S3S4 P2"]},
-                                    {"id": "spe_paris_p3", "label": "S3S4 P3", "patterns": ["S3 Paris P3", "S3S4 P3"]}
-                                ]
-                            },
-                            {
-                                "id": "sup_paris",
-                                "label": "SUP Paris",
-                                "children": [
-                                    {"id": "sup_paris_p1", "label": "S1S2 P1", "patterns": ["S1 Paris P1", "S1S2 P1"]},
-                                    {"id": "sup_paris_p2", "label": "S1S2 P2", "patterns": ["S1 Paris P2", "S1S2 P2"]},
-                                    {"id": "sup_paris_p3", "label": "S1S2 P3", "patterns": ["S1 Paris P3", "S1S2 P3"]}
-                                ]
-                            }
-                        ]
-                    },
-                    {
-                        "id": "prepa_rennes",
-                        "label": "PREPA RENNES",
-                        "expanded": False,
-                        "children": [
-                            {"id": "spe_rennes", "label": "SPE Rennes", "patterns": ["SPE Rennes", "S3S4 Rennes"]},
-                            {"id": "sup_rennes", "label": "SUP Rennes", "patterns": ["SUP Rennes", "S1S2 Rennes"]}
-                        ]
-                    },
-                    {
-                        "id": "prepa_strasbourg",
-                        "label": "PREPA STRASBOURG",
-                        "expanded": False,
-                        "children": [
-                            {"id": "spe_strasbourg", "label": "SPE Strasbourg", "patterns": ["SPE Strasbourg", "S3S4 Strasbourg"]},
-                            {"id": "sup_strasbourg", "label": "SUP Strasbourg", "patterns": ["SUP Strasbourg", "S1S2 Strasbourg"]}
-                        ]
-                    },
-                    {
-                        "id": "prepa_toulouse",
-                        "label": "PREPA TOULOUSE",
-                        "expanded": False,
-                        "children": [
-                            {"id": "spe_toulouse", "label": "SPE Toulouse", "patterns": ["SPE Toulouse", "S3S4 Toulouse"]},
-                            {"id": "sup_toulouse", "label": "SUP Toulouse", "patterns": ["SUP Toulouse", "S1S2 Toulouse"]}
+                            {"id": "sup_lyon_l1", "label": "S1S2 L1", "patterns": ["S1 Lyon L1", "S1S2 L1", "S1 L1"]},
+                            {"id": "sup_lyon_l2", "label": "S1S2 L2", "patterns": ["S1 Lyon L2", "S1S2 L2", "S1 L2"]},
+                            {"id": "sup_lyon_l3", "label": "S1S2 L3", "patterns": ["S1 Lyon L3", "S1S2 L3", "S1 L3"]},
+                            {"id": "sup_lyon_promo", "label": "Promo SUP Lyon", "patterns": ["2627 - S1 Lyon", "S1 Lyon"]}
                         ]
                     }
                 ]
@@ -762,45 +690,26 @@ def get_epita_group_tree() -> Dict[str, Any]:
                 "expanded": False,
                 "children": [
                     {
-                        "id": "ing1",
-                        "label": "ING1 (S5/S6)",
+                        "id": "ing1_lyon",
+                        "label": "ING1 Lyon (S5/S6)",
+                        "expanded": False,
                         "children": [
-                            {"id": "ing1_lyon", "label": "ING1 Lyon", "patterns": ["SI5 Lyon", "ING1 Lyon"]},
-                            {"id": "ing1_paris", "label": "ING1 Paris", "patterns": ["SI5 Paris", "ING1 Paris"]}
+                            {"id": "ing1_lyon_l1", "label": "SI5 Lyon L1", "patterns": ["SI5 Lyon L1", "ING1 Lyon L1", "SI5 L1"]},
+                            {"id": "ing1_lyon_l2", "label": "SI5 Lyon L2", "patterns": ["SI5 Lyon L2", "ING1 Lyon L2", "SI5 L2"]},
+                            {"id": "ing1_lyon_l3", "label": "SI5 Lyon L3", "patterns": ["SI5 Lyon L3", "ING1 Lyon L3", "SI5 L3"]},
+                            {"id": "ing1_lyon_promo", "label": "Promo SI5 Lyon", "patterns": ["2627 - SI5 Lyon", "SI5 Lyon"]}
                         ]
                     },
                     {
-                        "id": "ing2",
-                        "label": "ING2 (S7/S8)",
+                        "id": "ing3_lyon",
+                        "label": "ING3 Lyon (S9/S10)",
+                        "expanded": False,
                         "children": [
-                            {"id": "ing2_scia", "label": "Majeure IA / SCIA", "patterns": ["SCIA", "IA", "SI7 SCIA"]},
-                            {"id": "ing2_gistr", "label": "Majeure GISTR", "patterns": ["GISTR", "SI7 GISTR"]},
-                            {"id": "ing2_srs", "label": "Majeure SRS", "patterns": ["SRS", "SI7 SRS"]},
-                            {"id": "ing2_sigl", "label": "Majeure SIGL", "patterns": ["SIGL", "SI7 SIGL"]},
-                            {"id": "ing2_image", "label": "Majeure IMAGE", "patterns": ["IMAGE", "SI7 IMAGE"]}
-                        ]
-                    },
-                    {
-                        "id": "ing3",
-                        "label": "ING3 (S9/S10)",
-                        "children": [
-                            {"id": "ing3_scia", "label": "SI9 Lyon SCIA", "patterns": ["SI9 Lyon SCIA", "SI9 SCIA"]},
-                            {"id": "ing3_general", "label": "SI9 Général", "patterns": ["SI9", "ING3"]}
+                            {"id": "ing3_scia", "label": "SI9 Lyon SCIA", "patterns": ["SI9 Lyon SCIA", "SCIA-G", "SI9 SCIA"]},
+                            {"id": "ing3_promo", "label": "Promo SI9 Lyon", "patterns": ["2627 - SI9 Lyon", "SI9 Lyon"]}
                         ]
                     }
                 ]
-            },
-            {
-                "id": "epitapprentissage",
-                "label": "EPITAPPRENTISSAGE",
-                "patterns": ["APPRENTISSAGE", "EPITAPPRENTISSAGE"],
-                "children": []
-            },
-            {
-                "id": "executive_education",
-                "label": "Executive Education",
-                "patterns": ["EXECUTIVE"],
-                "children": []
             }
         ]
     }

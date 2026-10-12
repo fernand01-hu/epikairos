@@ -124,15 +124,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderTree(treeData) {
         groupTreeContainer.innerHTML = "";
-        const rootElement = createTreeNodeElement(treeData);
-        groupTreeContainer.appendChild(rootElement);
+        if (treeData && treeData.id === "root" && treeData.children) {
+            treeData.children.forEach(child => {
+                const childElement = createTreeNodeElement(child);
+                groupTreeContainer.appendChild(childElement);
+            });
+        } else if (Array.isArray(treeData)) {
+            treeData.forEach(node => {
+                groupTreeContainer.appendChild(createTreeNodeElement(node));
+            });
+        } else {
+            const rootElement = createTreeNodeElement(treeData);
+            groupTreeContainer.appendChild(rootElement);
+        }
     }
 
     function createTreeNodeElement(node) {
         const container = document.createElement("div");
         container.className = "tree-node";
         container.dataset.id = node.id;
-        container.dataset.label = (node.label || "").toLowerCase();
+        const searchTerms = [node.label || "", ...(node.patterns || [])].join(" ").toLowerCase();
+        container.dataset.label = searchTerms;
 
         const hasChildren = node.children && node.children.length > 0;
         const isDefaultExpanded = node.expanded !== false;
