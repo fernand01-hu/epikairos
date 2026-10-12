@@ -1,0 +1,15 @@
+[Unit]
+Description=EpiKairos EPITA Calendar App
+After=network.target
+
+[Service]
+Type=simple
+User=fernand
+WorkingDirectory=/home/fernand/epikairos
+ExecStart=/home/fernand/epikairos/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:5000 app:app
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
