@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}Mon Emploi du Temps — Zeus Auriga{% endblock %}
+
+{% block content %}
+<!-- Empty State if not loaded yet -->
+<div id="noDataAlert" class="card card-custom p-5 text-center mb-4 d-none">
+    <div class="mb-3">
+        <i class="bi bi-calendar-plus text-primary display-4"></i>
+    </div>
+    <h3 class="fw-bold mb-2">Aucun emploi du temps chargé</h3>
+    <p class="text-muted mx-auto mb-4" style="max-width: 500px;">
+        Connectez-vous à votre compte Auriga pour récupérer vos cours, appliquer vos filtres Regex et générer vos calendriers.
+    </p>
+    <div>
+        <a href="/login" class="btn btn-primary fw-semibold px-4 rounded-pill shadow-sm">
+            <i class="bi bi-box-arrow-in-right me-1"></i> Se connecter à Auriga
+        </a>
+    </div>
+</div>
+
+<!-- Planning Workspace (Visible when data loaded) -->
+<div id="planningWorkspace" class="d-none">
+
+    <!-- Top Status Banner -->
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <div id="statsSummary" class="text-muted small"></div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="/login" class="btn btn-sm btn-outline-secondary rounded-pill">
+                <i class="bi bi-arrow-clockwise me-1"></i> Recharger depuis Auriga
+            </a>
+            <button class="btn btn-sm btn-outline-primary rounded-pill d-none" id="contributeBtn">
+                <i class="bi bi-share me-1"></i> Contribuer à la base commune
+            </button>
+        </div>
+    </div>
+
+    <!-- STEP 2: Filter Controls Card -->
+    <div class="card card-custom mb-4">
+        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                <span class="step-badge">1</span>
+                Filtrage & Personnalisation (Regex)
+            </h5>
+            <span class="small text-muted"><i class="bi bi-info-circle me-1"></i>Modifications appliquées en temps réel</span>
+        </div>
+        <div class="card-body p-4">
+
+            <!-- Regex Include & Exclude Row -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="includeRegexInput" class="form-label fw-semibold d-flex justify-content-between">
+                        <span><i class="bi bi-funnel text-primary me-1"></i> Filtre Regex — Inclusion</span>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Garder si correspond</span>
+                    </label>
+                    <input type="text" class="form-control font-monospace" id="includeRegexInput" placeholder="Ex: ALGO|MATH|SYSTEME ou ^\[CM\]">
+                    <div class="form-text">
+                        Raccourcis :
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="^\[CM\]">CM uniquement</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="^\[TD\]">TD uniquement</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="EXAM|Partiel">Examens</button>
+                        <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="">Effacer</button>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="excludeRegexInput" class="form-label fw-semibold d-flex justify-content-between">
+                        <span><i class="bi bi-x-circle text-danger me-1"></i> Filtre Regex — Exclusion</span>
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Exclure si correspond</span>
+                    </label>
+                    <input type="text" class="form-control font-monospace" id="excludeRegexInput" placeholder="Ex: Anglais|Sport|Soutenance">
+                    <div class="form-text">
+                        Raccourcis :
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="exclude" data-val="Anglais">Pas d'anglais</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="exclude" data-val="Soutenance">Pas de soutenance</button>
+                        <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2 rounded-pill preset-btn" data-target="exclude" data-val="">Effacer</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Type Filter Chips & Toggles -->
+            <div class="row g-2 align-items-center pt-2 border-top">
+                <div class="col-lg-8 d-flex flex-wrap align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2 me-1">
+                        <span class="small fw-semibold text-muted">Types :</span>
+                        <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none text-primary fw-semibold" id="selectAllTypesBtn">Tous</button>
+                        <span class="text-muted small">|</span>
+                        <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none text-secondary" id="deselectAllTypesBtn">Aucun</button>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2" id="typeButtonGroup">
+                        <!-- Populated dynamically with vibrant colored chips by app.js -->
+                    </div>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <div class="form-check form-switch d-inline-block text-start">
+                        <input class="form-check-input" type="checkbox" id="hideCancelledSwitch" checked>
+                        <label class="form-check-label small fw-semibold" for="hideCancelledSwitch">Masquer les cours annulés</label>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Export & Sticky Action Bar -->
+    <div class="sticky-action-bar p-3 mb-4 rounded-4 shadow border bg-white d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-success-subtle text-success border border-success fs-6 px-3 py-2" id="selectedCountBadge">
+                0 cours sélectionnés
+            </span>
+            <button class="btn btn-sm btn-outline-secondary" id="selectAllBtn">Tout cocher</button>
+            <button class="btn btn-sm btn-outline-secondary" id="deselectAllBtn">Tout décocher</button>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-primary fw-semibold px-4 rounded-pill shadow-sm" id="downloadIcsBtn">
+                <i class="bi bi-download me-1"></i> Télécharger .ics
+            </button>
+            <button class="btn btn-outline-dark fw-semibold rounded-pill" id="openFeedModalBtn">
+                <i class="bi bi-link-45deg me-1"></i> Lien d'abonnement Google Calendar
+            </button>
+        </div>
+    </div>
+
+    <!-- STEP 3: Real Calendar View (Weekly with Left & Right Arrows) -->
+    <div class="card card-custom mb-5">
+        <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <h5 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                    <span class="step-badge">2</span>
+                    Aperçu de l'emploi du temps
+                </h5>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-primary" id="viewModeWeekBtn">
+                        <i class="bi bi-calendar-week me-1"></i> Semaine
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="viewModeListBtn">
+                        <i class="bi bi-table me-1"></i> Tableau
+                    </button>
+                </div>
+            </div>
+
+            <!-- Week Navigation Controls (Left & Right Arrows) -->
+            <div class="d-flex align-items-center gap-2" id="weekNavControls">
+                <button class="btn btn-outline-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-sm" id="prevWeekBtn" title="Semaine précédente" style="width: 38px; height: 38px;">
+                    <i class="bi bi-chevron-left fs-5"></i>
+                </button>
+                <button class="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-semibold" id="todayWeekBtn">
+                    Aujourd'hui
+                </button>
+                <div class="fw-bold px-2 text-navy fs-6" id="currentWeekLabel" style="min-width: 220px; text-align: center;">
+                    Chargement...
+                </div>
+                <button class="btn btn-outline-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-sm" id="nextWeekBtn" title="Semaine suivante" style="width: 38px; height: 38px;">
+                    <i class="bi bi-chevron-right fs-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="card-body p-3">
+            <!-- 1. Real Calendar Week View -->
+            <div id="calendarWeekView">
+                <div class="week-calendar-container" id="weekDaysGrid">
+                    <!-- Populated dynamically with Day Columns and Course Cards by app.js -->
+                </div>
+                <div id="noWeekCoursesMessage" class="text-center py-5 text-muted d-none">
+                    <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
+                    <div class="fw-semibold fs-5">Aucun cours cette semaine</div>
+                    <div class="small text-muted mt-1">Utilisez les flèches <strong>&larr;</strong> et <strong>&rarr;</strong> ci-dessus pour naviguer dans votre calendrier.</div>
+                </div>
+            </div>
+
+            <!-- 2. Table / List View (Optional Toggle) -->
+            <div id="calendarTableView" class="table-responsive d-none">
+                <table class="table table-hover align-middle mb-0" id="coursesTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 45px;" class="text-center">
+                                <input class="form-check-input" type="checkbox" id="masterCheckbox" checked>
+                            </th>
+                            <th>Date & Heure</th>
+                            <th>Type</th>
+                            <th>Matière</th>
+                            <th>Salle</th>
+                            <th>Enseignant</th>
+                            <th>Groupe</th>
+                        </tr>
+                    </thead>
+                    <tbody id="coursesTableBody">
+                        <!-- Populated dynamically by app.js -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="noCoursesMessage" class="text-center p-5 text-muted d-none">
+                <i class="bi bi-search fs-1 d-block mb-2 text-secondary"></i>
+                Aucun cours ne correspond à vos filtres et regex actuels.
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Google Calendar Feed Subscription -->
+<div class="modal fade" id="feedModal" tabindex="-1" aria-labelledby="feedModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="feedModalLabel">
+                    <i class="bi bi-arrow-repeat text-primary me-2"></i>
+                    Abonnement automatique Google Calendar
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small">
+                    Ce lien permet à Google Calendar de <strong>se synchroniser automatiquement</strong> avec votre emploi du temps et d'appliquer vos filtres Regex.
+                </p>
+
+                <div id="feedModalSpinner" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Génération du lien...</span>
+                    </div>
+                    <div class="small text-muted mt-2">Génération du lien sécurisé...</div>
+                </div>
+
+                <div id="feedModalContent" class="d-none">
+                    <label class="form-label fw-semibold small">Lien de synchronisation Webcal / ICS :</label>
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
+                        <button class="btn btn-outline-primary" type="button" id="copyFeedUrlBtn">
+                            <i class="bi bi-clipboard me-1"></i> Copier
+                        </button>
+                    </div>
+                    <div id="copyFeedback" class="text-success small fw-semibold mb-3 d-none">
+                        <i class="bi bi-check-circle me-1"></i> Lien copié dans le presse-papier !
+                    </div>
+
+                    <div class="bg-light p-3 rounded-3 small text-muted">
+                        <div class="fw-bold text-dark mb-1"><i class="bi bi-lightbulb me-1 text-warning"></i> Comment l'ajouter à Google Calendar :</div>
+                        <ol class="mb-0 ps-3">
+                            <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a>.</li>
+                            <li>À gauche, à côté de <em>"Autres agendas"</em>, cliquez sur <strong>+</strong> puis <strong>"À partir de l'URL"</strong>.</li>
+                            <li>Collez le lien ci-dessus et validez.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Fermer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

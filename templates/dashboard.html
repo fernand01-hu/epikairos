@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil & Tableau de bord — Zeus Auriga{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+    <!-- Hero Banner -->
+    <div class="col-12">
+        <div class="hero-card p-4 p-md-5 rounded-4 shadow-sm border position-relative overflow-hidden">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <div class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill mb-3 fw-semibold">
+                        <i class="bi bi-stars me-1"></i> Multi-outil d'emploi du temps EPITA
+                    </div>
+                    <h1 class="fw-bold display-6 mb-2">Zeus Auriga Calendar</h1>
+                    <p class="text-muted fs-6 mb-4">
+                        Générez vos fichiers <strong>.ics</strong>, synchronisez automatiquement <strong>Google Calendar</strong> avec des filtres Regex personnalisés, consultez les <strong>agendas de vos professeurs</strong> et trouvez des <strong>salles libres</strong> en un instant.
+                    </p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="/login" class="btn btn-primary fw-semibold px-4 rounded-pill shadow-sm">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Se connecter à Auriga
+                        </a>
+                        <a href="/rooms" class="btn btn-outline-success fw-semibold px-4 rounded-pill">
+                            <i class="bi bi-door-open me-1"></i> Trouver une salle libre
+                        </a>
+                        <a href="/custom-calendar" class="btn btn-outline-secondary fw-semibold px-4 rounded-pill">
+                            <i class="bi bi-sliders me-1"></i> Agendas sur-mesure
+                        </a>
+                    </div>
+                </div>
+                <div class="col-lg-4 text-center mt-4 mt-lg-0">
+                    <div class="bg-white p-4 rounded-4 shadow-sm border d-inline-block text-start w-100" style="max-width: 320px;">
+                        <div class="text-uppercase small fw-bold text-muted mb-2">
+                            <i class="bi bi-database me-1 text-primary"></i> Base Collaborative
+                        </div>
+                        <div class="display-6 fw-bold text-navy" id="statCourses">{{ stats.total_courses }}</div>
+                        <div class="text-muted small mb-3">créneaux de cours indexés</div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar bg-primary" role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2 small text-muted">
+                            <span>Salles: <strong>{{ stats.total_rooms }}</strong></span>
+                            <span>Profs: <strong>{{ stats.total_teachers }}</strong></span>
+                            <span>Groupes: <strong>{{ stats.total_groups }}</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4 Key Metrics Counters -->
+<div class="row g-3 mb-5">
+    <div class="col-6 col-md-3">
+        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-primary">
+            <div class="display-6 fw-bold text-primary mb-1">{{ stats.total_courses }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Cours Indexés</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-success">
+            <div class="display-6 fw-bold text-success mb-1">{{ stats.total_rooms }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Salles Détectées</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-warning">
+            <div class="display-6 fw-bold text-warning mb-1">{{ stats.total_teachers }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Enseignants</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-info">
+            <div class="display-6 fw-bold text-info mb-1">{{ stats.total_groups }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Groupes & Promos</div>
+        </div>
+    </div>
+</div>
+
+<!-- 3 Main Interactive Features -->
+<div class="row g-4 mb-5">
+    <!-- 1. Mon Emploi du Temps -->
+    <div class="col-lg-4">
+        <div class="card card-custom h-100 p-4 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="p-3 bg-primary-subtle text-primary rounded-4 fs-3">
+                        <i class="bi bi-calendar-week"></i>
+                    </div>
+                    <span class="badge bg-primary text-white rounded-pill px-3 py-1">Étape 1</span>
+                </div>
+                <h4 class="fw-bold mb-2">Mon Emploi du Temps</h4>
+                <p class="text-muted small mb-4">
+                    Connectez-vous à Auriga pour récupérer votre planning complet. Utilisez les <strong>filtres Regex</strong> pour garder ou masquer les matières de votre choix, naviguez semaine par semaine et exportez vers Google Calendar.
+                </p>
+            </div>
+            <div>
+                <a href="/personal" class="btn btn-outline-primary w-100 rounded-pill fw-semibold">
+                    Accéder à mon planning <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Salles Libres -->
+    <div class="col-lg-4">
+        <div class="card card-custom h-100 p-4 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="p-3 bg-success-subtle text-success rounded-4 fs-3">
+                        <i class="bi bi-door-open"></i>
+                    </div>
+                    <span class="badge bg-success text-white rounded-pill px-3 py-1">Nouveau</span>
+                </div>
+                <h4 class="fw-bold mb-2">Recherche de Salles Libres</h4>
+                <p class="text-muted small mb-4">
+                    Besoin d'un endroit calme pour réviser ou travailler en groupe ? Indiquez un créneau horaire dans la journée et découvrez immédiatement <strong>toutes les salles libres</strong> avec l'heure de leur prochain cours.
+                </p>
+            </div>
+            <div>
+                <a href="/rooms" class="btn btn-outline-success w-100 rounded-pill fw-semibold">
+                    Consulter les salles libres <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Agendas Sur-Mesure -->
+    <div class="col-lg-4">
+        <div class="card card-custom h-100 p-4 d-flex flex-column justify-content-between">
+            <div>
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="p-3 bg-warning-subtle text-warning rounded-4 fs-3">
+                        <i class="bi bi-sliders"></i>
+                    </div>
+                    <span class="badge bg-warning text-dark rounded-pill px-3 py-1">Personnalisable</span>
+                </div>
+                <h4 class="fw-bold mb-2">Agendas Sur-Mesure</h4>
+                <p class="text-muted small mb-4">
+                    Composez un calendrier personnalisé en sélectionnant des <strong>enseignants</strong>, des <strong>salles</strong> ou des <strong>groupes</strong>. Prévisualisez le résultat et téléchargez un fichier .ics sur-mesure.
+                </p>
+            </div>
+            <div>
+                <a href="/custom-calendar" class="btn btn-outline-dark w-100 rounded-pill fw-semibold">
+                    Créer un agenda sur-mesure <i class="bi bi-arrow-right ms-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Privacy & Collaborative Base Explanation -->
+<div class="card card-custom p-4 mb-4 bg-light border-0">
+    <div class="row align-items-center">
+        <div class="col-md-1 text-center fs-2 text-primary d-none d-md-block">
+            <i class="bi bi-shield-check"></i>
+        </div>
+        <div class="col-md-11">
+            <h5 class="fw-bold mb-1">Comment fonctionne la base collaborative ?</h5>
+            <p class="text-muted small mb-0">
+                Chaque fois qu'un étudiant génère son emploi du temps et accepte de partager ses créneaux, les données de cours (matière, type, salle, enseignant et groupe) enrichissent la base collective de l'école. <strong>Aucun identifiant, mot de passe ou nom d'étudiant n'est jamais stocké.</strong> Les données sont anonymisées et servent uniquement à alimenter la recherche de salles libres et les agendas partagés pour toute la communauté.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

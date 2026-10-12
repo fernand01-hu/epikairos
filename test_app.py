@@ -113,6 +113,67 @@ class TestFlaskApp(unittest.TestCase):
         # Cleanup test feed
         feed_store.delete_feed(feed_id)
 
+    def test_multi_page_routes(self):
+        # Dashboard
+        res = self.client.get("/")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Base Collaborative", res.data)
+
+        # Login page
+        res = self.client.get("/login")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Connexion Auriga", res.data)
+
+        # Personal page
+        res = self.client.get("/personal")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Mon Emploi du Temps", res.data)
+
+        # Custom calendar page
+        res = self.client.get("/custom-calendar")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Agendas Sur-Mesure", res.data)
+
+        # Rooms page
+        res = self.client.get("/rooms")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Salles Libres", res.data)
+
+    def test_database_apis(self):
+        # Options
+        res = self.client.get("/api/database/options")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("teachers", data)
+        self.assertIn("rooms", data)
+        self.assertIn("groups", data)
+
+        # Stats
+        res = self.client.get("/api/database/stats")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("total_courses", data)
+
+        # Free rooms
+        res = self.client.post(
+            "/api/database/free-rooms",
+            json={"date": "2026-10-15", "start_time": "14:00", "end_time": "16:00"}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertIn("free_rooms", data)
+        self.assertIn("occupied_rooms", data)
+
+        # Custom courses query
+        res = self.client.post(
+            "/api/database/custom-courses",
+            json={"keyword": "Transistors"}
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("success"))
+
 
 if __name__ == "__main__":
     unittest.main()
+

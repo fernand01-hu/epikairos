@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Recherche de Salles Libres — Zeus Auriga{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h2 class="fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-door-open text-success"></i>
+            Recherche de Salles Libres en Temps Réel
+        </h2>
+        <span class="badge bg-success-subtle text-success border border-success px-3 py-2 rounded-pill small">
+            <i class="bi bi-clock-history me-1"></i> Disponibilité immédiate
+        </span>
+    </div>
+    <p class="text-muted small mb-0">
+        Trouvez instantanément une salle de classe disponible à EPITA pour travailler, réviser ou organiser une session d'étude.
+    </p>
+</div>
+
+<!-- Search Controls Card -->
+<div class="card card-custom mb-4">
+    <div class="card-body p-4">
+        <form id="roomSearchForm">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label for="roomDateInput" class="form-label fw-semibold small">
+                        <i class="bi bi-calendar-event text-primary me-1"></i> Date
+                    </label>
+                    <input type="date" class="form-control form-control-sm" id="roomDateInput" value="{{ today_date }}">
+                </div>
+
+                <div class="col-md-2">
+                    <label for="roomStartTimeInput" class="form-label fw-semibold small">
+                        <i class="bi bi-clock text-primary me-1"></i> Début
+                    </label>
+                    <input type="time" class="form-control form-control-sm" id="roomStartTimeInput" value="{{ default_start_time }}">
+                </div>
+
+                <div class="col-md-2">
+                    <label for="roomEndTimeInput" class="form-label fw-semibold small">
+                        <i class="bi bi-clock-fill text-primary me-1"></i> Fin
+                    </label>
+                    <input type="time" class="form-control form-control-sm" id="roomEndTimeInput" value="{{ default_end_time }}">
+                </div>
+
+                <div class="col-md-5 d-flex gap-2">
+                    <button type="submit" class="btn btn-success btn-sm px-4 rounded-pill fw-semibold shadow-sm flex-grow-1" id="searchRoomsBtn">
+                        <i class="bi bi-search me-1"></i> Vérifier la disponibilité
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" id="nowBtn" title="Régler sur l'heure actuelle">
+                        Maintenant
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Preset Buttons -->
+            <div class="mt-3 pt-3 border-top d-flex align-items-center gap-2 flex-wrap">
+                <span class="small text-muted fw-semibold me-1">Créneaux rapides :</span>
+                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="08:30" data-end="12:30">Matinée (08h30 - 12h30)</button>
+                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="12:00" data-end="14:00">Midi (12h00 - 14h00)</button>
+                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="14:00" data-end="18:00">Après-midi (14h00 - 18h00)</button>
+                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="18:00" data-end="21:00">Soirée (18h00 - 21h00)</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Results Summary Header -->
+<div id="resultsSummaryBar" class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3 d-none">
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-success text-white px-3 py-2 rounded-pill fs-6" id="freeRoomsBadge">
+            0 salles libres
+        </span>
+        <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 rounded-pill fs-6" id="occupiedRoomsBadge">
+            0 salles occupées
+        </span>
+    </div>
+    <div class="text-muted small" id="searchIntervalLabel"></div>
+</div>
+
+<!-- Loading Spinner -->
+<div id="roomsLoading" class="text-center py-5 d-none">
+    <div class="spinner-border text-success" role="status">
+        <span class="visually-hidden">Recherche des salles...</span>
+    </div>
+    <div class="small text-muted mt-2">Vérification des disponibilités en cours...</div>
+</div>
+
+<!-- Results Container -->
+<div id="roomsResultsContainer">
+    <!-- Free Rooms Section -->
+    <div id="freeRoomsSection" class="mb-4 d-none">
+        <h5 class="fw-bold text-success mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-check-circle-fill"></i>
+            Salles Disponibles
+        </h5>
+        <div class="row g-3" id="freeRoomsGrid">
+            <!-- Populated dynamically -->
+        </div>
+    </div>
+
+    <!-- Occupied Rooms Section -->
+    <div id="occupiedRoomsSection" class="mb-4 d-none">
+        <h5 class="fw-bold text-danger mb-3 d-flex align-items-center gap-2">
+            <i class="bi bi-x-circle-fill"></i>
+            Salles Occupées
+        </h5>
+        <div class="row g-3" id="occupiedRoomsGrid">
+            <!-- Populated dynamically -->
+        </div>
+    </div>
+</div>
+
+<!-- Initial Prompt / No Results Message -->
+<div id="roomsInitialPrompt" class="card card-custom p-5 text-center text-muted mb-4">
+    <i class="bi bi-door-open fs-1 text-secondary mb-2 d-block"></i>
+    <div class="fw-semibold fs-5 mb-1">Prêt à trouver une salle libre</div>
+    <div class="small">Sélectionnez une date et un créneau horaire ci-dessus pour lancer la recherche.</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/rooms.js') }}"></script>
+{% endblock %}

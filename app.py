@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Auriga Calendar Web Service
-===========================
-Self-hosted web application for EPITA students to connect to Auriga,
-preview & filter courses with regex, and export or subscribe in Google Calendar.
+Auriga Calendar Web Service (Zeus v2)
+=====================================
+Self-hosted multi-page web platform for EPITA students:
+1. Personal schedule preview & regex filtering with Google Calendar sync.
+2. Shared knowledge base (courses, teachers, rooms, groups) with user consent.
+3. Custom merged calendar generator (by teacher, promo, room).
+4. Real-time available classroom finder (free rooms).
 """
 
+from datetime import datetime, date
 import os
 import sys
 import time
@@ -17,6 +21,7 @@ from flask import (
     Response,
     send_file,
     url_for,
+    redirect,
 )
 
 from auriga_core import (
@@ -26,6 +31,7 @@ from auriga_core import (
     filter_courses,
     generate_ics_from_courses,
 )
+import database
 import feed_store
 
 app = Flask(__name__)
@@ -35,27 +41,93 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max payload
 # Cache duration for live Google Calendar feeds (in seconds: default 2 hours)
 FEED_CACHE_DURATION = int(os.getenv("FEED_CACHE_DURATION", 7200))
 
+# Ensure database tables exist
+database.init_db()
+
+
+# =============================================================================
+# Multi-page Application Routes
+# =============================================================================
 
 @app.route("/")
-def index():
-    """Serves the main web interface."""
-    start_date, end_date = get_default_school_year_range()
+def dashboard():
+    """Main dashboard & overview of the collaborative database."""
+    stats = database.get_database_stats()
     return render_template(
-        "index.html",
-        default_start=start_date,
-        default_end=end_date,
+        "dashboard.html",
+        stats=stats,
+        active_page="dashboard",
     )
 
 
+@app.route("/login")
+def login_page():
+    """Dedicated login page for Auriga authentication."""
+    start_date, end_date = get_default_school_year_range()
+    return render_template(
+        "login.html",
+        default_start=start_date,
+        default_end=end_date,
+        active_page="login",
+    )
+
+
+@app.route("/personal")
+@app.route("/my-calendar")
+def personal_calendar():
+    """Personal calendar page with regex filters, color chips, and export."""
+    return render_template(
+        "personal.html",
+        active_page="personal",
+    )
+
+
+@app.route("/custom-calendar")
+def custom_calendar():
+    """Custom calendar builder (by teachers, rooms, or groups)."""
+    start_date, end_date = get_default_school_year_range()
+    return render_template(
+        "custom_calendar.html",
+        default_start=start_date,
+        default_end=end_date,
+        active_page="custom",
+    )
+
+
+@app.route("/rooms")
+def rooms_page():
+    """Available classrooms finder at any given time slot."""
+    today_str = date.today().isoformat()
+    now_hour = datetime.now().hour
+    start_h = f"{now_hour:02d}:00" if 8 <= now_hour <= 19 else "14:00"
+    end_h = f"{(now_hour + 2):02d}:00" if 8 <= now_hour <= 19 else "16:00"
+
+    return render_template(
+        "rooms.html",
+        today_date=today_str,
+        default_start_time=start_h,
+        default_end_time=end_h,
+        active_page="rooms",
+    )
+
+
+# =============================================================================
+# API Endpoints: Auriga Fetch & User Consent
+# =============================================================================
+
 @app.route("/api/fetch-planning", methods=["POST"])
 def fetch_planning():
-    """Authenticates to Auriga and retrieves normalized courses."""
+    """
+    Authenticates to Auriga, retrieves normalized courses,
+    and with user consent, ingests them into the collaborative database.
+    """
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
     access_token = (data.get("access_token") or "").strip()
     start_date = (data.get("start_date") or "").strip()
     end_date = (data.get("end_date") or "").strip()
+    consent = bool(data.get("consent", True))
 
     if not access_token and (not username or not password):
         return jsonify({"success": False, "error": "Veuillez renseigner vos identifiants ou un jeton d'accès."}), 400
@@ -75,6 +147,13 @@ def fetch_planning():
         return jsonify({"success": False, "error": str(e)}), 400
 
     normalized_courses = [normalize_course(item) for item in raw_interventions]
+
+    # Ingest into collaborative database if user consented
+    if consent and normalized_courses:
+        try:
+            database.ingest_courses(normalized_courses, consent=True)
+        except Exception as e:
+            app.logger.warning(f"Database ingestion warning: {e}")
 
     # Compute statistics
     types_count = {}
@@ -98,37 +177,97 @@ def fetch_planning():
     })
 
 
-@app.route("/api/filter-preview", methods=["POST"])
-def filter_preview():
-    """Applies regex and category filters to courses on the server."""
+@app.route("/api/ingest-consent", methods=["POST"])
+def ingest_consent():
+    """Allows user to share their courses if they decide to contribute after fetching."""
     data = request.get_json(silent=True) or {}
     courses = data.get("courses", [])
-    include_regex = data.get("include_regex")
-    exclude_regex = data.get("exclude_regex")
-    allowed_types = data.get("allowed_types")
-    hide_cancelled = bool(data.get("hide_cancelled", False))
+    if not courses:
+        return jsonify({"success": False, "error": "Aucun cours à enregistrer."}), 400
 
-    filtered, err = filter_courses(
-        courses,
-        include_regex=include_regex,
-        exclude_regex=exclude_regex,
-        allowed_types=allowed_types,
-        hide_cancelled=hide_cancelled,
-    )
+    try:
+        res = database.ingest_courses(courses, consent=True)
+        return jsonify({"success": True, "result": res})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
-    if err:
-        return jsonify({"success": False, "error": err}), 400
 
+# =============================================================================
+# API Endpoints: Database Knowledge Base & Custom Queries
+# =============================================================================
+
+@app.route("/api/database/stats", methods=["GET"])
+def db_stats():
+    """Returns database knowledge base statistics."""
+    return jsonify(database.get_database_stats())
+
+
+@app.route("/api/database/options", methods=["GET"])
+def db_options():
+    """Returns available teachers, rooms, groups, and activity types for dropdowns."""
     return jsonify({
-        "success": True,
-        "filtered": filtered,
-        "count": len(filtered),
+        "teachers": database.get_all_teachers(),
+        "rooms": database.get_all_rooms(),
+        "groups": database.get_all_groups(),
+        "types": database.get_all_activity_types(),
     })
 
 
+@app.route("/api/database/custom-courses", methods=["POST"])
+def custom_courses_query():
+    """Queries courses matching custom selected teachers, rooms, groups, or keywords."""
+    data = request.get_json(silent=True) or {}
+    teachers = data.get("teachers") or None
+    rooms = data.get("rooms") or None
+    groups = data.get("groups") or None
+    activity_types = data.get("activity_types") or None
+    keyword = data.get("keyword") or None
+    start_date = data.get("start_date") or None
+    end_date = data.get("end_date") or None
+    hide_cancelled = bool(data.get("hide_cancelled", False))
+
+    courses = database.query_custom_courses(
+        teachers=teachers,
+        rooms=rooms,
+        groups=groups,
+        activity_types=activity_types,
+        keyword=keyword,
+        start_date=start_date,
+        end_date=end_date,
+        hide_cancelled=hide_cancelled,
+    )
+
+    return jsonify({
+        "success": True,
+        "courses": courses,
+        "count": len(courses),
+    })
+
+
+@app.route("/api/database/free-rooms", methods=["POST"])
+def find_free_rooms():
+    """Checks classroom availability on a specific date and time interval."""
+    data = request.get_json(silent=True) or {}
+    target_date = data.get("date") or date.today().isoformat()
+    start_time = data.get("start_time") or "14:00"
+    end_time = data.get("end_time") or "16:00"
+
+    result = database.query_free_rooms(
+        target_date=target_date,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    return jsonify(result)
+
+
+# =============================================================================
+# API Endpoints: ICS Export & Live Google Calendar Feeds
+# =============================================================================
+
 @app.route("/api/export-ics", methods=["POST"])
 def export_ics():
-    """Generates and downloads the .ics file from the selected courses."""
+    """Generates and downloads the .ics file from selected courses."""
     data = request.get_json(silent=True) or {}
     courses = data.get("courses", [])
     calendar_name = data.get("calendar_name") or "Auriga - EPITA Emploi du temps"
@@ -164,7 +303,6 @@ def create_feed():
     if not username or not password:
         return jsonify({"success": False, "error": "Identifiant et mot de passe requis pour le flux d'abonnement."}), 400
 
-    # Generate initial cached ICS if courses provided
     initial_ics = None
     if courses:
         initial_ics = generate_ics_from_courses(courses, calendar_name)
@@ -193,16 +331,12 @@ def create_feed():
 
 @app.route("/feed/<feed_id>.ics", methods=["GET"])
 def serve_feed(feed_id: str):
-    """
-    Serves the live iCalendar feed to external subscribers like Google Calendar.
-    Caches results to avoid hammering Auriga.
-    """
+    """Serves the live iCalendar feed to Google Calendar subscribers."""
     feed = feed_store.get_feed(feed_id)
     if not feed:
         return Response("Flux de calendrier introuvable.", status=404, mimetype="text/plain")
 
     now = time.time()
-    # Check if cached version is recent
     if feed["last_cached_ics"] and (now - feed["last_cached_at"] < FEED_CACHE_DURATION):
         return Response(
             feed["last_cached_ics"],
@@ -232,7 +366,6 @@ def serve_feed(feed_id: str):
             headers={"Content-Disposition": 'inline; filename="planning.ics"'},
         )
     except Exception as e:
-        # If refreshing fails but we have an old cached version, return it gracefully
         if feed["last_cached_ics"]:
             return Response(
                 feed["last_cached_ics"],
@@ -244,7 +377,7 @@ def serve_feed(feed_id: str):
 
 @app.route("/health")
 def health():
-    """Healthcheck endpoint for Docker / reverse proxies."""
+    """Healthcheck endpoint for monitoring."""
     return jsonify({"status": "ok", "time": time.time()})
 
 

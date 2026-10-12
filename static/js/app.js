@@ -140,67 +140,27 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // 1. Auriga Login & Fetch Planning
+    // Auto-load Saved Courses from localStorage (for /personal page)
     // =========================================================================
-    loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        hideAlert();
+    const savedCoursesJson = localStorage.getItem("zeus_courses");
+    const planningWorkspace = document.getElementById("planningWorkspace");
+    const noDataAlert = document.getElementById("noDataAlert");
+    const contributeBtn = document.getElementById("contributeBtn");
 
-        const tokenInput = document.getElementById("tokenInput").value.trim();
-        const username = document.getElementById("usernameInput").value.trim();
-        const password = document.getElementById("passwordInput").value.trim();
-        const startDate = document.getElementById("startDateInput").value.trim();
-        const endDate = document.getElementById("endDateInput").value.trim();
-
-        const isTokenActive = document.getElementById("tab-token-btn")?.classList.contains("active");
-
-        if (isTokenActive || (tokenInput && !username)) {
-            if (!tokenInput) {
-                showAlert("Veuillez coller votre jeton d'accès (access_token).");
-                return;
-            }
-        } else {
-            if (!username || !password) {
-                showAlert("Veuillez renseigner votre identifiant et mot de passe.");
-                return;
-            }
-        }
-
-        userCredentials = { username, password, access_token: tokenInput };
-
-        loginBtn.disabled = true;
-        loginSpinner.classList.remove("d-none");
-        loginIcon.classList.add("d-none");
-
-        const payload = {
-            start_date: startDate,
-            end_date: endDate,
-        };
-        if (isTokenActive || (tokenInput && !password)) {
-            payload.access_token = tokenInput;
-        } else {
-            payload.username = username;
-            payload.password = password;
-        }
-
+    if (savedCoursesJson) {
         try {
-            const res = await fetch("/api/fetch-planning", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
+            allCourses = JSON.parse(savedCoursesJson) || [];
+            selectedCourseIds = new Set(allCourses.map(c => c.id));
+            const savedCreds = localStorage.getItem("zeus_credentials");
+            if (savedCreds) userCredentials = JSON.parse(savedCreds);
 
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.error || `Erreur serveur (${res.status})`);
+            if (planningWorkspace) {
+                planningWorkspace.classList.remove("d-none");
+            }
+            if (noDataAlert) {
+                noDataAlert.classList.add("d-none");
             }
 
-            allCourses = data.courses || [];
-            selectedCourseIds = new Set(allCourses.map(c => c.id));
-
-            // Select initial calendar week:
-            // If today is within the range of courses, use today.
-            // Otherwise, start at the week of the first course.
             const now = new Date();
             if (allCourses.length > 0) {
                 const firstCourseDate = new Date(allCourses[0].start);
@@ -210,35 +170,166 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     currentCalendarDate = new Date(firstCourseDate);
                 }
-            } else {
-                currentCalendarDate = new Date();
             }
 
-            // Render stats summary
-            const stats = data.stats || {};
+            const stats = JSON.parse(localStorage.getItem("zeus_stats") || "{}");
             const typesStr = Object.entries(stats.types || {})
                 .map(([type, count]) => `${type}: ${count}`)
                 .join(", ");
-            document.getElementById("statsSummary").innerHTML =
-                `<strong>${stats.total}</strong> cours trouvés (${typesStr}) | <strong>${stats.cancelled}</strong> annulés`;
+            const statsEl = document.getElementById("statsSummary");
+            if (statsEl) {
+                statsEl.innerHTML = `<strong>${allCourses.length}</strong> cours enregistrés (${typesStr || "Tous"})`;
+            }
 
-            // Build dynamic colorful type filter buttons
+            // Check if contribution button should be visible
+            const consentVal = localStorage.getItem("zeus_consent");
+            if (consentVal === "0" && contributeBtn) {
+                contributeBtn.classList.remove("d-none");
+                contributeBtn.addEventListener("click", async () => {
+                    try {
+                        contributeBtn.disabled = true;
+                        contributeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Envoi...';
+                        const res = await fetch("/api/ingest-consent", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ courses: allCourses })
+                        });
+                        if (res.ok) {
+                            localStorage.setItem("zeus_consent", "1");
+                            contributeBtn.classList.add("d-none");
+                            alert("Merci ! Vos cours ont été ajoutés anonymement à la base collaborative.");
+                        }
+                    } catch (e) {
+                        alert(`Erreur : ${e.message}`);
+                    } finally {
+                        contributeBtn.disabled = false;
+                    }
+                });
+            }
+
             renderTypeFilterButtons(allCourses);
-
-            // Reveal planning section
-            planningSection.classList.remove("d-none");
-            planningSection.scrollIntoView({ behavior: "smooth", block: "start" });
-
             applyFilters();
-
-        } catch (err) {
-            showAlert(`Impossible de récupérer votre emploi du temps : ${err.message}`);
-        } finally {
-            loginBtn.disabled = false;
-            loginSpinner.classList.add("d-none");
-            loginIcon.classList.remove("d-none");
+        } catch (e) {
+            console.error("Error loading saved courses", e);
         }
-    });
+    } else {
+        if (noDataAlert) {
+            noDataAlert.classList.remove("d-none");
+        }
+    }
+
+    // =========================================================================
+    // 1. Auriga Login & Fetch Planning (if login form exists on page)
+    // =========================================================================
+    if (loginForm) {
+        loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            hideAlert();
+
+            const tokenInput = document.getElementById("tokenInput").value.trim();
+            const username = document.getElementById("usernameInput").value.trim();
+            const password = document.getElementById("passwordInput").value.trim();
+            const startDate = document.getElementById("startDateInput").value.trim();
+            const endDate = document.getElementById("endDateInput").value.trim();
+
+            const isTokenActive = document.getElementById("tab-token-btn")?.classList.contains("active");
+
+            if (isTokenActive || (tokenInput && !username)) {
+                if (!tokenInput) {
+                    showAlert("Veuillez coller votre jeton d'accès (access_token).");
+                    return;
+                }
+            } else {
+                if (!username || !password) {
+                    showAlert("Veuillez renseigner votre identifiant et mot de passe.");
+                    return;
+                }
+            }
+
+            userCredentials = { username, password, access_token: tokenInput };
+
+            if (loginBtn) loginBtn.disabled = true;
+            if (loginSpinner) loginSpinner.classList.remove("d-none");
+            if (loginIcon) loginIcon.classList.add("d-none");
+
+            const payload = {
+                start_date: startDate,
+                end_date: endDate,
+                consent: true
+            };
+            if (isTokenActive || (tokenInput && !password)) {
+                payload.access_token = tokenInput;
+            } else {
+                payload.username = username;
+                payload.password = password;
+            }
+
+            try {
+                const res = await fetch("/api/fetch-planning", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || `Erreur serveur (${res.status})`);
+                }
+
+                allCourses = data.courses || [];
+                selectedCourseIds = new Set(allCourses.map(c => c.id));
+
+                localStorage.setItem("zeus_courses", JSON.stringify(allCourses));
+                localStorage.setItem("zeus_stats", JSON.stringify(data.stats || {}));
+                localStorage.setItem("zeus_credentials", JSON.stringify(userCredentials));
+                localStorage.setItem("zeus_consent", "1");
+
+                const now = new Date();
+                if (allCourses.length > 0) {
+                    const firstCourseDate = new Date(allCourses[0].start);
+                    const lastCourseDate = new Date(allCourses[allCourses.length - 1].start);
+                    if (now >= firstCourseDate && now <= lastCourseDate) {
+                        currentCalendarDate = new Date();
+                    } else {
+                        currentCalendarDate = new Date(firstCourseDate);
+                    }
+                } else {
+                    currentCalendarDate = new Date();
+                }
+
+                const stats = data.stats || {};
+                const typesStr = Object.entries(stats.types || {})
+                    .map(([type, count]) => `${type}: ${count}`)
+                    .join(", ");
+                const statsEl = document.getElementById("statsSummary");
+                if (statsEl) {
+                    statsEl.innerHTML = `<strong>${stats.total}</strong> cours trouvés (${typesStr}) | <strong>${stats.cancelled}</strong> annulés`;
+                }
+
+                renderTypeFilterButtons(allCourses);
+
+                if (planningSection) {
+                    planningSection.classList.remove("d-none");
+                    planningSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+                if (planningWorkspace) {
+                    planningWorkspace.classList.remove("d-none");
+                }
+                if (noDataAlert) {
+                    noDataAlert.classList.add("d-none");
+                }
+
+                applyFilters();
+
+            } catch (err) {
+                showAlert(`Impossible de récupérer votre emploi du temps : ${err.message}`);
+            } finally {
+                loginBtn.disabled = false;
+                loginSpinner.classList.add("d-none");
+                loginIcon.classList.remove("d-none");
+            }
+        });
+    }
 
     // =========================================================================
     // 2. Dynamic Course Type Filter Chips (Vibrant & Distinct)
