@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auriga Calendar Sync — EPITA</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-navy shadow-sm">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="#">
+                <i class="bi bi-calendar3-range text-accent fs-4"></i>
+                <span>Auriga <span class="text-accent">Calendar</span></span>
+            </a>
+            <span class="badge bg-secondary-subtle text-light border border-secondary px-3 py-2">
+                <i class="bi bi-mortarboard me-1"></i> EPITA
+            </span>
+        </div>
+    </nav>
+
+    <main class="container my-4">
+
+        <!-- Intro Hero -->
+        <div class="hero-card p-4 mb-4 rounded-4 shadow-sm border">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="fw-bold mb-1">Exportez votre emploi du temps Auriga</h2>
+                    <p class="text-muted mb-0">
+                        Connectez-vous avec vos identifiants EPITA, filtrez précisément vos cours grâce aux <strong>expressions régulières (Regex)</strong> et exportez-les vers <strong>Google Calendar</strong>, Apple Calendar ou Outlook.
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <button class="btn btn-outline-primary btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#helpModal">
+                        <i class="bi bi-question-circle me-1"></i> Comment importer dans Google Calendar ?
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert Notification Box -->
+        <div id="alertBox" class="alert alert-danger d-none shadow-sm rounded-3" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                <div id="alertMessage">Une erreur est survenue.</div>
+            </div>
+        </div>
+
+        <!-- STEP 1: Login Card -->
+        <div class="card card-custom mb-4" id="loginCard">
+            <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between">
+                <h5 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                    <span class="step-badge">1</span>
+                    Connexion Auriga (Keycloak)
+                </h5>
+                <span class="text-muted small"><i class="bi bi-shield-lock me-1"></i> Authentification sécurisée PKCE</span>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning small rounded-3 border-0 mb-3 d-flex align-items-start gap-2">
+                    <i class="bi bi-info-circle-fill text-warning fs-5 flex-shrink-0"></i>
+                    <div>
+                        <strong>Attention :</strong> Votre compte <strong>Auriga (IONIS)</strong> est indépendant de votre compte <strong>Microsoft EPITA (Office 365)</strong>.
+                        Si vous ne vous êtes jamais connecté sur <a href="https://auriga.epita.fr/" target="_blank" class="fw-bold text-dark">auriga.epita.fr</a>, vous devez d'abord cliquer sur <em>« Mot de passe oublié ? »</em> sur la page d'Auriga avec votre adresse EPITA (ex: <code>prenom.nom@epita.fr</code>) pour définir votre mot de passe Auriga.
+                    </div>
+                </div>
+
+                <ul class="nav nav-pills mb-3 small" id="authTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-3 rounded-pill" id="tab-creds-btn" data-bs-toggle="pill" data-bs-target="#tab-creds" type="button" role="tab">
+                            <i class="bi bi-key me-1"></i> Identifiant & Mot de passe
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 rounded-pill" id="tab-token-btn" data-bs-toggle="pill" data-bs-target="#tab-token" type="button" role="tab">
+                            <i class="bi bi-shield-check me-1"></i> Jeton d'accès direct (Bearer Token)
+                        </button>
+                    </li>
+                </ul>
+
+                <form id="loginForm">
+                    <div class="tab-content" id="authTabsContent">
+                        <!-- Tab 1: Username & Password -->
+                        <div class="tab-pane fade show active" id="tab-creds" role="tabpanel">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="usernameInput" class="form-label fw-semibold">Identifiant / Courriel Auriga</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
+                                        <input type="text" class="form-control" id="usernameInput" placeholder="prenom.nom ou prenom.nom@epita.fr" autocomplete="username">
+                                    </div>
+                                    <div class="form-text">Votre email EPITA ou votre identifiant Auriga.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="passwordInput" class="form-label fw-semibold">Mot de passe Auriga</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light"><i class="bi bi-key"></i></span>
+                                        <input type="password" class="form-control" id="passwordInput" placeholder="••••••••••••" autocomplete="current-password">
+                                    </div>
+                                    <div class="form-text">Le mot de passe de votre compte Auriga IONIS.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: Access Token -->
+                        <div class="tab-pane fade" id="tab-token" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="tokenInput" class="form-label fw-semibold">Jeton Bearer / Token Auriga</label>
+                                <textarea class="form-control font-monospace small" id="tokenInput" rows="2" placeholder="Collez votre access_token ici si vous êtes déjà connecté sur auriga.epita.fr"></textarea>
+                                <div class="form-text">
+                                    Astuce : Sur <a href="https://auriga.epita.fr" target="_blank">auriga.epita.fr</a>, ouvrez la console F12 > Réseau > n'importe quelle requête <code>/api/...</code> > en-tête <code>Authorization: Bearer &lt;token&gt;</code>.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Date range accordion / toggle -->
+                    <div class="row g-3 mt-1">
+                        <div class="col-12">
+                            <a class="text-decoration-none small text-muted d-inline-flex align-items-center gap-1" data-bs-toggle="collapse" href="#advancedDates" role="button">
+                                <i class="bi bi-sliders"></i> Personnaliser les dates (Optionnel)
+                            </a>
+                            <div class="collapse mt-2" id="advancedDates">
+                                <div class="row g-2 p-3 bg-light rounded-3 border">
+                                    <div class="col-md-6">
+                                        <label for="startDateInput" class="form-label small">Date de début</label>
+                                        <input type="date" class="form-control form-control-sm" id="startDateInput" value="{{ default_start }}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="endDateInput" class="form-label small">Date de fin</label>
+                                        <input type="date" class="form-control form-control-sm" id="endDateInput" value="{{ default_end }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 text-end mt-4">
+                            <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold rounded-pill" id="loginBtn">
+                                <span class="spinner-border spinner-border-sm d-none me-2" id="loginSpinner" role="status"></span>
+                                <i class="bi bi-arrow-right-circle me-1" id="loginIcon"></i>
+                                Récupérer mon planning
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- STEP 2 & 3: Filter & Preview (Hidden initially) -->
+        <div id="planningSection" class="d-none">
+
+            <!-- Filter Controls Card -->
+            <div class="card card-custom mb-4">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <h5 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                        <span class="step-badge">2</span>
+                        Filtrage & Personnalisation (Regex)
+                    </h5>
+                    <div id="statsSummary" class="small text-muted"></div>
+                </div>
+                <div class="card-body p-4">
+
+                    <!-- Regex Include & Exclude Row -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="includeRegexInput" class="form-label fw-semibold d-flex justify-content-between">
+                                <span><i class="bi bi-funnel text-primary me-1"></i> Filtre Regex — Inclusion</span>
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Garder si correspond</span>
+                            </label>
+                            <input type="text" class="form-control font-monospace" id="includeRegexInput" placeholder="Ex: ALGO|MATH|SYSTEME ou ^\[CM\]">
+                            <div class="form-text">
+                                Raccourcis :
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="^\[CM\]">CM uniquement</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="^\[TD\]">TD uniquement</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="EXAM|Partiel">Examens</button>
+                                <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2 rounded-pill preset-btn" data-target="include" data-val="">Effacer</button>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="excludeRegexInput" class="form-label fw-semibold d-flex justify-content-between">
+                                <span><i class="bi bi-x-circle text-danger me-1"></i> Filtre Regex — Exclusion</span>
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Exclure si correspond</span>
+                            </label>
+                            <input type="text" class="form-control font-monospace" id="excludeRegexInput" placeholder="Ex: Anglais|Sport|Soutenance">
+                            <div class="form-text">
+                                Raccourcis :
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="exclude" data-val="Anglais">Pas d'anglais</button>
+                                <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 rounded-pill preset-btn" data-target="exclude" data-val="Soutenance">Pas de soutenance</button>
+                                <button type="button" class="btn btn-xs btn-outline-danger py-0 px-2 rounded-pill preset-btn" data-target="exclude" data-val="">Effacer</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Type Filter Chips & Toggles -->
+                    <div class="row g-2 align-items-center pt-2 border-top">
+                        <div class="col-lg-8 d-flex flex-wrap align-items-center gap-2">
+                            <div class="d-flex align-items-center gap-2 me-1">
+                                <span class="small fw-semibold text-muted">Types :</span>
+                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none text-primary fw-semibold" id="selectAllTypesBtn">Tous</button>
+                                <span class="text-muted small">|</span>
+                                <button type="button" class="btn btn-link btn-xs p-0 text-decoration-none text-secondary" id="deselectAllTypesBtn">Aucun</button>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2" id="typeButtonGroup">
+                                <!-- Populated dynamically with vibrant colored chips by app.js -->
+                            </div>
+                        </div>
+                        <div class="col-lg-4 text-lg-end">
+                            <div class="form-check form-switch d-inline-block text-start">
+                                <input class="form-check-input" type="checkbox" id="hideCancelledSwitch" checked>
+                                <label class="form-check-label small fw-semibold" for="hideCancelledSwitch">Masquer les cours annulés</label>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Export & Action Bar -->
+            <div class="sticky-action-bar p-3 mb-4 rounded-4 shadow border bg-white d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-success-subtle text-success border border-success fs-6 px-3 py-2" id="selectedCountBadge">
+                        0 cours sélectionnés
+                    </span>
+                    <button class="btn btn-sm btn-outline-secondary" id="selectAllBtn">Tout cocher</button>
+                    <button class="btn btn-sm btn-outline-secondary" id="deselectAllBtn">Tout décocher</button>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-primary fw-semibold px-4 rounded-pill shadow-sm" id="downloadIcsBtn">
+                        <i class="bi bi-download me-1"></i> Télécharger .ics
+                    </button>
+                    <button class="btn btn-outline-dark fw-semibold rounded-pill" id="openFeedModalBtn">
+                        <i class="bi bi-link-45deg me-1"></i> Lien d'abonnement Google Calendar
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 3: Real Calendar View (Weekly with Left & Right Arrows) -->
+            <div class="card card-custom mb-5">
+                <div class="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <h5 class="mb-0 fw-bold d-flex align-items-center gap-2">
+                            <span class="step-badge">3</span>
+                            Aperçu de l'emploi du temps
+                        </h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-primary" id="viewModeWeekBtn">
+                                <i class="bi bi-calendar-week me-1"></i> Semaine
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="viewModeListBtn">
+                                <i class="bi bi-table me-1"></i> Tableau
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Week Navigation Controls (Left & Right Arrows) -->
+                    <div class="d-flex align-items-center gap-2" id="weekNavControls">
+                        <button class="btn btn-outline-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-sm" id="prevWeekBtn" title="Semaine précédente" style="width: 38px; height: 38px;">
+                            <i class="bi bi-chevron-left fs-5"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm px-3 rounded-pill fw-semibold" id="todayWeekBtn">
+                            Aujourd'hui
+                        </button>
+                        <div class="fw-bold px-2 text-navy fs-6" id="currentWeekLabel" style="min-width: 200px; text-align: center;">
+                            Chargement...
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm rounded-circle d-flex align-items-center justify-content-center shadow-sm" id="nextWeekBtn" title="Semaine suivante" style="width: 38px; height: 38px;">
+                            <i class="bi bi-chevron-right fs-5"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card-body p-3">
+                    <!-- 1. Real Calendar Week View -->
+                    <div id="calendarWeekView">
+                        <div class="week-calendar-container" id="weekDaysGrid">
+                            <!-- Populated dynamically with Day Columns and Course Cards by app.js -->
+                        </div>
+                        <div id="noWeekCoursesMessage" class="text-center py-5 text-muted d-none">
+                            <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
+                            <div class="fw-semibold fs-5">Aucun cours cette semaine</div>
+                            <div class="small text-muted mt-1">Utilisez les flèches <strong>&larr;</strong> et <strong>&rarr;</strong> ci-dessus pour naviguer dans votre calendrier.</div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Table / List View (Optional Toggle) -->
+                    <div id="calendarTableView" class="table-responsive d-none">
+                        <table class="table table-hover align-middle mb-0" id="coursesTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 45px;" class="text-center">
+                                        <input class="form-check-input" type="checkbox" id="masterCheckbox" checked>
+                                    </th>
+                                    <th>Date & Heure</th>
+                                    <th>Type</th>
+                                    <th>Matière</th>
+                                    <th>Salle</th>
+                                    <th>Enseignant</th>
+                                    <th>Groupe</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coursesTableBody">
+                                <!-- Populated dynamically by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="noCoursesMessage" class="text-center p-5 text-muted d-none">
+                        <i class="bi bi-search fs-1 d-block mb-2 text-secondary"></i>
+                        Aucun cours ne correspond à vos filtres et regex actuels.
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal: Google Calendar Feed Subscription -->
+    <div class="modal fade" id="feedModal" tabindex="-1" aria-labelledby="feedModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold" id="feedModalLabel">
+                        <i class="bi bi-arrow-repeat text-primary me-2"></i>
+                        Abonnement automatique Google Calendar
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small">
+                        Ce lien permet à Google Calendar de <strong>se synchroniser automatiquement</strong> avec votre emploi du temps et d'appliquer vos filtres Regex.
+                    </p>
+
+                    <div id="feedModalSpinner" class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="small text-muted mt-2">Génération de votre lien personnalisé...</p>
+                    </div>
+
+                    <div id="feedModalContent" class="d-none">
+                        <label class="form-label fw-semibold small">Lien URL de l'agenda (Webcal / iCal) :</label>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
+                            <button class="btn btn-primary" type="button" id="copyFeedUrlBtn">
+                                <i class="bi bi-clipboard me-1"></i> Copier
+                            </button>
+                        </div>
+                        <div id="copyFeedback" class="small text-success d-none mb-3">
+                            <i class="bi bi-check-circle-fill me-1"></i> Lien copié dans le presse-papiers !
+                        </div>
+
+                        <div class="alert alert-info small mb-0 rounded-3 border-0">
+                            <strong>Dans Google Calendar :</strong>
+                            <ol class="mb-0 ps-3 mt-1">
+                                <li>Cliquez sur le <strong>+</strong> à côté de <em>"Autres agendas"</em>.</li>
+                                <li>Sélectionnez <strong>"À partir de l'URL"</strong>.</li>
+                                <li>Collez ce lien et validez. Google Calendar mettra à jour votre agenda périodiquement !</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Help / Instructions -->
+    <div class="modal fade" id="helpModal" tabindex="-1" aria-labelledby="helpModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 shadow">
+                <div class="modal-header border-bottom">
+                    <h5 class="modal-title fw-bold" id="helpModalLabel">
+                        <i class="bi bi-info-circle text-primary me-2"></i>
+                        Comment exporter vers Google Calendar ?
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-4">
+                        <div class="col-md-6 border-end">
+                            <h6 class="fw-bold text-primary mb-2">Méthode 1 : Import direct (Fichier .ics)</h6>
+                            <p class="small text-muted">Idéal pour un import ponctuel rapide.</p>
+                            <ol class="small ps-3">
+                                <li>Filtrez vos cours et cliquez sur <strong>"Télécharger .ics"</strong>.</li>
+                                <li>Allez sur <a href="https://calendar.google.com" target="_blank">Google Calendar</a> sur PC.</li>
+                                <li>Cliquez sur l'icône ⚙️ <strong>Paramètres</strong> en haut à droite.</li>
+                                <li>Dans le menu gauche, ouvrez <strong>Importer et exporter</strong>.</li>
+                                <li>Sélectionnez le fichier <code>auriga_planning.ics</code> et cliquez sur <strong>Importer</strong>.</li>
+                            </ol>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="fw-bold text-success mb-2">Méthode 2 : Lien d'abonnement (Auto-sync)</h6>
+                            <p class="small text-muted">Google Calendar se met à jour tout seul !</p>
+                            <ol class="small ps-3">
+                                <li>Cliquez sur <strong>"Lien d'abonnement Google Calendar"</strong>.</li>
+                                <li>Copiez le lien généré.</li>
+                                <li>Sur Google Calendar, dans la barre latérale gauche, cliquez sur <strong>+</strong> à côté de <em>"Autres agendas"</em>.</li>
+                                <li>Cliquez sur <strong>"À partir de l'URL"</strong>.</li>
+                                <li>Collez l'URL et validez.</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Compris</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

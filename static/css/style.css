@@ -1,0 +1,315 @@
+/* Auriga Calendar Web App Styles */
+
+:root {
+    --primary-navy: #0e1e38;
+    --accent-blue: #0066ff;
+    --accent-blue-hover: #0052cc;
+    --bg-light: #f8fafc;
+    --card-border: #e2e8f0;
+}
+
+body {
+    background-color: var(--bg-light);
+    color: #1e293b;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.bg-navy {
+    background-color: var(--primary-navy) !important;
+}
+
+.text-navy {
+    color: var(--primary-navy) !important;
+}
+
+.text-accent {
+    color: #38bdf8 !important;
+}
+
+.hero-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+    border-color: var(--card-border) !important;
+}
+
+.card-custom {
+    border-radius: 1rem;
+    border: 1px solid var(--card-border);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    background-color: #ffffff;
+    overflow: hidden;
+}
+
+.step-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: var(--primary-navy);
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.btn-xs {
+    font-size: 0.75rem;
+}
+
+.sticky-action-bar {
+    position: sticky;
+    top: 1rem;
+    z-index: 1020;
+    backdrop-filter: blur(8px);
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-color: var(--card-border) !important;
+}
+
+/* ==========================================================================
+   Type Filter Chips (Vibrant & Distinct)
+   ========================================================================== */
+
+.type-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    border: 2px solid;
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    background-color: #ffffff;
+}
+
+.type-filter-chip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+
+.type-filter-chip.unchecked {
+    background-color: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    border-color: #cbd5e1 !important;
+    opacity: 0.55;
+    text-decoration: line-through;
+    box-shadow: none !important;
+}
+
+/* Palette for Course Types (EPITA) */
+.chip-cm, .chip-cme {
+    background-color: #dbeafe !important;
+    color: #1d4ed8 !important;
+    border-color: #2563eb !important;
+}
+.chip-td, .chip-tde {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+    border-color: #059669 !important;
+}
+.chip-tp, .chip-tpe {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    border-color: #d97706 !important;
+}
+.chip-ex, .chip-exam {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border-color: #dc2626 !important;
+}
+.chip-conf {
+    background-color: #f3e8ff !important;
+    color: #6b21a8 !important;
+    border-color: #7c3aed !important;
+}
+.chip-evn {
+    background-color: #ccfbf1 !important;
+    color: #0f766e !important;
+    border-color: #0d9488 !important;
+}
+.chip-vc {
+    background-color: #e0e7ff !important;
+    color: #3730a3 !important;
+    border-color: #4f46e5 !important;
+}
+.chip-prj, .chip-projet, .chip-sout {
+    background-color: #fce7f3 !important;
+    color: #9d174d !important;
+    border-color: #db2777 !important;
+}
+.chip-autre {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+    border-color: #64748b !important;
+}
+
+/* Event Badges (Solid & Crisp for high contrast) */
+.badge-cme, .badge-cm { background-color: #2563eb !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-tde, .badge-td { background-color: #059669 !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-tpe, .badge-tp { background-color: #d97706 !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-ex, .badge-exam { background-color: #dc2626 !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-conf { background-color: #7c3aed !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-evn { background-color: #0d9488 !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-vc { background-color: #4f46e5 !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-prj, .badge-projet, .badge-sout { background-color: #db2777 !important; color: #ffffff !important; border: none; font-weight: 600; }
+.badge-autre { background-color: #64748b !important; color: #ffffff !important; border: none; font-weight: 600; }
+
+/* ==========================================================================
+   Real Weekly Calendar Grid
+   ========================================================================== */
+
+.week-calendar-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding: 0.5rem 0.25rem;
+}
+
+@media (min-width: 992px) {
+    .week-calendar-container {
+        grid-template-columns: repeat(6, 1fr); /* Mon - Sat */
+    }
+}
+
+.day-column {
+    background-color: #ffffff;
+    border: 1px solid var(--card-border);
+    border-radius: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 480px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    transition: border-color 0.15s ease;
+}
+
+.day-column.is-today {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 1.5px #3b82f6;
+}
+
+.day-column-header {
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    border-bottom: 1px solid var(--card-border);
+    background-color: #fafafa;
+    border-top-left-radius: 0.85rem;
+    border-top-right-radius: 0.85rem;
+}
+
+.day-column.is-today .day-column-header {
+    background-color: #eff6ff;
+    color: #1d4ed8;
+}
+
+.day-events-list {
+    padding: 0.65rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    flex-grow: 1;
+}
+
+.calendar-card {
+    background-color: #ffffff;
+    border-radius: 0.65rem;
+    border: 1px solid #e2e8f0;
+    border-left-width: 4.5px;
+    padding: 0.6rem 0.65rem;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+}
+
+.calendar-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.calendar-card.deselected {
+    opacity: 0.5;
+    background-color: #f8fafc;
+    border-style: dashed;
+}
+
+.calendar-card.card-cancelled {
+    background-color: #f8fafc;
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+/* Event card borders by type */
+.border-cm, .border-cme { border-left-color: #2563eb !important; background-color: #f8faff; }
+.border-td, .border-tde { border-left-color: #059669 !important; background-color: #f8fdfa; }
+.border-tp, .border-tpe { border-left-color: #d97706 !important; background-color: #fffdf8; }
+.border-ex, .border-exam { border-left-color: #dc2626 !important; background-color: #fff8f8; }
+.border-conf { border-left-color: #7c3aed !important; background-color: #faf7ff; }
+.border-evn { border-left-color: #0d9488 !important; background-color: #f2fcfb; }
+.border-vc { border-left-color: #4f46e5 !important; background-color: #f6f7ff; }
+.border-prj, .border-projet, .border-sout { border-left-color: #db2777 !important; background-color: #fff5f8; }
+.border-autre { border-left-color: #64748b !important; background-color: #f8fafc; }
+
+.event-checkbox {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    cursor: pointer;
+}
+
+.event-time {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+}
+
+.event-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.25;
+    margin-bottom: 0.35rem;
+    word-break: break-word;
+}
+
+.event-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+/* ==========================================================================
+   Table & Misc Styles
+   ========================================================================== */
+
+.course-row-cancelled {
+    background-color: #f8fafc;
+    opacity: 0.65;
+    text-decoration: line-through;
+}
+
+.table th {
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    color: #64748b;
+}
+
+.table td {
+    font-size: 0.9rem;
+}
+
+.form-control:focus, .form-check-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.15);
+}
