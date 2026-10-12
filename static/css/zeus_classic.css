@@ -1,12 +1,12 @@
 /* Zeus Classic UI Stylesheet - EPITA / 3IE Replica */
 
 :root {
-    --zeus-navy-dark: #003b64;
-    --zeus-navy-btn: #004b75;
-    --zeus-navy-hover: #003654;
-    --zeus-blue-active: #6c98b8;
+    --zeus-navy-dark: #0e1e38;
+    --zeus-navy-btn: #0066ff;
+    --zeus-navy-hover: #0052cc;
+    --zeus-blue-active: #38bdf8;
     --zeus-border: #e2e8f0;
-    --zeus-grid-line: #edf2f7;
+    --zeus-grid-line: #f1f5f9;
     --zeus-hour-height: 52px;
 }
 

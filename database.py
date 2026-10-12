@@ -94,6 +94,7 @@ def init_db(db_path: str = DB_PATH) -> None:
         CREATE INDEX IF NOT EXISTS idx_courses_date ON courses(date_str);
         CREATE INDEX IF NOT EXISTS idx_courses_start ON courses(start);
         CREATE INDEX IF NOT EXISTS idx_courses_type ON courses(activity_type);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_slot ON courses(start, end, course_name);
         CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name);
         CREATE INDEX IF NOT EXISTS idx_rooms_name ON rooms(name);
         CREATE INDEX IF NOT EXISTS idx_groups_name ON groups(name);
@@ -148,9 +149,19 @@ def ingest_courses(courses: List[Dict[str, Any]], consent: bool = True, db_path:
             duration = int(c.get("duration") or 90)
             searchable_text = c.get("searchable_text") or f"{course_name} {activity_type}"
 
-            # Check if course exists
+            # Check if course exists by ID or by same slot (start, end, course_name)
             cur.execute("SELECT id FROM courses WHERE id = ?", (c_id,))
-            exists = cur.fetchone() is not None
+            row_by_id = cur.fetchone()
+            if not row_by_id:
+                cur.execute("SELECT id FROM courses WHERE start = ? AND end = ? AND course_name = ?", (start, end, course_name))
+                row_by_slot = cur.fetchone()
+                if row_by_slot:
+                    c_id = row_by_slot["id"]
+                    exists = True
+                else:
+                    exists = False
+            else:
+                exists = True
 
             if exists:
                 cur.execute("""
