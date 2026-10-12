@@ -701,12 +701,14 @@ def get_epita_group_tree() -> Dict[str, Any]:
                         ]
                     },
                     {
-                        "id": "ing3_lyon",
-                        "label": "ING3 Lyon (S9/S10)",
+                        "id": "majeures_lyon",
+                        "label": "MAJEURES LYON",
                         "expanded": False,
                         "children": [
-                            {"id": "ing3_scia", "label": "SI9 Lyon SCIA", "patterns": ["SI9 Lyon SCIA", "SCIA-G", "SI9 SCIA"]},
-                            {"id": "ing3_promo", "label": "Promo SI9 Lyon", "patterns": ["2627 - SI9 Lyon", "SI9 Lyon"]}
+                            {"id": "maj_if", "label": "IF", "patterns": ["IF", "Ingénierie Financière", "SI7 IF", "SI9 IF"]},
+                            {"id": "maj_rdil", "label": "RDI-L", "patterns": ["RDI-L", "RDI", "SI7 RDI", "SI9 RDI"]},
+                            {"id": "maj_sante", "label": "SANTE", "patterns": ["SANTE", "Santé", "SI7 SANTE", "SI9 SANTE"]},
+                            {"id": "maj_scia_graphes", "label": "SCIA Graphes", "patterns": ["SCIA Graphes", "SCIA-G", "SI9 Lyon SCIA-G", "SI9 Lyon SCIA", "SCIA"]}
                         ]
                     }
                 ]
