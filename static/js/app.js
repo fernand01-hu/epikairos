@@ -10,6 +10,21 @@ let userCredentials = { username: "", password: "", access_token: "" };
 let currentCalendarDate = new Date();
 let currentViewMode = "week"; // "week" | "table"
 
+const coursePalette = [
+    { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
+    { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
+    { bg: "#fef3c7", text: "#92400e", border: "#d97706" }, // Amber
+    { bg: "#ede9fe", text: "#5b21b6", border: "#7c3aed" }, // Purple
+    { bg: "#ccfbf1", text: "#115e59", border: "#0d9488" }, // Teal
+    { bg: "#ffe4e6", text: "#9f1239", border: "#e11d48" }, // Rose
+    { bg: "#e0f2fe", text: "#0369a1", border: "#0284c7" }, // Sky
+    { bg: "#fae8ff", text: "#86198f", border: "#c026d3" }, // Fuchsia
+    { bg: "#f8fafc", text: "#334155", border: "#64748b" }, // Slate
+    { bg: "#ecfccb", text: "#3f6212", border: "#65a30d" }, // Lime
+    { bg: "#ffedd5", text: "#9a3412", border: "#ea580c" }, // Orange
+    { bg: "#fce7f3", text: "#9d174d", border: "#db2777" }, // Pink
+];
+
 document.addEventListener("DOMContentLoaded", () => {
     // DOM Elements - Login & Main UI
     const loginForm = document.getElementById("loginForm");
@@ -332,24 +347,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // =========================================================================
     // 2. Dynamic Course Name Filter Chips (Replacing generic types)
     // =========================================================================
-    const coursePalette = [
-        { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
-        { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
-        { bg: "#fef3c7", text: "#92400e", border: "#d97706" }, // Amber
-        { bg: "#ede9fe", text: "#5b21b6", border: "#7c3aed" }, // Purple
-        { bg: "#ccfbf1", text: "#115e59", border: "#0d9488" }, // Teal
-        { bg: "#ffe4e6", text: "#9f1239", border: "#e11d48" }, // Rose
-        { bg: "#e0f2fe", text: "#0369a1", border: "#0284c7" }, // Sky
-        { bg: "#fae8ff", text: "#86198f", border: "#c026d3" }, // Fuchsia
-        { bg: "#f8fafc", text: "#334155", border: "#64748b" }, // Slate
-        { bg: "#ecfccb", text: "#3f6212", border: "#65a30d" }, // Lime
-        { bg: "#ffedd5", text: "#9a3412", border: "#ea580c" }, // Orange
-        { bg: "#fce7f3", text: "#9d174d", border: "#db2777" }, // Pink
-    ];
-
     function renderTypeFilterButtons(courses) {
         if (!typeButtonGroup) return;
 
