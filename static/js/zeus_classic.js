@@ -631,14 +631,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Auriga Sync Modal triggers
-    document.getElementById("userProfileBadge").addEventListener("click", () => {
-        authSyncModal.show();
-    });
+    const userProfileBadge = document.getElementById("userProfileBadge");
+    if (userProfileBadge) {
+        userProfileBadge.addEventListener("click", () => {
+            authSyncModal.show();
+        });
+    }
 
-    document.getElementById("menuLoginTrigger").addEventListener("click", (e) => {
-        e.preventDefault();
-        authSyncModal.show();
-    });
+    const menuLoginTrigger = document.getElementById("menuLoginTrigger");
+    if (menuLoginTrigger) {
+        menuLoginTrigger.addEventListener("click", (e) => {
+            e.preventDefault();
+            authSyncModal.show();
+        });
+    }
 
     document.getElementById("modalLoginForm").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -661,7 +667,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!res.ok || !data.success) throw new Error(data.error || "Erreur de connexion");
 
             localStorage.setItem("zeus_credentials", JSON.stringify({ username, password }));
-            userDisplayName.textContent = username.split("@")[0];
+            if (userDisplayName) {
+                userDisplayName.textContent = username.split("@")[0];
+            }
             authSyncModal.hide();
             alert(`Synchronisation réussie ! ${data.courses.length} cours récupérés.`);
             fetchSchedule();

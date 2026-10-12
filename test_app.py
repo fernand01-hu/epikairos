@@ -114,15 +114,20 @@ class TestFlaskApp(unittest.TestCase):
         feed_store.delete_feed(feed_id)
 
     def test_multi_page_routes(self):
-        # Zeus Classic UI on /
+        # Accueil Dashboard on /
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Zeus", res.data)
+        self.assertIn(b"Base Collaborative", res.data)
 
         # Collaborative Dashboard on /dashboard
         res = self.client.get("/dashboard")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Base Collaborative", res.data)
+
+        # Old Zeus page on /old-zeus
+        res = self.client.get("/old-zeus")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Old Zeus", res.data)
 
         # Login page
         res = self.client.get("/login")
@@ -179,12 +184,17 @@ class TestFlaskApp(unittest.TestCase):
         self.assertTrue(data.get("success"))
 
     def test_zeus_classic_routes(self):
-        # Zeus Classic UI
-        res = self.client.get("/zeus")
+        # Old Zeus UI on /old-zeus
+        res = self.client.get("/old-zeus")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Zeus", res.data)
+        self.assertIn(b"Old Zeus", res.data)
         self.assertIn(b"Trouver une salle", res.data)
         self.assertIn(b"G\xc3\xa9n\xc3\xa9rer un ICS", res.data)
+
+        # Alias on /zeus
+        res_alias = self.client.get("/zeus")
+        self.assertEqual(res_alias.status_code, 200)
+        self.assertIn(b"Old Zeus", res_alias.data)
 
         # Groups tree API
         tree_res = self.client.get("/api/groups/tree")

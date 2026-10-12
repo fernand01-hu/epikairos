@@ -50,9 +50,21 @@ database.init_db()
 # =============================================================================
 
 @app.route("/")
+@app.route("/dashboard")
+def dashboard():
+    """Dashboard view of the collaborative database (Accueil)."""
+    stats = database.get_database_stats()
+    return render_template(
+        "dashboard.html",
+        stats=stats,
+        active_page="dashboard",
+    )
+
+
+@app.route("/old-zeus")
 @app.route("/zeus")
-def zeus_classic():
-    """Main classic Zeus interface with group treeview and timetable grid."""
+def old_zeus():
+    """Classic Zeus interface with EPITA group treeview and timetable grid."""
     start_date, end_date = get_default_school_year_range()
     today_str = date.today().isoformat()
     return render_template(
@@ -60,17 +72,7 @@ def zeus_classic():
         default_start=start_date,
         default_end=end_date,
         today_date=today_str,
-    )
-
-
-@app.route("/dashboard")
-def dashboard():
-    """Dashboard view of the collaborative database."""
-    stats = database.get_database_stats()
-    return render_template(
-        "dashboard.html",
-        stats=stats,
-        active_page="dashboard",
+        active_page="old-zeus",
     )
 
 

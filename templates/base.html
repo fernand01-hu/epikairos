@@ -15,7 +15,7 @@
 
     <!-- Global Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-navy shadow-sm sticky-top">
-        <div class="container">
+        <div class="container{% block nav_container_type %}{% endblock %}">
             <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/">
                 <i class="bi bi-calendar3-range text-accent fs-4"></i>
                 <span>Zeus <span class="text-accent">Auriga</span></span>
@@ -28,6 +28,11 @@
                     <li class="nav-item">
                         <a class="nav-link {% if active_page == 'dashboard' %}active fw-semibold text-accent{% endif %}" href="/">
                             <i class="bi bi-speedometer2 me-1"></i> Accueil
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if active_page == 'old-zeus' %}active fw-semibold text-accent{% endif %}" href="/old-zeus">
+                            <i class="bi bi-calendar-week me-1"></i> Old Zeus
                         </a>
                     </li>
                     <li class="nav-item">
@@ -64,7 +69,7 @@
     </nav>
 
     <!-- Main Content Container -->
-    <main class="container my-4 flex-grow-1">
+    <main class="{% block main_container_class %}container my-4{% endblock %} flex-grow-1">
         {% block content %}{% endblock %}
     </main>
 

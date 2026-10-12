@@ -1,249 +1,239 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zeus — Emploi du Temps EPITA</title>
-    <!-- Bootstrap 5 CSS & Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <!-- Zeus Classic Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}">
-</head>
-<body>
+{% extends "base.html" %}
 
-    <!-- Top Header Bar -->
-    <header class="zeus-header">
-        <div class="zeus-header-left">
-            <div class="dropdown">
-                <button class="zeus-menu-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Menu principal">
-                    <i class="bi bi-three-dots-vertical"></i>
-                </button>
-                <ul class="dropdown-menu shadow">
-                    <li><h6 class="dropdown-header">Navigation Zeus</h6></li>
-                    <li><a class="dropdown-item" href="/dashboard"><i class="bi bi-speedometer2 me-2 text-primary"></i>Tableau de bord</a></li>
-                    <li><a class="dropdown-item" href="/personal"><i class="bi bi-person-badge me-2 text-success"></i>Mon Planning & Filtres Regex</a></li>
-                    <li><a class="dropdown-item" href="/rooms"><i class="bi bi-door-open me-2 text-warning"></i>Salles Libres</a></li>
-                    <li><a class="dropdown-item" href="/custom-calendar"><i class="bi bi-sliders me-2 text-info"></i>Agendas Sur-Mesure</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item" href="#" id="menuLoginTrigger"><i class="bi bi-key me-2 text-secondary"></i>Synchroniser mon compte Auriga</a></li>
-                </ul>
-            </div>
-            <span class="zeus-title">Zeus</span>
-        </div>
+{% block title %}Old Zeus — Emploi du Temps EPITA{% endblock %}
 
-        <div class="zeus-header-right">
-            <div class="zeus-user-badge" id="userProfileBadge" title="Compte connecté">
-                <span id="userDisplayName">fernand.huttois</span>
-                <i class="bi bi-person-circle fs-5"></i>
-            </div>
-        </div>
-    </header>
+{% block head %}
+<!-- Zeus Classic Custom CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}">
+{% endblock %}
 
-    <!-- Main Container -->
-    <div class="zeus-app-body">
+{% block main_container_class %}container-fluid px-3 py-3{% endblock %}
 
-        <!-- Left Sidebar -->
-        <aside class="zeus-sidebar">
-            <!-- Trouver une salle button -->
-            <button type="button" class="btn-zeus-primary w-100" id="btnFindRoom">
-                Trouver une salle
+{% block content %}
+<!-- Top Header Banner matching rest of UI -->
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+        <h2 class="fw-bold mb-0 d-flex align-items-center gap-2">
+            <i class="bi bi-calendar-week text-primary"></i>
+            Old Zeus — Emploi du Temps EPITA
+        </h2>
+        <p class="text-muted small mb-0">
+            Interface classique inspirée de l'application Zeus avec arborescence des promotions et grille horaire interactive.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 rounded-pill small">
+            <i class="bi bi-diagram-3 me-1"></i> Arborescence EPITA
+        </span>
+        <button type="button" class="btn btn-outline-primary btn-sm rounded-pill fw-semibold px-3" data-bs-toggle="modal" data-bs-target="#authSyncModal">
+            <i class="bi bi-arrow-repeat me-1"></i> Synchroniser Auriga
+        </button>
+    </div>
+</div>
+
+<!-- Main App Layout: Sidebar + Timetable -->
+<div class="zeus-app-body card-custom">
+
+    <!-- Left Sidebar -->
+    <aside class="zeus-sidebar">
+        <!-- Trouver une salle button -->
+        <button type="button" class="btn btn-primary w-100 fw-semibold rounded-pill mb-2 shadow-sm" id="btnFindRoom">
+            <i class="bi bi-door-open me-1"></i> Trouver une salle
+        </button>
+
+        <!-- Search box -->
+        <div class="zeus-search-box">
+            <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="ex: EPITA">
+            <button class="btn-search-icon" id="btnSearchTree" title="Rechercher">
+                <i class="bi bi-search"></i>
             </button>
+            <button class="btn-clear-icon" id="btnClearSearch" title="Effacer">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
 
-            <!-- Search box -->
-            <div class="zeus-search-box">
-                <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="ex: EPITA">
-                <button class="btn-search-icon" id="btnSearchTree" title="Rechercher">
-                    <i class="bi bi-search"></i>
+        <!-- Group section header -->
+        <div class="zeus-group-header" id="btnToggleGroupSection">
+            <span class="fw-bold"><i class="bi bi-folder2-open me-1"></i> Groupes</span>
+            <i class="bi bi-chevron-up" id="groupChevron"></i>
+        </div>
+
+        <!-- Hierarchical Treeview -->
+        <div class="zeus-tree-container" id="groupTreeContainer">
+            <div class="text-center py-4 text-muted small" id="treeLoadingSpinner">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <div class="mt-1">Chargement des groupes...</div>
+            </div>
+        </div>
+
+        <!-- Actions and Footer -->
+        <div class="zeus-sidebar-actions">
+            <button type="button" class="btn-clear-selection" id="btnClearSelection">
+                <i class="bi bi-trash"></i> SUPPRIMER LA SELECTION
+            </button>
+            <button type="button" class="btn btn-success w-100 fw-semibold rounded-pill mt-2 shadow-sm" id="btnGenerateIcs">
+                <i class="bi bi-download me-1"></i> Générer un ICS
+            </button>
+            <div class="zeus-sidebar-footer">
+                Contact: <a href="mailto:zeus@3ie.fr" class="text-decoration-none">zeus@3ie.fr</a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Right Timetable Area -->
+    <main class="zeus-timetable-area">
+        <!-- Timetable Top Bar -->
+        <div class="zeus-timetable-topbar">
+            <div class="topbar-nav d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center" id="btnPrevWeek" title="Semaine précédente" style="width: 32px; height: 32px;">
+                    <i class="bi bi-chevron-left"></i>
                 </button>
-                <button class="btn-clear-icon" id="btnClearSearch" title="Effacer">
-                    <i class="bi bi-x-lg"></i>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center" id="btnNextWeek" title="Semaine suivante" style="width: 32px; height: 32px;">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-primary rounded-pill fw-semibold px-3 ms-1" id="btnToday">
+                    Aujourd'hui
                 </button>
             </div>
 
-            <!-- Group section header -->
-            <div class="zeus-group-header" id="btnToggleGroupSection">
-                <span>Groupes</span>
-                <i class="bi bi-chevron-up" id="groupChevron"></i>
+            <div class="topbar-title fw-bold text-navy" id="weekTitleLabel">
+                Semaine 42
             </div>
 
-            <!-- Hierarchical Treeview -->
-            <div class="zeus-tree-container" id="groupTreeContainer">
-                <div class="text-center py-4 text-muted small" id="treeLoadingSpinner">
-                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                    <div class="mt-1">Chargement des groupes...</div>
+            <div class="topbar-views d-flex align-items-center gap-2">
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-primary active" id="btnViewWeek">Semaine</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnViewDay">Jour</button>
                 </div>
+                <input type="date" class="form-control form-control-sm rounded-pill" id="topbarDatePicker" value="{{ today_date }}" style="width: auto;">
+            </div>
+        </div>
+
+        <!-- Days Column Header Row -->
+        <div class="zeus-grid-header">
+            <div class="grid-time-spacer"></div>
+            <div class="grid-days-container" id="gridDaysHeaderContainer">
+                <!-- Populated dynamically: lundi 12 oct. ... dimanche 18 oct. -->
+            </div>
+        </div>
+
+        <!-- 24-Hour Scrollable Grid Body -->
+        <div class="zeus-grid-body" id="gridBody">
+            <!-- Left Hours Column (00:00 to 23:00) -->
+            <div class="grid-time-column" id="gridTimeColumn">
+                <!-- Populated with hour labels 00:00 to 23:00 -->
             </div>
 
-            <!-- Actions and Footer -->
-            <div class="zeus-sidebar-actions">
-                <button type="button" class="btn-clear-selection" id="btnClearSelection">
-                    <i class="bi bi-trash"></i> SUPPRIMER LA SELECTION
-                </button>
-                <button type="button" class="btn-zeus-primary w-100" id="btnGenerateIcs">
-                    Générer un ICS
-                </button>
-                <div class="zeus-sidebar-footer">
-                    Contact: <a href="mailto:zeus@3ie.fr">zeus@3ie.fr</a>
-                </div>
+            <!-- 7 Day Columns -->
+            <div class="grid-columns-container" id="gridColumnsContainer">
+                <!-- Populated with columns and course cards -->
             </div>
-        </aside>
+        </div>
+    </main>
 
-        <!-- Right Timetable Area -->
-        <main class="zeus-timetable-area">
-            <!-- Timetable Top Bar -->
-            <div class="zeus-timetable-topbar">
-                <div class="topbar-nav">
-                    <button type="button" class="btn-topbar-arrow" id="btnPrevWeek" title="Semaine précédente">
-                        <i class="bi bi-chevron-left"></i>
-                    </button>
-                    <button type="button" class="btn-topbar-arrow" id="btnNextWeek" title="Semaine suivante">
-                        <i class="bi bi-chevron-right"></i>
-                    </button>
-                    <button type="button" class="btn-zeus-primary" id="btnToday">
-                        Aujourd'hui
-                    </button>
-                </div>
+</div>
 
-                <div class="topbar-title" id="weekTitleLabel">
-                    Semaine 42
-                </div>
-
-                <div class="topbar-views">
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn-view-toggle active" id="btnViewWeek">Semaine</button>
-                        <button type="button" class="btn-view-toggle" id="btnViewDay">Jour</button>
+<!-- Modal 1: Trouver une salle -->
+<div class="modal fade" id="findRoomModal" tabindex="-1" aria-labelledby="findRoomModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom bg-light">
+                <h5 class="modal-title fw-bold" id="findRoomModalLabel">
+                    <i class="bi bi-door-open text-primary me-2"></i>
+                    Recherche de Salles Libres
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="quickRoomSearchForm">
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-semibold">Date</label>
+                            <input type="date" class="form-control form-control-sm rounded-pill" id="modalRoomDate" value="{{ today_date }}">
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label small fw-semibold">Heure Début</label>
+                            <input type="time" class="form-control form-control-sm rounded-pill" id="modalRoomStart" value="14:00">
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label small fw-semibold">Heure Fin</label>
+                            <input type="time" class="form-control form-control-sm rounded-pill" id="modalRoomEnd" value="16:00">
+                        </div>
+                        <div class="col-sm-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold">Chercher</button>
+                        </div>
                     </div>
-                    <input type="date" class="topbar-datepicker" id="topbarDatePicker" value="{{ today_date }}">
-                </div>
-            </div>
+                </form>
 
-            <!-- Days Column Header Row -->
-            <div class="zeus-grid-header">
-                <div class="grid-time-spacer"></div>
-                <div class="grid-days-container" id="gridDaysHeaderContainer">
-                    <!-- Populated dynamically: lundi 12 oct. ... dimanche 18 oct. -->
-                </div>
-            </div>
-
-            <!-- 24-Hour Scrollable Grid Body -->
-            <div class="zeus-grid-body" id="gridBody">
-                <!-- Left Hours Column (00:00 to 23:00) -->
-                <div class="grid-time-column" id="gridTimeColumn">
-                    <!-- Populated with hour labels 00:00 to 23:00 -->
-                </div>
-
-                <!-- 7 Day Columns -->
-                <div class="grid-columns-container" id="gridColumnsContainer">
-                    <!-- Populated with columns and course cards -->
-                </div>
-            </div>
-        </main>
-
-    </div>
-
-    <!-- Modal 1: Trouver une salle -->
-    <div class="modal fade" id="findRoomModal" tabindex="-1" aria-labelledby="findRoomModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content rounded-4 border-0 shadow">
-                <div class="modal-header border-bottom bg-light">
-                    <h5 class="modal-title fw-bold" id="findRoomModalLabel">
-                        <i class="bi bi-door-open text-primary me-2"></i>
-                        Recherche de Salles Libres
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <form id="quickRoomSearchForm">
-                        <div class="row g-2 align-items-end mb-3">
-                            <div class="col-sm-4">
-                                <label class="form-label small fw-semibold">Date</label>
-                                <input type="date" class="form-control form-control-sm" id="modalRoomDate" value="{{ today_date }}">
-                            </div>
-                            <div class="col-sm-3">
-                                <label class="form-label small fw-semibold">Heure Début</label>
-                                <input type="time" class="form-control form-control-sm" id="modalRoomStart" value="14:00">
-                            </div>
-                            <div class="col-sm-3">
-                                <label class="form-label small fw-semibold">Heure Fin</label>
-                                <input type="time" class="form-control form-control-sm" id="modalRoomEnd" value="16:00">
-                            </div>
-                            <div class="col-sm-2">
-                                <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold">Chercher</button>
-                            </div>
-                        </div>
-                    </form>
-
-                    <div id="modalRoomsResults" class="mt-3">
-                        <div class="text-center py-4 text-muted small">
-                            Cliquez sur "Chercher" pour afficher la liste des salles disponibles.
-                        </div>
+                <div id="modalRoomsResults" class="mt-3">
+                    <div class="text-center py-4 text-muted small">
+                        Cliquez sur "Chercher" pour afficher la liste des salles disponibles.
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modal 2: Détails du cours -->
-    <div class="modal fade" id="courseDetailModal" tabindex="-1" aria-labelledby="courseDetailModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0 shadow">
-                <div class="modal-header border-bottom">
-                    <h5 class="modal-title fw-bold" id="courseDetailTitle">Détail du cours</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                </div>
-                <div class="modal-body p-4" id="courseDetailBody">
-                    <!-- Populated dynamically -->
-                </div>
-                <div class="modal-footer border-top">
-                    <button type="button" class="btn btn-secondary rounded-pill px-4 btn-sm" data-bs-dismiss="modal">Fermer</button>
-                </div>
+<!-- Modal 2: Détails du cours -->
+<div class="modal fade" id="courseDetailModal" tabindex="-1" aria-labelledby="courseDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="courseDetailTitle">Détail du cours</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body p-4" id="courseDetailBody">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="modal-footer border-top">
+                <button type="button" class="btn btn-secondary rounded-pill px-4 btn-sm" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modal 3: Synchronisation Auriga -->
-    <div class="modal fade" id="authSyncModal" tabindex="-1" aria-labelledby="authSyncModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0 shadow">
-                <div class="modal-header border-bottom">
-                    <h5 class="modal-title fw-bold" id="authSyncModalLabel">
-                        <i class="bi bi-shield-lock text-primary me-2"></i> Synchroniser avec Auriga
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <form id="modalLoginForm">
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Identifiant EPITA</label>
-                            <input type="text" class="form-control form-control-sm" id="modalUsername" placeholder="prenom.nom@epita.fr">
+<!-- Modal 3: Synchronisation Auriga -->
+<div class="modal fade" id="authSyncModal" tabindex="-1" aria-labelledby="authSyncModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="authSyncModalLabel">
+                    <i class="bi bi-shield-lock text-primary me-2"></i> Synchroniser avec Auriga
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form id="modalLoginForm">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Identifiant EPITA</label>
+                        <input type="text" class="form-control form-control-sm rounded-pill" id="modalUsername" placeholder="prenom.nom@epita.fr">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Mot de passe</label>
+                        <input type="password" class="form-control form-control-sm rounded-pill" id="modalPassword" placeholder="••••••••">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Date Début</label>
+                            <input type="date" class="form-control form-control-sm rounded-pill" id="modalSyncStart" value="{{ default_start }}">
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label small fw-semibold">Mot de passe</label>
-                            <input type="password" class="form-control form-control-sm" id="modalPassword" placeholder="••••••••">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold">Date Fin</label>
+                            <input type="date" class="form-control form-control-sm rounded-pill" id="modalSyncEnd" value="{{ default_end }}">
                         </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-6">
-                                <label class="form-label small fw-semibold">Date Début</label>
-                                <input type="date" class="form-control form-control-sm" id="modalSyncStart" value="{{ default_start }}">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label small fw-semibold">Date Fin</label>
-                                <input type="date" class="form-control form-control-sm" id="modalSyncEnd" value="{{ default_end }}">
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold" id="btnModalSyncSubmit">
-                            Synchroniser mon emploi du temps
-                        </button>
-                    </form>
-                </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold" id="btnModalSyncSubmit">
+                        Synchroniser mon emploi du temps
+                    </button>
+                </form>
             </div>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <!-- Bootstrap Bundle JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Zeus Classic Script -->
-    <script src="{{ url_for('static', filename='js/zeus_classic.js') }}"></script>
-</body>
-</html>
+{% block scripts %}
+<!-- Zeus Classic Script -->
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}"></script>
+{% endblock %}
