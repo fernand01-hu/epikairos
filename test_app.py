@@ -188,8 +188,7 @@ class TestFlaskApp(unittest.TestCase):
         res = self.client.get("/old-zeus")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Old Zeus", res.data)
-        self.assertIn(b"Trouver une salle", res.data)
-        self.assertIn(b"G\xc3\xa9n\xc3\xa9rer un ICS", res.data)
+        self.assertIn(b"fernand.huttois@epita.fr", res.data)
 
         # Alias on /zeus
         res_alias = self.client.get("/zeus")

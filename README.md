@@ -1,6 +1,6 @@
-# 📅 Auriga Calendar Web Service (EPITA)
+# 📅 EpiKairos (EPITA Calendar)
 
-Application web auto-hébergeable pour permettre à n'importe quel étudiant d'EPITA de se connecter à **Auriga**, de **prévisualiser et filtrer ses cours avec des expressions régulières (Regex)**, et d'exporter son emploi du temps vers **Google Calendar**, **Apple Calendar** ou **Outlook**.
+Application web auto-hébergeable pour permettre à n'importe quel étudiant d'EPITA de se connecter à **Auriga**, de **prévisualiser et filtrer ses cours avec des expressions régulières (Regex)**, d'utiliser l'interface **Old Zeus**, et d'exporter son emploi du temps vers **Google Calendar**, **Apple Calendar** ou **Outlook**.
 
 Conçu pour tourner sur votre **serveur personnel à la maison** (PC Linux, Raspberry Pi, NAS, Docker ou VPS) avec une interface super simple et intuitive.
 

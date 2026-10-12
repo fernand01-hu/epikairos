@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Auriga Calendar Web Service (Zeus v2)
+EpiKairos Web Service (EPITA Calendar)
 =====================================
 Self-hosted multi-page web platform for EPITA students:
 1. Personal schedule preview & regex filtering with Google Calendar sync.
 2. Shared knowledge base (courses, teachers, rooms, groups) with user consent.
 3. Custom merged calendar generator (by teacher, promo, room).
 4. Real-time available classroom finder (free rooms).
+5. Old Zeus classic interface replica with group treeview and 24h timetable.
 """
 
 from datetime import datetime, date
@@ -312,7 +313,7 @@ def export_ics():
     """Generates and downloads the .ics file from selected courses."""
     data = request.get_json(silent=True) or {}
     courses = data.get("courses", [])
-    calendar_name = data.get("calendar_name") or "Auriga - EPITA Emploi du temps"
+    calendar_name = data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps"
 
     if not courses:
         return jsonify({"success": False, "error": "Aucun cours sélectionné pour l'exportation."}), 400
@@ -323,7 +324,7 @@ def export_ics():
         ics_content,
         mimetype="text/calendar; charset=utf-8",
         headers={
-            "Content-Disposition": 'attachment; filename="auriga_planning.ics"',
+            "Content-Disposition": 'attachment; filename="epikairos_planning.ics"',
             "Cache-Control": "no-cache, no-store, must-revalidate",
         },
     )
@@ -339,7 +340,7 @@ def create_feed():
     exclude_regex = data.get("exclude_regex")
     allowed_types = data.get("allowed_types")
     hide_cancelled = bool(data.get("hide_cancelled", False))
-    calendar_name = data.get("calendar_name") or "Auriga - EPITA Emploi du temps"
+    calendar_name = data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps"
     courses = data.get("courses", [])
 
     if not username or not password:
@@ -426,5 +427,5 @@ def health():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     host = os.getenv("HOST", "0.0.0.0")
-    print(f"[*] Starting Auriga Calendar Web App on http://{host}:{port}")
+    print(f"[*] Starting EpiKairos Web App on http://{host}:{port}")
     app.run(host=host, port=port, debug=False)

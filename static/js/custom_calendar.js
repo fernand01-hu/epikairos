@@ -409,7 +409,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     courses: customCourses,
-                    calendar_name: "Zeus - Agenda Personnalisé EPITA"
+                    calendar_name: "EpiKairos - Agenda Personnalisé EPITA"
                 })
             });
 
@@ -420,7 +420,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const a = document.createElement("a");
             a.style.display = "none";
             a.href = url;
-            a.download = "custom_planning_epita.ics";
+            a.download = "epikairos_custom_planning.ics";
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);

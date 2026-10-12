@@ -590,45 +590,47 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Generate ICS download
-    btnGenerateIcs.addEventListener("click", async () => {
-        if (activeCourses.length === 0) {
-            alert("Aucun cours sélectionné. Cochez au moins un groupe dans l'arbre pour générer l'ICS.");
-            return;
-        }
+    if (btnGenerateIcs) {
+        btnGenerateIcs.addEventListener("click", async () => {
+            if (activeCourses.length === 0) {
+                alert("Aucun cours sélectionné. Cochez au moins un groupe dans l'arbre pour générer l'ICS.");
+                return;
+            }
 
-        try {
-            btnGenerateIcs.disabled = true;
-            btnGenerateIcs.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Génération...';
+            try {
+                btnGenerateIcs.disabled = true;
+                btnGenerateIcs.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Génération...';
 
-            const res = await fetch("/api/export-ics", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    courses: activeCourses,
-                    calendar_name: "Zeus - Emploi du Temps EPITA"
-                })
-            });
+                const res = await fetch("/api/export-ics", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        courses: activeCourses,
+                        calendar_name: "EpiKairos - Emploi du Temps EPITA"
+                    })
+                });
 
-            if (!res.ok) throw new Error("Erreur de téléchargement");
+                if (!res.ok) throw new Error("Erreur de téléchargement");
 
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.style.display = "none";
-            a.href = url;
-            a.download = "zeus_planning.ics";
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.style.display = "none";
+                a.href = url;
+                a.download = "epikairos_planning.ics";
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
 
-        } catch (err) {
-            alert(`Erreur : ${err.message}`);
-        } finally {
-            btnGenerateIcs.disabled = false;
-            btnGenerateIcs.innerHTML = "Générer un ICS";
-        }
-    });
+            } catch (err) {
+                alert(`Erreur : ${err.message}`);
+            } finally {
+                btnGenerateIcs.disabled = false;
+                btnGenerateIcs.innerHTML = "Générer un ICS";
+            }
+        });
+    }
 
     // Auriga Sync Modal triggers
     const userProfileBadge = document.getElementById("userProfileBadge");
