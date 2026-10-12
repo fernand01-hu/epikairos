@@ -114,8 +114,13 @@ class TestFlaskApp(unittest.TestCase):
         feed_store.delete_feed(feed_id)
 
     def test_multi_page_routes(self):
-        # Dashboard
+        # Zeus Classic UI on /
         res = self.client.get("/")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Zeus", res.data)
+
+        # Collaborative Dashboard on /dashboard
+        res = self.client.get("/dashboard")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Base Collaborative", res.data)
 
@@ -173,7 +178,32 @@ class TestFlaskApp(unittest.TestCase):
         data = res.get_json()
         self.assertTrue(data.get("success"))
 
+    def test_zeus_classic_routes(self):
+        # Zeus Classic UI
+        res = self.client.get("/zeus")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"Zeus", res.data)
+        self.assertIn(b"Trouver une salle", res.data)
+        self.assertIn(b"G\xc3\xa9n\xc3\xa9rer un ICS", res.data)
+
+        # Groups tree API
+        tree_res = self.client.get("/api/groups/tree")
+        self.assertEqual(tree_res.status_code, 200)
+        tree_data = tree_res.get_json()
+        self.assertEqual(tree_data.get("id"), "root")
+        self.assertEqual(tree_data.get("label"), "EPITA")
+
+        # Groups schedule API
+        sched_res = self.client.post(
+            "/api/groups/schedule",
+            json={"patterns": ["S3 Lyon L3"]}
+        )
+        self.assertEqual(sched_res.status_code, 200)
+        sched_data = sched_res.get_json()
+        self.assertTrue(sched_data.get("success"))
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

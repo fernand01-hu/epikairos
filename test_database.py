@@ -173,6 +173,36 @@ class TestDatabaseModule(unittest.TestCase):
         salle_303_info = next(r for r in res["free_rooms"] if r["room_name"] == "Salle 303")
         self.assertEqual(salle_303_info["free_until"], "Jusqu'à 14:00")
 
+    def test_group_tree_and_schedule(self):
+        tree = database.get_epita_group_tree()
+        self.assertEqual(tree["id"], "root")
+        self.assertEqual(tree["label"], "EPITA")
+
+        # Ingest course with group "2627 - S3 Lyon L3"
+        course = {
+            "id": "c_spe_l3",
+            "start": "2026-10-15T14:00:00",
+            "end": "2026-10-15T16:00:00",
+            "course_name": "Transistors",
+            "activity_type": "TD",
+            "is_cancelled": False,
+            "rooms": ["Salle 303"],
+            "teachers": ["Fahd CHEHADE"],
+            "groups": ["2627 - S3 Lyon L3"],
+        }
+        database.ingest_courses([course], consent=True, db_path=self.test_db)
+
+        # Query by alias pattern
+        results = database.query_courses_by_groups(
+            patterns=["S3 Lyon L3"],
+            start_date="2026-10-01",
+            end_date="2026-10-31",
+            db_path=self.test_db,
+        )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["course_name"], "Transistors")
+
 
 if __name__ == "__main__":
     unittest.main()
+

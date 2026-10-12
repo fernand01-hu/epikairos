@@ -50,8 +50,22 @@ database.init_db()
 # =============================================================================
 
 @app.route("/")
+@app.route("/zeus")
+def zeus_classic():
+    """Main classic Zeus interface with group treeview and timetable grid."""
+    start_date, end_date = get_default_school_year_range()
+    today_str = date.today().isoformat()
+    return render_template(
+        "zeus_classic.html",
+        default_start=start_date,
+        default_end=end_date,
+        today_date=today_str,
+    )
+
+
+@app.route("/dashboard")
 def dashboard():
-    """Main dashboard & overview of the collaborative database."""
+    """Dashboard view of the collaborative database."""
     stats = database.get_database_stats()
     return render_template(
         "dashboard.html",
@@ -259,6 +273,32 @@ def find_free_rooms():
     )
 
     return jsonify(result)
+
+
+@app.route("/api/groups/tree", methods=["GET"])
+def get_group_tree():
+    """Returns the EPITA organizational tree for the treeview."""
+    return jsonify(database.get_epita_group_tree())
+
+
+@app.route("/api/groups/schedule", methods=["POST"])
+def get_group_schedule():
+    """Queries courses for selected treeview groups."""
+    data = request.get_json(silent=True) or {}
+    patterns = data.get("patterns") or []
+    start_date = data.get("start_date") or None
+    end_date = data.get("end_date") or None
+
+    courses = database.query_courses_by_groups(
+        patterns=patterns,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return jsonify({
+        "success": True,
+        "courses": courses,
+        "count": len(courses),
+    })
 
 
 # =============================================================================

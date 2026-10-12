@@ -643,3 +643,274 @@ def query_free_rooms(
         "occupied_count": len(occupied_rooms),
         "total_rooms": len(all_rooms),
     }
+
+
+def get_epita_group_tree() -> Dict[str, Any]:
+    """
+    Returns the EPITA organizational tree matching the classic Zeus app.
+    """
+    return {
+        "id": "root",
+        "label": "EPITA",
+        "expanded": True,
+        "children": [
+            {
+                "id": "adm_epita",
+                "label": "ADM EPITA",
+                "patterns": ["ADM", "ADMINISTRATION"],
+                "children": []
+            },
+            {
+                "id": "bachelor_cyber",
+                "label": "BACHELOR CYBER",
+                "patterns": ["BACHELOR", "CYBER"],
+                "children": [
+                    {"id": "bachelor_b1", "label": "B1 CYBER", "patterns": ["B1 CYBER", "BACHELOR 1"]},
+                    {"id": "bachelor_b2", "label": "B2 CYBER", "patterns": ["B2 CYBER", "BACHELOR 2"]},
+                    {"id": "bachelor_b3", "label": "B3 CYBER", "patterns": ["B3 CYBER", "BACHELOR 3"]}
+                ]
+            },
+            {
+                "id": "prepa",
+                "label": "CLASSES PREPARATOIRES",
+                "expanded": True,
+                "children": [
+                    {
+                        "id": "prepa_lyon",
+                        "label": "PREPA LYON",
+                        "expanded": True,
+                        "children": [
+                            {
+                                "id": "spe_lyon",
+                                "label": "SPE Lyon",
+                                "expanded": True,
+                                "children": [
+                                    {"id": "spe_lyon_l1", "label": "S3S4 L1", "patterns": ["S3 Lyon L1", "S3S4 L1", "S3 L1"]},
+                                    {"id": "spe_lyon_l2", "label": "S3S4 L2", "patterns": ["S3 Lyon L2", "S3S4 L2", "S3 L2"]},
+                                    {"id": "spe_lyon_l3", "label": "S3S4 L3", "patterns": ["S3 Lyon L3", "S3S4 L3", "S3 L3", "2627 - S3 Lyon L3"]}
+                                ]
+                            },
+                            {
+                                "id": "sup_lyon",
+                                "label": "SUP Lyon",
+                                "expanded": False,
+                                "children": [
+                                    {"id": "sup_lyon_l1", "label": "S1S2 L1", "patterns": ["S1 Lyon L1", "S1S2 L1", "S1 L1"]},
+                                    {"id": "sup_lyon_l2", "label": "S1S2 L2", "patterns": ["S1 Lyon L2", "S1S2 L2", "S1 L2"]},
+                                    {"id": "sup_lyon_l3", "label": "S1S2 L3", "patterns": ["S1 Lyon L3", "S1S2 L3", "S1 L3"]}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "prepa_paris",
+                        "label": "PREPA PARIS",
+                        "expanded": False,
+                        "children": [
+                            {
+                                "id": "spe_paris",
+                                "label": "SPE Paris",
+                                "children": [
+                                    {"id": "spe_paris_p1", "label": "S3S4 P1", "patterns": ["S3 Paris P1", "S3S4 P1"]},
+                                    {"id": "spe_paris_p2", "label": "S3S4 P2", "patterns": ["S3 Paris P2", "S3S4 P2"]},
+                                    {"id": "spe_paris_p3", "label": "S3S4 P3", "patterns": ["S3 Paris P3", "S3S4 P3"]}
+                                ]
+                            },
+                            {
+                                "id": "sup_paris",
+                                "label": "SUP Paris",
+                                "children": [
+                                    {"id": "sup_paris_p1", "label": "S1S2 P1", "patterns": ["S1 Paris P1", "S1S2 P1"]},
+                                    {"id": "sup_paris_p2", "label": "S1S2 P2", "patterns": ["S1 Paris P2", "S1S2 P2"]},
+                                    {"id": "sup_paris_p3", "label": "S1S2 P3", "patterns": ["S1 Paris P3", "S1S2 P3"]}
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "prepa_rennes",
+                        "label": "PREPA RENNES",
+                        "expanded": False,
+                        "children": [
+                            {"id": "spe_rennes", "label": "SPE Rennes", "patterns": ["SPE Rennes", "S3S4 Rennes"]},
+                            {"id": "sup_rennes", "label": "SUP Rennes", "patterns": ["SUP Rennes", "S1S2 Rennes"]}
+                        ]
+                    },
+                    {
+                        "id": "prepa_strasbourg",
+                        "label": "PREPA STRASBOURG",
+                        "expanded": False,
+                        "children": [
+                            {"id": "spe_strasbourg", "label": "SPE Strasbourg", "patterns": ["SPE Strasbourg", "S3S4 Strasbourg"]},
+                            {"id": "sup_strasbourg", "label": "SUP Strasbourg", "patterns": ["SUP Strasbourg", "S1S2 Strasbourg"]}
+                        ]
+                    },
+                    {
+                        "id": "prepa_toulouse",
+                        "label": "PREPA TOULOUSE",
+                        "expanded": False,
+                        "children": [
+                            {"id": "spe_toulouse", "label": "SPE Toulouse", "patterns": ["SPE Toulouse", "S3S4 Toulouse"]},
+                            {"id": "sup_toulouse", "label": "SUP Toulouse", "patterns": ["SUP Toulouse", "S1S2 Toulouse"]}
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "cycle_ingenieur",
+                "label": "CYCLE INGENIEUR",
+                "expanded": False,
+                "children": [
+                    {
+                        "id": "ing1",
+                        "label": "ING1 (S5/S6)",
+                        "children": [
+                            {"id": "ing1_lyon", "label": "ING1 Lyon", "patterns": ["SI5 Lyon", "ING1 Lyon"]},
+                            {"id": "ing1_paris", "label": "ING1 Paris", "patterns": ["SI5 Paris", "ING1 Paris"]}
+                        ]
+                    },
+                    {
+                        "id": "ing2",
+                        "label": "ING2 (S7/S8)",
+                        "children": [
+                            {"id": "ing2_scia", "label": "Majeure IA / SCIA", "patterns": ["SCIA", "IA", "SI7 SCIA"]},
+                            {"id": "ing2_gistr", "label": "Majeure GISTR", "patterns": ["GISTR", "SI7 GISTR"]},
+                            {"id": "ing2_srs", "label": "Majeure SRS", "patterns": ["SRS", "SI7 SRS"]},
+                            {"id": "ing2_sigl", "label": "Majeure SIGL", "patterns": ["SIGL", "SI7 SIGL"]},
+                            {"id": "ing2_image", "label": "Majeure IMAGE", "patterns": ["IMAGE", "SI7 IMAGE"]}
+                        ]
+                    },
+                    {
+                        "id": "ing3",
+                        "label": "ING3 (S9/S10)",
+                        "children": [
+                            {"id": "ing3_scia", "label": "SI9 Lyon SCIA", "patterns": ["SI9 Lyon SCIA", "SI9 SCIA"]},
+                            {"id": "ing3_general", "label": "SI9 Général", "patterns": ["SI9", "ING3"]}
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "epitapprentissage",
+                "label": "EPITAPPRENTISSAGE",
+                "patterns": ["APPRENTISSAGE", "EPITAPPRENTISSAGE"],
+                "children": []
+            },
+            {
+                "id": "executive_education",
+                "label": "Executive Education",
+                "patterns": ["EXECUTIVE"],
+                "children": []
+            }
+        ]
+    }
+
+
+def query_courses_by_groups(
+    patterns: List[str],
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db_path: str = DB_PATH
+) -> List[Dict[str, Any]]:
+    """
+    Queries courses from the database matching group patterns or aliases.
+    """
+    init_db(db_path)
+    conn = get_db_connection(db_path)
+    cur = conn.cursor()
+
+    conditions = ["c.is_cancelled = 0"]
+    params: List[Any] = []
+
+    if start_date:
+        conditions.append("c.date_str >= ?")
+        params.append(start_date[:10])
+
+    if end_date:
+        conditions.append("c.date_str <= ?")
+        params.append(end_date[:10])
+
+    if patterns:
+        like_clauses = []
+        for p in patterns:
+            like_clauses.append("g.name LIKE ?")
+            params.append(f"%{p}%")
+        group_filter = " OR ".join(like_clauses)
+        conditions.append(f"""
+            c.id IN (
+                SELECT cg.course_id FROM course_groups cg
+                JOIN groups g ON cg.group_id = g.id
+                WHERE {group_filter}
+            )
+        """)
+
+    where_sql = " AND ".join(conditions)
+    sql = f"""
+        SELECT c.* FROM courses c
+        WHERE {where_sql}
+        ORDER BY c.start ASC;
+    """
+    cur.execute(sql, params)
+    course_rows = cur.fetchall()
+
+    if not course_rows:
+        conn.close()
+        return []
+
+    course_ids = [r["id"] for r in course_rows]
+    id_placeholders = ",".join("?" for _ in course_ids)
+
+    cur.execute(f"""
+        SELECT ct.course_id, t.name FROM course_teachers ct
+        JOIN teachers t ON ct.teacher_id = t.id
+        WHERE ct.course_id IN ({id_placeholders})
+    """, course_ids)
+    teacher_map = {}
+    for r in cur.fetchall():
+        teacher_map.setdefault(r["course_id"], []).append(r["name"])
+
+    cur.execute(f"""
+        SELECT cr.course_id, r.name FROM course_rooms cr
+        JOIN rooms r ON cr.room_id = r.id
+        WHERE cr.course_id IN ({id_placeholders})
+    """, course_ids)
+    room_map = {}
+    for r in cur.fetchall():
+        room_map.setdefault(r["course_id"], []).append(r["name"])
+
+    cur.execute(f"""
+        SELECT cg.course_id, g.name FROM course_groups cg
+        JOIN groups g ON cg.group_id = g.id
+        WHERE cg.course_id IN ({id_placeholders})
+    """, course_ids)
+    group_map = {}
+    for r in cur.fetchall():
+        group_map.setdefault(r["course_id"], []).append(r["name"])
+
+    conn.close()
+
+    result = []
+    for r in course_rows:
+        cid = r["id"]
+        result.append({
+            "id": cid,
+            "start": r["start"],
+            "end": r["end"],
+            "duration": r["duration"],
+            "summary": f"[{r['activity_type']}] {r['course_name']}",
+            "course_name": r["course_name"],
+            "course_code": r["course_code"] or "",
+            "activity_type": r["activity_type"],
+            "activity_name": r["activity_name"] or "",
+            "is_exam": bool(r["is_exam"]),
+            "is_cancelled": bool(r["is_cancelled"]),
+            "status": r["status"] or "PLANIFIE",
+            "teachers": teacher_map.get(cid, []),
+            "rooms": room_map.get(cid, []),
+            "groups": group_map.get(cid, []),
+            "description": r["description"] or "",
+            "searchable_text": r["searchable_text"] or "",
+        })
+
+    return result
+
