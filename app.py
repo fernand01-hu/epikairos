@@ -226,8 +226,47 @@ def db_options():
         "teachers": database.get_all_teachers(),
         "rooms": database.get_all_rooms(),
         "groups": database.get_all_groups(),
+        "groups_structured": database.get_all_groups_structured(),
+        "promotions": database.get_structured_promotions_and_groups(),
         "types": database.get_all_activity_types(),
     })
+
+
+@app.route("/api/database/promos", methods=["GET"])
+def db_promos():
+    """Returns the recognized EPITA promotions hierarchy (SUP, SPÉ, ING1, ING3/Majeures)."""
+    return jsonify({
+        "success": True,
+        "promotions": database.get_structured_promotions_and_groups(),
+    })
+
+
+@app.route("/api/database/recurring-courses", methods=["GET"])
+def db_recurring_courses():
+    """Returns detected recurring course patterns and weekly schedule template."""
+    promo_id = request.args.get("promo") or None
+    subgroup = request.args.get("subgroup") or None
+    teacher = request.args.get("teacher") or None
+    keyword = request.args.get("keyword") or None
+    day_str = request.args.get("day")
+    day_of_week = int(day_str) if day_str is not None and day_str.isdigit() else None
+
+    result = database.query_recurring_courses(
+        promo_id=promo_id,
+        subgroup=subgroup,
+        day_of_week=day_of_week,
+        teacher=teacher,
+        keyword=keyword,
+    )
+    return jsonify(result)
+
+
+@app.route("/api/database/detect-patterns", methods=["POST"])
+def db_detect_patterns():
+    """Triggers the recurring course pattern recognition algorithm."""
+    result = database.detect_and_sync_recurring_courses()
+    return jsonify(result)
+
 
 
 @app.route("/api/database/custom-courses", methods=["POST"])

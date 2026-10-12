@@ -29,8 +29,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const viewModeWeekBtn = document.getElementById("viewModeWeekBtn");
     const viewModeListBtn = document.getElementById("viewModeListBtn");
+    const viewModeRecurringBtn = document.getElementById("viewModeRecurringBtn");
     const calendarWeekView = document.getElementById("calendarWeekView");
     const calendarTableView = document.getElementById("calendarTableView");
+    const calendarRecurringView = document.getElementById("calendarRecurringView");
+    const recurringDaysGrid = document.getElementById("recurringDaysGrid");
+    const recurringCountBadge = document.getElementById("recurringCountBadge");
+    const weekNavControls = document.getElementById("weekNavControls");
 
     // =========================================================================
     // Helpers: Course Type Styling
@@ -101,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // 1. Fetch Options (Teachers, Rooms, Groups)
+    // 1. Fetch Options (Teachers, Rooms, Groups structured by Promo)
     // =========================================================================
     async function loadFilterOptions() {
         try {
@@ -118,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 teachersSelect.appendChild(opt);
             });
 
-            // Populate Rooms
+            // Populate Rooms (clean names without floor/level)
             roomsSelect.innerHTML = "";
             (data.rooms || []).forEach(r => {
                 const opt = document.createElement("option");
@@ -127,14 +132,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 roomsSelect.appendChild(opt);
             });
 
-            // Populate Groups
+            // Populate Groups structured by Promotion hierarchy
             groupsSelect.innerHTML = "";
-            (data.groups || []).forEach(g => {
-                const opt = document.createElement("option");
-                opt.value = g;
-                opt.textContent = g;
-                groupsSelect.appendChild(opt);
-            });
+            if (data.promotions && data.promotions.length > 0) {
+                data.promotions.forEach(promo => {
+                    const optgroup = document.createElement("optgroup");
+                    optgroup.label = `${promo.name} (${promo.cycle})`;
+                    (promo.classes || []).forEach(cls => {
+                        const opt = document.createElement("option");
+                        opt.value = cls.name;
+                        opt.textContent = `${cls.display_name} — ${promo.code}`;
+                        optgroup.appendChild(opt);
+                    });
+                    groupsSelect.appendChild(optgroup);
+                });
+            } else {
+                (data.groups || []).forEach(g => {
+                    const opt = document.createElement("option");
+                    opt.value = g;
+                    opt.textContent = g;
+                    groupsSelect.appendChild(opt);
+                });
+            }
 
         } catch (e) {
             console.error("Failed to load options", e);
@@ -378,23 +397,132 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // View Switcher
+    function setActiveView(mode) {
+        currentViewMode = mode;
+        viewModeWeekBtn.classList.toggle("btn-primary", mode === "week");
+        viewModeWeekBtn.classList.toggle("btn-outline-secondary", mode !== "week");
+        viewModeListBtn.classList.toggle("btn-primary", mode === "list");
+        viewModeListBtn.classList.toggle("btn-outline-secondary", mode !== "list");
+        if (viewModeRecurringBtn) {
+            viewModeRecurringBtn.classList.toggle("btn-primary", mode === "recurring");
+            viewModeRecurringBtn.classList.toggle("btn-outline-secondary", mode !== "recurring");
+        }
+
+        calendarWeekView.classList.toggle("d-none", mode !== "week");
+        calendarTableView.classList.toggle("d-none", mode !== "list");
+        if (calendarRecurringView) {
+            calendarRecurringView.classList.toggle("d-none", mode !== "recurring");
+        }
+
+        if (weekNavControls) {
+            weekNavControls.classList.toggle("d-none", mode === "recurring");
+        }
+    }
+
     viewModeWeekBtn.addEventListener("click", () => {
-        viewModeWeekBtn.classList.add("btn-primary");
-        viewModeWeekBtn.classList.remove("btn-outline-secondary");
-        viewModeListBtn.classList.remove("btn-primary");
-        viewModeListBtn.classList.add("btn-outline-secondary");
-        calendarWeekView.classList.remove("d-none");
-        calendarTableView.classList.add("d-none");
+        setActiveView("week");
     });
 
     viewModeListBtn.addEventListener("click", () => {
-        viewModeListBtn.classList.add("btn-primary");
-        viewModeListBtn.classList.remove("btn-outline-secondary");
-        viewModeWeekBtn.classList.remove("btn-primary");
-        viewModeWeekBtn.classList.add("btn-outline-secondary");
-        calendarTableView.classList.remove("d-none");
-        calendarWeekView.classList.add("d-none");
+        setActiveView("list");
     });
+
+    if (viewModeRecurringBtn) {
+        viewModeRecurringBtn.addEventListener("click", () => {
+            setActiveView("recurring");
+            loadRecurringCalendar();
+        });
+    }
+
+    async function loadRecurringCalendar() {
+        if (!recurringDaysGrid) return;
+        recurringDaysGrid.innerHTML = '<div class="p-4 text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Chargement du planning type récurrent...</div>';
+
+        const keyword = customKeywordInput.value.trim();
+        const selectedTeachers = getSelectedValues(teachersSelect);
+
+        let url = `/api/database/recurring-courses?`;
+        if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+        if (selectedTeachers.length === 1) url += `&teacher=${encodeURIComponent(selectedTeachers[0])}`;
+
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!data.success) throw new Error(data.error || "Erreur");
+
+            if (recurringCountBadge) {
+                recurringCountBadge.textContent = `${data.count} créneaux identifiés`;
+            }
+
+            renderRecurringGrid(data.weekly_grid || {});
+        } catch (e) {
+            recurringDaysGrid.innerHTML = `<div class="p-4 text-center text-danger">Erreur : ${e.message}</div>`;
+        }
+    }
+
+    function renderRecurringGrid(weeklyGrid) {
+        recurringDaysGrid.innerHTML = "";
+        const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+        days.forEach(dayName => {
+            const courses = weeklyGrid[dayName] || [];
+            const dayCol = document.createElement("div");
+            dayCol.className = "week-day-col";
+
+            const header = document.createElement("div");
+            header.className = "week-day-header";
+            header.innerHTML = `
+                <div class="day-name">${dayName}</div>
+                <div class="small text-muted">${courses.length} cours type${courses.length > 1 ? "s" : ""}</div>
+            `;
+            dayCol.appendChild(header);
+
+            const body = document.createElement("div");
+            body.className = "week-day-body";
+
+            if (courses.length === 0) {
+                const empty = document.createElement("div");
+                empty.className = "text-center text-muted small py-4 opacity-50";
+                empty.textContent = "Aucun cours";
+                body.appendChild(empty);
+            } else {
+                courses.forEach(c => {
+                    const card = document.createElement("div");
+                    const typeInfo = getTypeInfo(c.activity_type);
+                    card.className = `course-card ${typeInfo.key} mb-2`;
+
+                    const roomDisplay = c.primary_room || "Salle non assignée";
+                    const teacherDisplay = c.primary_teacher || "Enseignant";
+                    const groupDisplay = c.group_display || c.promo_name || "";
+                    const freqText = c.occurrences_count > 1 ? `${c.frequency} (${c.occurrences_count}x)` : "Ponctuel";
+
+                    card.innerHTML = `
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <span class="badge ${typeInfo.key} fw-bold" style="font-size:0.7rem;">${typeInfo.label}</span>
+                            <span class="text-muted fw-semibold" style="font-size:0.75rem;">${c.start_time} - ${c.end_time}</span>
+                        </div>
+                        <div class="course-name fw-bold" title="${c.course_name}">${c.course_name}</div>
+                        <div class="small text-truncate mt-1 text-muted" title="${roomDisplay}">
+                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>${roomDisplay}
+                        </div>
+                        <div class="small text-truncate text-muted" title="${teacherDisplay}">
+                            <i class="bi bi-person-fill text-primary me-1"></i>${teacherDisplay}
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between mt-2 pt-1 border-top" style="font-size:0.7rem;">
+                            <span class="badge bg-light text-dark border text-truncate" style="max-width: 110px;" title="${groupDisplay}">
+                                ${c.subgroup && c.subgroup !== 'Promo' ? 'Classe ' + c.subgroup : (c.promo_name || 'Promo')}
+                            </span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary">${freqText}</span>
+                        </div>
+                    `;
+                    body.appendChild(card);
+                });
+            }
+
+            dayCol.appendChild(body);
+            recurringDaysGrid.appendChild(dayCol);
+        });
+    }
 
     // Download Custom .ics
     downloadCustomIcsBtn.addEventListener("click", async () => {

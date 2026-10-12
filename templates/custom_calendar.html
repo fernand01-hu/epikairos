@@ -124,6 +124,9 @@
                 <button type="button" class="btn btn-outline-secondary" id="viewModeListBtn">
                     <i class="bi bi-table me-1"></i> Tableau
                 </button>
+                <button type="button" class="btn btn-outline-secondary" id="viewModeRecurringBtn" title="Voir les cours récurrents détectés">
+                    <i class="bi bi-arrow-repeat me-1"></i> Planning Type Récurrent
+                </button>
             </div>
         </div>
 
@@ -174,6 +177,21 @@
                     <!-- Populated dynamically -->
                 </tbody>
             </table>
+        </div>
+
+        <!-- 3. Recurring Patterns / Weekly Template Grid -->
+        <div id="calendarRecurringView" class="d-none">
+            <div class="alert alert-info py-2 px-3 small d-flex align-items-center justify-content-between mb-3 rounded-3">
+                <div>
+                    <i class="bi bi-arrow-repeat me-2"></i>
+                    <strong>Emploi du temps type identifié par l'algorithme :</strong>
+                    cours et créneaux hebdomadaires récurrents détectés pour les promotions EPITA.
+                </div>
+                <span class="badge bg-primary text-white" id="recurringCountBadge">0 créneaux identifiés</span>
+            </div>
+            <div class="week-calendar-container" id="recurringDaysGrid">
+                <!-- Populated dynamically -->
+            </div>
         </div>
 
         <div id="noCoursesMessage" class="text-center p-5 text-muted">

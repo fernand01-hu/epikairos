@@ -41,7 +41,7 @@
                         <div class="d-flex justify-content-between mt-2 small text-muted">
                             <span>Salles: <strong>{{ stats.total_rooms }}</strong></span>
                             <span>Profs: <strong>{{ stats.total_teachers }}</strong></span>
-                            <span>Groupes: <strong>{{ stats.total_groups }}</strong></span>
+                            <span>Promos: <strong>{{ stats.total_promotions or 4 }}</strong></span>
                         </div>
                     </div>
                 </div>
@@ -55,25 +55,25 @@
     <div class="col-6 col-md-3">
         <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-primary">
             <div class="display-6 fw-bold text-primary mb-1">{{ stats.total_courses }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Cours Indexés</div>
+            <div class="small fw-semibold text-muted text-uppercase">Séances Indexées</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-success">
-            <div class="display-6 fw-bold text-success mb-1">{{ stats.total_rooms }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Salles Détectées</div>
+            <div class="display-6 fw-bold text-success mb-1">{{ stats.recurring_patterns or stats.total_patterns }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Cours Types Récurrents</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-warning">
-            <div class="display-6 fw-bold text-warning mb-1">{{ stats.total_teachers }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Enseignants</div>
+            <div class="display-6 fw-bold text-warning mb-1">{{ stats.total_rooms }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Salles Disponibles</div>
         </div>
     </div>
     <div class="col-6 col-md-3">
         <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-info">
-            <div class="display-6 fw-bold text-info mb-1">{{ stats.total_groups }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Groupes & Promos</div>
+            <div class="display-6 fw-bold text-info mb-1">{{ stats.total_promotions or 4 }}</div>
+            <div class="small fw-semibold text-muted text-uppercase">Promotions Structurées</div>
         </div>
     </div>
 </div>

@@ -202,7 +202,87 @@ class TestDatabaseModule(unittest.TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["course_name"], "Transistors")
 
+    def test_promotions_and_groups_recognition(self):
+        # 1. Parse SUP Lyon group
+        sup_info = database.parse_group_identity("2627 - S1 Lyon L2")
+        self.assertEqual(sup_info["promo_code"], "SUP")
+        self.assertEqual(sup_info["promo_id"], "sup_lyon")
+        self.assertEqual(sup_info["subgroup"], "L2")
+        self.assertEqual(sup_info["cycle"], "Classes Préparatoires")
+
+        # 2. Parse SPE Lyon full promo
+        spe_promo = database.parse_group_identity("2627 - S3 Lyon")
+        self.assertEqual(spe_promo["promo_code"], "SPE")
+        self.assertEqual(spe_promo["subgroup"], "Promo")
+        self.assertTrue(spe_promo["is_promo_wide"])
+
+        # 3. Parse ING1 group
+        ing1_info = database.parse_group_identity("2627 - SI5 Lyon L3")
+        self.assertEqual(ing1_info["promo_code"], "ING1")
+        self.assertEqual(ing1_info["subgroup"], "L3")
+        self.assertEqual(ing1_info["cycle"], "Cycle Ingénieur")
+
+        # 4. Parse ING3 Majeure SCIA Graphes
+        scia_info = database.parse_group_identity("2627 - SI9 Lyon SCIA-G")
+        self.assertEqual(scia_info["promo_code"], "ING3")
+        self.assertEqual(scia_info["subgroup"], "SCIA-G")
+        self.assertEqual(scia_info["display_name"], "Majeure SCIA Graphes")
+
+    def test_recurring_courses_detection(self):
+        # Create repeating courses across 3 weeks (Thursdays 14:00 - 16:00)
+        sessions = []
+        thursdays = ["2026-10-08", "2026-10-15", "2026-10-22"]
+        for i, d in enumerate(thursdays):
+            sessions.append({
+                "id": f"trans_{i}",
+                "start": f"{d}T14:00:00",
+                "end": f"{d}T16:00:00",
+                "duration": 120,
+                "course_name": "Transistors",
+                "activity_type": "TD",
+                "is_cancelled": False,
+                "rooms": ["Salle 303 (3e étage)"],  # should be sanitized
+                "teachers": ["Fahd CHEHADE"],
+                "groups": ["2627 - S3 Lyon L3"],
+            })
+
+        database.ingest_courses(sessions, consent=True, db_path=self.test_db)
+
+        # Query recurring patterns
+        rec_res = database.query_recurring_courses(db_path=self.test_db)
+        self.assertEqual(rec_res["success"], True)
+        self.assertGreaterEqual(rec_res["count"], 1)
+
+        # Verify pattern details
+        pattern = next(p for p in rec_res["patterns"] if p["course_name"] == "Transistors")
+        self.assertEqual(pattern["activity_type"], "TD")
+        self.assertEqual(pattern["day_name"], "Jeudi")
+        self.assertEqual(pattern["start_time"], "14:00")
+        self.assertEqual(pattern["end_time"], "16:00")
+        self.assertEqual(pattern["occurrences_count"], 3)
+        self.assertEqual(pattern["frequency"], "Hebdomadaire")
+        self.assertEqual(pattern["primary_room"], "Salle 303")  # No floor suffix!
+        self.assertEqual(pattern["primary_teacher"], "Fahd CHEHADE")
+        self.assertEqual(pattern["is_recurring"], 1)
+
+        # Verify weekly grid mapping
+        weekly_grid = rec_res["weekly_grid"]
+        self.assertIn("Jeudi", weekly_grid)
+        self.assertTrue(any(c["course_name"] == "Transistors" for c in weekly_grid["Jeudi"]))
+
+    def test_sanitization_room_and_teacher(self):
+        # Test room sanitizer removes floor/level
+        self.assertEqual(database.sanitize_room_name("Salle 303 (3e étage)"), "Salle 303")
+        self.assertEqual(database.sanitize_room_name("Amphi Plat (0e étage)"), "Amphi Plat")
+        self.assertEqual(database.sanitize_room_name("Salle 328 (3 étage)"), "Salle 328")
+        self.assertEqual(database.sanitize_room_name("Labo 102"), "Labo 102")
+
+        # Test teacher sanitizer removes multiline and groups
+        dirty_teacher = "Fahd CHEHADE\\nGroupe(s): 2627 - S3 Lyon L3\\nSalle(s): Salle 303 (3e étage)\\nStatut: PLANIFIE"
+        self.assertEqual(database.sanitize_teacher_name(dirty_teacher), "Fahd CHEHADE")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

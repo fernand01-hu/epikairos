@@ -321,10 +321,7 @@ def normalize_course(item: dict) -> dict:
         resource = res.get("resource") or {}
         caption = (resource.get("caption") or {}).get("fr") or ""
         code = resource.get("code") or ""
-        floor = resource.get("floor")
         loc_str = caption if caption else code
-        if floor is not None and str(floor) != "":
-            loc_str += f" ({floor}e étage)"
         if loc_str:
             rooms.append(loc_str)
 

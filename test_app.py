@@ -50,7 +50,7 @@ class TestFlaskApp(unittest.TestCase):
             "is_cancelled": False,
             "status": "PLANIFIE",
             "teachers": ["Alan Turing"],
-            "rooms": ["Amphi 1 (0e étage)"],
+            "rooms": ["Amphi 1"],
             "groups": ["ING1"],
             "description": "",
             "searchable_text": "[CM] Algorithmique et structures de données",
@@ -182,6 +182,31 @@ class TestFlaskApp(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         data = res.get_json()
         self.assertTrue(data.get("success"))
+
+        # Promos hierarchy API
+        res_promos = self.client.get("/api/database/promos")
+        self.assertEqual(res_promos.status_code, 200)
+        promos_data = res_promos.get_json()
+        self.assertTrue(promos_data.get("success"))
+        self.assertIn("promotions", promos_data)
+        promo_codes = [p["code"] for p in promos_data["promotions"]]
+        self.assertIn("SUP", promo_codes)
+        self.assertIn("SPE", promo_codes)
+        self.assertIn("ING1", promo_codes)
+
+        # Recurring courses API
+        res_rec = self.client.get("/api/database/recurring-courses")
+        self.assertEqual(res_rec.status_code, 200)
+        rec_data = res_rec.get_json()
+        self.assertTrue(rec_data.get("success"))
+        self.assertIn("patterns", rec_data)
+        self.assertIn("weekly_grid", rec_data)
+
+        # Pattern detection trigger API
+        res_detect = self.client.post("/api/database/detect-patterns")
+        self.assertEqual(res_detect.status_code, 200)
+        detect_data = res_detect.get_json()
+        self.assertTrue(detect_data.get("success"))
 
     def test_zeus_classic_routes(self):
         # Old Zeus UI on /old-zeus
