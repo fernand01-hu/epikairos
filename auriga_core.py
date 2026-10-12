@@ -381,11 +381,12 @@ def filter_courses(
     include_regex: str | None = None,
     exclude_regex: str | None = None,
     allowed_types: list[str] | None = None,
+    allowed_courses: list[str] | None = None,
     hide_cancelled: bool = False,
     selected_ids: set[str] | None = None,
 ) -> tuple[list[dict], str | None]:
     """
-    Filters a list of normalized courses using regex, types, and cancelled status.
+    Filters a list of normalized courses using regex, types, courses, and cancelled status.
     Returns: (filtered_courses, error_message_if_any)
     """
     include_pattern = None
@@ -404,6 +405,7 @@ def filter_courses(
             return [], f"Erreur dans l'expression Regex d'exclusion : {e}"
 
     allowed_types_set = set(t.upper() for t in allowed_types) if allowed_types else None
+    allowed_courses_set = set(c.strip().lower() for c in allowed_courses) if allowed_courses else None
 
     filtered = []
     for c in courses:
@@ -417,6 +419,10 @@ def filter_courses(
 
         # Check activity type filter
         if allowed_types_set and c["activity_type"].upper() not in allowed_types_set:
+            continue
+
+        # Check course name filter
+        if allowed_courses_set and (c.get("course_name") or "").strip().lower() not in allowed_courses_set:
             continue
 
         text = c["searchable_text"]

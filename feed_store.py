@@ -107,6 +107,11 @@ def init_db():
             created_at REAL NOT NULL
         )
     """)
+    cur.execute("PRAGMA table_info(feeds);")
+    cols = [r[1] for r in cur.fetchall()]
+    if "allowed_courses" not in cols:
+        cur.execute("ALTER TABLE feeds ADD COLUMN allowed_courses TEXT;")
+
     conn.commit()
     conn.close()
 
@@ -117,6 +122,7 @@ def create_feed(
     include_regex: str | None = None,
     exclude_regex: str | None = None,
     allowed_types: list[str] | None = None,
+    allowed_courses: list[str] | None = None,
     hide_cancelled: bool = False,
     calendar_name: str = "Auriga - EPITA Emploi du temps",
     initial_ics: str | None = None,
@@ -126,6 +132,7 @@ def create_feed(
     feed_id = secrets.token_urlsafe(20)
     enc_pw = encrypt_secret(password)
     types_str = ",".join(allowed_types) if allowed_types else ""
+    courses_str = "\t".join(allowed_courses) if allowed_courses else ""
     now = time.time()
 
     conn = sqlite3.connect(DB_PATH)
@@ -136,8 +143,8 @@ def create_feed(
             feed_id, username, encrypted_password,
             include_regex, exclude_regex, allowed_types,
             hide_cancelled, calendar_name, last_cached_ics,
-            last_cached_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            last_cached_at, created_at, allowed_courses
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             feed_id,
@@ -151,6 +158,7 @@ def create_feed(
             initial_ics or "",
             now if initial_ics else 0,
             now,
+            courses_str,
         ),
     )
     conn.commit()
@@ -168,7 +176,7 @@ def get_feed(feed_id: str) -> dict | None:
         SELECT feed_id, username, encrypted_password,
                include_regex, exclude_regex, allowed_types,
                hide_cancelled, calendar_name, last_cached_ics,
-               last_cached_at, created_at
+               last_cached_at, created_at, allowed_courses
         FROM feeds WHERE feed_id = ?
         """,
         (feed_id,),
@@ -180,6 +188,7 @@ def get_feed(feed_id: str) -> dict | None:
         return None
 
     allowed_types = [t.strip() for t in row[5].split(",") if t.strip()] if row[5] else []
+    allowed_courses = [c.strip() for c in row[11].split("\t") if c.strip()] if len(row) > 11 and row[11] else []
 
     return {
         "feed_id": row[0],
@@ -188,6 +197,7 @@ def get_feed(feed_id: str) -> dict | None:
         "include_regex": row[3] or None,
         "exclude_regex": row[4] or None,
         "allowed_types": allowed_types or None,
+        "allowed_courses": allowed_courses or None,
         "hide_cancelled": bool(row[6]),
         "calendar_name": row[7] or "Auriga - EPITA Emploi du temps",
         "last_cached_ics": row[8] or "",

@@ -332,47 +332,82 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // 2. Dynamic Course Type Filter Chips (Vibrant & Distinct)
     // =========================================================================
+    // 2. Dynamic Course Name Filter Chips (Replacing generic types)
+    // =========================================================================
+    const coursePalette = [
+        { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
+        { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
+        { bg: "#fef3c7", text: "#92400e", border: "#d97706" }, // Amber
+        { bg: "#ede9fe", text: "#5b21b6", border: "#7c3aed" }, // Purple
+        { bg: "#ccfbf1", text: "#115e59", border: "#0d9488" }, // Teal
+        { bg: "#ffe4e6", text: "#9f1239", border: "#e11d48" }, // Rose
+        { bg: "#e0f2fe", text: "#0369a1", border: "#0284c7" }, // Sky
+        { bg: "#fae8ff", text: "#86198f", border: "#c026d3" }, // Fuchsia
+        { bg: "#f8fafc", text: "#334155", border: "#64748b" }, // Slate
+        { bg: "#ecfccb", text: "#3f6212", border: "#65a30d" }, // Lime
+        { bg: "#ffedd5", text: "#9a3412", border: "#ea580c" }, // Orange
+        { bg: "#fce7f3", text: "#9d174d", border: "#db2777" }, // Pink
+    ];
+
     function renderTypeFilterButtons(courses) {
         if (!typeButtonGroup) return;
 
-        const uniqueTypes = new Set();
+        // Group courses by distinct course name (detected repeating subjects)
+        const courseCounts = new Map();
         courses.forEach(c => {
-            const t = (c.activity_type || "AUTRE").trim().toUpperCase();
-            if (t) uniqueTypes.add(t);
+            const name = (c.course_name || "Cours").trim();
+            if (name) {
+                courseCounts.set(name, (courseCounts.get(name) || 0) + 1);
+            }
         });
 
-        if (uniqueTypes.size === 0) return;
+        if (courseCounts.size === 0) {
+            typeButtonGroup.innerHTML = '<span class="text-muted small">Aucune matière identifiée</span>';
+            return;
+        }
 
-        // Custom sort: CME, CM, TDE, TD, TPE, TP, EX, CONF, EVN, VC, etc.
-        const orderPriority = ["CME", "CM", "TDE", "TD", "TPE", "TP", "EX", "EXAM", "CONF", "EVN", "VC", "PRJ", "SOUT"];
-        const sortedTypes = Array.from(uniqueTypes).sort((a, b) => {
-            const idxA = orderPriority.indexOf(a);
-            const idxB = orderPriority.indexOf(b);
-            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-            if (idxA !== -1) return -1;
-            if (idxB !== -1) return 1;
-            return a.localeCompare(b);
-        });
+        // Sort courses by session count descending, then alphabetically
+        const sortedCourses = Array.from(courseCounts.entries())
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "fr"))
+            .map(e => e[0]);
 
         typeButtonGroup.innerHTML = "";
-        sortedTypes.forEach(type => {
-            const info = getTypeInfo(type);
+        sortedCourses.forEach((courseName, idx) => {
+            const color = coursePalette[idx % coursePalette.length];
+            const count = courseCounts.get(courseName);
+
             const btn = document.createElement("button");
             btn.type = "button";
-            btn.className = `type-filter-chip chip-${info.key}`;
-            btn.dataset.type = type;
-            btn.title = `Filtrer par type : ${type}`;
-            btn.innerHTML = `<i class="bi bi-check-circle-fill"></i><span>${type}</span>`;
+            btn.className = "type-filter-chip course-filter-chip";
+            btn.dataset.course = courseName;
+            btn.dataset.colorBg = color.bg;
+            btn.dataset.colorText = color.text;
+            btn.dataset.colorBorder = color.border;
+            btn.title = `Matière : ${courseName} (${count} séance${count > 1 ? "s" : ""})`;
+            btn.style.backgroundColor = color.bg;
+            btn.style.color = color.text;
+            btn.style.borderColor = color.border;
+
+            btn.innerHTML = `
+                <i class="bi bi-check-circle-fill"></i>
+                <span class="text-truncate" style="max-width: 240px;">${courseName}</span>
+                <span class="badge rounded-pill bg-white text-dark ms-1 shadow-sm" style="font-size:0.65rem; border: 1px solid ${color.border};">${count}</span>
+            `;
 
             btn.addEventListener("click", () => {
                 btn.classList.toggle("unchecked");
                 const icon = btn.querySelector("i");
                 if (btn.classList.contains("unchecked")) {
                     icon.className = "bi bi-circle";
+                    btn.style.backgroundColor = "#f1f5f9";
+                    btn.style.color = "#94a3b8";
+                    btn.style.borderColor = "#cbd5e1";
                 } else {
                     icon.className = "bi bi-check-circle-fill";
+                    btn.style.backgroundColor = color.bg;
+                    btn.style.color = color.text;
+                    btn.style.borderColor = color.border;
                 }
                 applyFilters();
             });
@@ -387,6 +422,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 btn.classList.remove("unchecked");
                 const icon = btn.querySelector("i");
                 if (icon) icon.className = "bi bi-check-circle-fill";
+                if (btn.dataset.colorBg) {
+                    btn.style.backgroundColor = btn.dataset.colorBg;
+                    btn.style.color = btn.dataset.colorText;
+                    btn.style.borderColor = btn.dataset.colorBorder;
+                }
             });
             applyFilters();
         });
@@ -398,6 +438,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 btn.classList.add("unchecked");
                 const icon = btn.querySelector("i");
                 if (icon) icon.className = "bi bi-circle";
+                btn.style.backgroundColor = "#f1f5f9";
+                btn.style.color = "#94a3b8";
+                btn.style.borderColor = "#cbd5e1";
             });
             applyFilters();
         });
@@ -411,10 +454,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const excludeVal = excludeRegexInput.value.trim();
         const hideCancelled = hideCancelledSwitch.checked;
 
-        // Collect checked activity types (chips without .unchecked)
+        // Collect checked course names (chips without .unchecked)
         const activeChipElements = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
-        const activeTypes = activeChipElements.map(cb => cb.dataset.type.toUpperCase());
-        const hasTypeFilters = document.querySelectorAll(".type-filter-chip").length > 0;
+        const activeCourses = activeChipElements.map(cb => cb.dataset.course).filter(Boolean);
+        const hasCourseFilters = document.querySelectorAll(".type-filter-chip").length > 0;
 
         let includePattern = null;
         let excludePattern = null;
@@ -443,9 +486,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 return false;
             }
 
-            if (hasTypeFilters) {
-                const cType = (c.activity_type || "AUTRE").toUpperCase();
-                if (!activeTypes.includes(cType)) {
+            if (hasCourseFilters) {
+                const cName = (c.course_name || "Cours").trim();
+                if (!activeCourses.includes(cName)) {
                     return false;
                 }
             }
@@ -926,7 +969,7 @@ document.addEventListener("DOMContentLoaded", () => {
             copyFeedback.classList.add("d-none");
 
             const activeChipElements = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
-            const checkedTypes = activeChipElements.map(cb => cb.dataset.type.toUpperCase());
+            const checkedCourses = activeChipElements.map(cb => cb.dataset.course).filter(Boolean);
 
             const coursesToExport = visibleCourses.filter(c => selectedCourseIds.has(c.id));
 
@@ -939,7 +982,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         password: userCredentials.password,
                         include_regex: includeRegexInput.value.trim(),
                         exclude_regex: excludeRegexInput.value.trim(),
-                        allowed_types: checkedTypes,
+                        allowed_courses: checkedCourses,
                         hide_cancelled: hideCancelledSwitch.checked,
                         courses: coursesToExport
                     })

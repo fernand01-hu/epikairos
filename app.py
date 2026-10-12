@@ -378,6 +378,7 @@ def create_feed():
     include_regex = data.get("include_regex")
     exclude_regex = data.get("exclude_regex")
     allowed_types = data.get("allowed_types")
+    allowed_courses = data.get("allowed_courses")
     hide_cancelled = bool(data.get("hide_cancelled", False))
     calendar_name = data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps"
     courses = data.get("courses", [])
@@ -395,6 +396,7 @@ def create_feed():
         include_regex=include_regex,
         exclude_regex=exclude_regex,
         allowed_types=allowed_types,
+        allowed_courses=allowed_courses,
         hide_cancelled=hide_cancelled,
         calendar_name=calendar_name,
         initial_ics=initial_ics,
@@ -438,6 +440,7 @@ def serve_feed(feed_id: str):
             include_regex=feed["include_regex"],
             exclude_regex=feed["exclude_regex"],
             allowed_types=feed["allowed_types"],
+            allowed_courses=feed.get("allowed_courses"),
             hide_cancelled=feed["hide_cancelled"],
         )
         fresh_ics = generate_ics_from_courses(filtered, feed["calendar_name"])

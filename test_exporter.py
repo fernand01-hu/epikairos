@@ -164,6 +164,11 @@ class TestAurigaCore(unittest.TestCase):
         self.assertEqual(len(filtered_exam), 1)
         self.assertEqual(filtered_exam[0]["id"], "1002")
 
+        # Course name filter
+        filtered_by_course, _ = filter_courses(courses, allowed_courses=["Algorithmique et structures de données"])
+        self.assertEqual(len(filtered_by_course), 1)
+        self.assertEqual(filtered_by_course[0]["id"], "1001")
+
         # ICS Generation
         ics = generate_ics_from_courses(courses, "Test Calendar")
         self.assertIn("BEGIN:VCALENDAR\r\n", ics)
