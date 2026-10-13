@@ -10,6 +10,16 @@ let userCredentials = { username: "", password: "", access_token: "" };
 let currentCalendarDate = new Date();
 let currentViewMode = "week"; // "week" | "table"
 
+function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 const coursePaletteLight = [
     { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
     { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
@@ -672,9 +682,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     card.className = `calendar-card border-${info.key} ${!isSelected ? "deselected" : ""} ${c.is_cancelled ? "card-cancelled" : ""}`;
                     card.dataset.id = c.id;
 
-                    const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.join(", ") : "";
-                    const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.join(", ") : "";
-                    const groupsStr = c.groups && c.groups.length > 0 ? c.groups.join(", ") : "";
+                    const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "";
+                    const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "";
+                    const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : "";
 
                     card.innerHTML = `
                         <div class="d-flex align-items-center justify-content-between mb-1">
@@ -684,14 +694,14 @@ document.addEventListener("DOMContentLoaded", () => {
                             </span>
                             <div class="d-flex align-items-center gap-1">
                                 <span class="badge badge-${info.key} px-2 py-1" style="font-size: 0.7rem;">
-                                    ${c.activity_type}
+                                    ${escapeHtml(c.activity_type)}
                                 </span>
                                 <input type="checkbox" class="form-check-input event-checkbox ms-1 m-0" data-id="${c.id}" ${isSelected ? "checked" : ""} title="Sélectionner pour export">
                             </div>
                         </div>
-                        <div class="event-title" title="${c.course_name}">
+                        <div class="event-title" title="${escapeHtml(c.course_name)}">
                             ${c.is_cancelled ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">ANNULÉ</span>' : ''}
-                            ${c.course_name}
+                            ${escapeHtml(c.course_name)}
                         </div>
                         <div class="event-meta">
                             ${roomsStr ? `<div class="text-truncate" title="Salle: ${roomsStr}"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${roomsStr}</div>` : ""}
@@ -885,6 +895,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const info = getTypeInfo(c.activity_type);
 
+            const roomsFormatted = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
+            const teachersFormatted = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
+            const groupsFormatted = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
+
             tr.innerHTML = `
                 <td class="text-center">
                     <input class="form-check-input row-select-cb" type="checkbox" data-id="${c.id}" ${isChecked ? "checked" : ""}>
@@ -892,16 +906,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>${formatFrenchDateTime(c.start, c.end)}</td>
                 <td>
                     <span class="badge badge-${info.key} px-2 py-1">
-                        ${c.is_cancelled ? "[ANNULÉ] " : ""}${c.activity_type}
+                        ${c.is_cancelled ? "[ANNULÉ] " : ""}${escapeHtml(c.activity_type)}
                     </span>
                 </td>
                 <td>
-                    <div class="fw-semibold">${c.course_name}</div>
-                    <div class="small text-muted font-monospace">${c.course_code || ""}</div>
+                    <div class="fw-semibold">${escapeHtml(c.course_name)}</div>
+                    <div class="small text-muted font-monospace">${escapeHtml(c.course_code || "")}</div>
                 </td>
-                <td>${c.rooms && c.rooms.length > 0 ? c.rooms.join("<br>") : '<span class="text-muted small">-</span>'}</td>
-                <td>${c.teachers && c.teachers.length > 0 ? c.teachers.join("<br>") : '<span class="text-muted small">-</span>'}</td>
-                <td>${c.groups && c.groups.length > 0 ? c.groups.join("<br>") : '<span class="text-muted small">-</span>'}</td>
+                <td>${roomsFormatted}</td>
+                <td>${teachersFormatted}</td>
+                <td>${groupsFormatted}</td>
             `;
 
             fragment.appendChild(tr);

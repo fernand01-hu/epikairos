@@ -11,6 +11,16 @@ let activeCourses = [];
 
 const HOUR_HEIGHT = 52; // Must match CSS --zeus-hour-height
 
+function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     // Elements - Sidebar & Search
     const groupTreeContainer = document.getElementById("groupTreeContainer");
@@ -455,11 +465,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 card.style.top = `${cardTop}px`;
                 card.style.height = `${cardHeight}px`;
 
-                const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.join(", ") : "";
-                const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.join(", ") : "";
+                const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "";
+                const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "";
 
                 card.innerHTML = `
-                    <div class="zeus-event-title" title="${c.course_name}">${c.course_name}</div>
+                    <div class="zeus-event-title" title="${escapeHtml(c.course_name)}">${escapeHtml(c.course_name)}</div>
                     <div class="zeus-event-meta">
                         ${roomsStr ? `<span>📍 ${roomsStr}</span><br>` : ""}
                         ${teachersStr ? `<span>👤 ${teachersStr}</span><br>` : ""}
@@ -487,13 +497,13 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("courseDetailTitle").textContent = c.course_name;
         const modalBody = document.getElementById("courseDetailBody");
 
-        const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.join(", ") : "Non spécifiée";
-        const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.join(", ") : "Non spécifié";
-        const groupsStr = c.groups && c.groups.length > 0 ? c.groups.join(", ") : "Non spécifié";
+        const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "Non spécifiée";
+        const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "Non spécifié";
+        const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : "Non spécifié";
 
         modalBody.innerHTML = `
             <div class="mb-3">
-                <span class="badge bg-primary px-3 py-1 fs-6">${c.activity_type}</span>
+                <span class="badge bg-primary px-3 py-1 fs-6">${escapeHtml(c.activity_type)}</span>
                 ${c.is_cancelled ? '<span class="badge bg-danger px-3 py-1 fs-6 ms-1">ANNULÉ</span>' : ''}
             </div>
             <dl class="row mb-0 small">
@@ -513,7 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <dd class="col-sm-8">👥 ${groupsStr}</dd>
 
                 <dt class="col-sm-4 text-muted">Statut :</dt>
-                <dd class="col-sm-8"><span class="badge bg-light text-dark border">${c.status || "PLANIFIE"}</span></dd>
+                <dd class="col-sm-8"><span class="badge bg-light text-dark border">${escapeHtml(c.status || "PLANIFIE")}</span></dd>
             </dl>
         `;
 

@@ -422,6 +422,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertEqual(res.headers.get("X-Frame-Options"), "SAMEORIGIN")
         self.assertEqual(res.headers.get("X-XSS-Protection"), "1; mode=block")
         self.assertIn("strict-origin-when-cross-origin", res.headers.get("Referrer-Policy", ""))
+        self.assertIn("default-src 'self'", res.headers.get("Content-Security-Policy", ""))
 
         # Verify session cookie flags
         self.assertTrue(app.config.get("SESSION_COOKIE_HTTPONLY"))

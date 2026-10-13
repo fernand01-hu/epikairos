@@ -117,6 +117,15 @@ def set_security_headers(response):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "font-src 'self' https://cdn.jsdelivr.net data:; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self'; "
+        "frame-ancestors 'self';"
+    )
     return response
 
 
@@ -305,7 +314,12 @@ def fetch_planning():
     Authenticates to Auriga, retrieves normalized courses,
     and with user consent, ingests them into the collaborative database.
     """
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+    trusted_proxy = os.getenv("TRUSTED_PROXY", "false").lower() in ("true", "1")
+    if trusted_proxy and request.headers.get("X-Forwarded-For"):
+        client_ip = request.headers.get("X-Forwarded-For").split(",")[0].strip()
+    else:
+        client_ip = request.remote_addr or "unknown"
+
     if not check_login_rate_limit(client_ip):
         return jsonify({
             "success": False,
@@ -347,6 +361,9 @@ def fetch_planning():
                         "success": False,
                         "error": "Ce jeton d'accès Auriga a expiré (durée de validité de 5 minutes dépassée). Veuillez rafraîchir votre page Auriga (F5) et copier immédiatement le nouveau jeton, ou utilisez l'onglet 'Identifiant & Mot de passe' pour une connexion automatique permanente."
                     }), 400
+                token_user = jwt_data.get("preferred_username")
+                if not username and token_user:
+                    username = str(token_user)
         except Exception:
             pass
 
@@ -392,7 +409,8 @@ def fetch_planning():
         "cancelled": cancelled_count,
     }
 
-    # Establish authenticated user session
+    # Establish authenticated user session with fresh session state
+    session.clear()
     session.permanent = True
     session["logged_in"] = True
     user_display = username.split("@")[0] if "@" in username else (username or "Étudiant Auriga")

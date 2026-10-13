@@ -345,16 +345,19 @@ def ingest_courses(courses: List[Dict[str, Any]], consent: bool = True, db_path:
             start_time_str = start[11:16] if len(start) >= 16 else "00:00"
             end_time_str = end[11:16] if len(end) >= 16 else "23:59"
 
-            course_name = c.get("course_name") or "Cours"
-            course_code = c.get("course_code") or ""
-            activity_type = (c.get("activity_type") or "AUTRE").strip().upper()
-            activity_name = c.get("activity_name") or ""
+            course_name = str(c.get("course_name") or "Cours")[:300]
+            course_code = str(c.get("course_code") or "")[:100]
+            activity_type = str(c.get("activity_type") or "AUTRE").strip().upper()[:50]
+            activity_name = str(c.get("activity_name") or "")[:100]
             is_exam = 1 if c.get("is_exam") else 0
             is_cancelled = 1 if c.get("is_cancelled") else 0
-            status = c.get("status") or "PLANIFIE"
-            description = c.get("description") or ""
-            duration = int(c.get("duration") or 90)
-            searchable_text = c.get("searchable_text") or f"{course_name} {activity_type}"
+            status = str(c.get("status") or "PLANIFIE")[:50]
+            description = str(c.get("description") or "")[:2000]
+            try:
+                duration = int(c.get("duration") or 90)
+            except (ValueError, TypeError):
+                duration = 90
+            searchable_text = str(c.get("searchable_text") or f"{course_name} {activity_type}")[:1000]
 
             # Check if course exists by ID or by same slot (start, end, course_name)
             cur.execute("SELECT id FROM courses WHERE id = ?", (c_id,))
