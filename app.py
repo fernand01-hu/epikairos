@@ -14,6 +14,7 @@ from datetime import datetime, date
 import os
 import sys
 import time
+import urllib.parse
 from flask import (
     Flask,
     render_template,
@@ -39,8 +40,8 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "auriga-epita-secret-key-change-in-prod")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max payload
 
-# Cache duration for live Google Calendar feeds (in seconds: default 2 hours)
-FEED_CACHE_DURATION = int(os.getenv("FEED_CACHE_DURATION", 7200))
+# Cache duration for live Google Calendar feeds (in seconds: default 12 hours = sync 1-2 times a day)
+FEED_CACHE_DURATION = int(os.getenv("FEED_CACHE_DURATION", 43200))
 
 # Ensure database tables exist
 database.init_db()
@@ -375,16 +376,19 @@ def create_feed():
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
-    include_regex = data.get("include_regex")
-    exclude_regex = data.get("exclude_regex")
+    include_regex = (data.get("include_regex") or "").strip() or None
+    exclude_regex = (data.get("exclude_regex") or "").strip() or None
     allowed_types = data.get("allowed_types")
     allowed_courses = data.get("allowed_courses")
     hide_cancelled = bool(data.get("hide_cancelled", False))
     calendar_name = data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps"
     courses = data.get("courses", [])
 
-    if not username or not password:
-        return jsonify({"success": False, "error": "Identifiant et mot de passe requis pour le flux d'abonnement."}), 400
+    if not courses and (not username or not password):
+        return jsonify({
+            "success": False,
+            "error": "Veuillez renseigner vos identifiants Auriga ou vous assurer que votre planning contient des cours.",
+        }), 400
 
     initial_ics = None
     if courses:
@@ -400,64 +404,137 @@ def create_feed():
         hide_cancelled=hide_cancelled,
         calendar_name=calendar_name,
         initial_ics=initial_ics,
+        cached_courses=courses,
     )
 
-    feed_url = url_for("serve_feed", feed_id=feed_id, _external=True)
+    # Encode active filters into the ICS URL query params so they are explicitly set in the URL
+    params = {}
+    if include_regex:
+        params["include"] = include_regex
+    if exclude_regex:
+        params["exclude"] = exclude_regex
+    if hide_cancelled:
+        params["hide_cancelled"] = "1"
+
+    query_string = urllib.parse.urlencode(params)
+    base_feed_url = url_for("serve_feed", feed_id=feed_id, _external=True)
+    feed_url = f"{base_feed_url}?{query_string}" if query_string else base_feed_url
     webcal_url = feed_url.replace("http://", "webcal://").replace("https://", "webcal://")
+
+    # Build human-readable filter summary for user verification
+    filter_summary = {
+        "include_regex": include_regex or "Aucun",
+        "exclude_regex": exclude_regex or "Aucun",
+        "hide_cancelled": hide_cancelled,
+        "allowed_courses_count": len(allowed_courses) if isinstance(allowed_courses, list) else None,
+        "total_courses": len(courses),
+        "sync_frequency": "1 à 2 fois par jour (toutes les 12h)",
+        "has_credentials": bool(username and password),
+        "username": username if (username and password) else "",
+    }
 
     return jsonify({
         "success": True,
         "feed_id": feed_id,
         "feed_url": feed_url,
         "webcal_url": webcal_url,
+        "filter_summary": filter_summary,
     })
 
 
 @app.route("/feed/<feed_id>.ics", methods=["GET"])
 def serve_feed(feed_id: str):
-    """Serves the live iCalendar feed to Google Calendar subscribers."""
+    """
+    Serves the live iCalendar feed to external subscribers (Google Calendar, Apple, Outlook).
+    Respects query parameter filter overrides and auto-sync headers (1-2 times a day).
+    """
     feed = feed_store.get_feed(feed_id)
     if not feed:
         return Response("Flux de calendrier introuvable.", status=404, mimetype="text/plain")
 
+    # Read filter overrides from URL query parameters (if provided)
+    include_regex = request.args.get("include") or request.args.get("include_regex") or feed.get("include_regex")
+    exclude_regex = request.args.get("exclude") or request.args.get("exclude_regex") or feed.get("exclude_regex")
+
+    if "hide_cancelled" in request.args:
+        hide_cancelled = request.args.get("hide_cancelled", "").lower() in ("1", "true", "yes")
+    else:
+        hide_cancelled = feed.get("hide_cancelled", False)
+
+    req_courses = request.args.getlist("course") or request.args.getlist("courses")
+    if not req_courses and request.args.get("allowed_courses"):
+        req_courses = [c.strip() for c in request.args.get("allowed_courses").split("\t") if c.strip()]
+    allowed_courses = req_courses if req_courses else feed.get("allowed_courses")
+
     now = time.time()
-    if feed["last_cached_ics"] and (now - feed["last_cached_at"] < FEED_CACHE_DURATION):
+    cache_age = now - feed.get("last_cached_at", 0)
+
+    has_query_overrides = any(k in request.args for k in ("include", "include_regex", "exclude", "exclude_regex", "hide_cancelled", "course", "courses", "allowed_courses"))
+
+    # If no custom query overrides and cache is fresh (< 12 hours), return cached ICS directly
+    if not has_query_overrides and feed.get("last_cached_ics") and (cache_age < FEED_CACHE_DURATION):
         return Response(
             feed["last_cached_ics"],
             mimetype="text/calendar; charset=utf-8",
-            headers={"Content-Disposition": 'inline; filename="planning.ics"'},
+            headers={
+                "Content-Disposition": 'inline; filename="planning.ics"',
+                "Cache-Control": f"public, max-age={FEED_CACHE_DURATION}, must-revalidate",
+            },
         )
 
-    # Refresh from Auriga
-    try:
-        client = AurigaClient(feed["username"], feed["password"])
-        client.login()
-        start_date, end_date = get_default_school_year_range()
-        raw_interventions = client.get_planning(start_date, end_date)
-        normalized = [normalize_course(item) for item in raw_interventions]
+    # We need to refresh or apply query parameters
+    raw_courses = feed.get("cached_courses") or []
+
+    # Refresh from Auriga if credentials exist and cache is older than FEED_CACHE_DURATION
+    username = feed.get("username")
+    password = feed.get("password")
+    if username and password and (cache_age >= FEED_CACHE_DURATION or not raw_courses):
+        try:
+            client = AurigaClient(username, password)
+            client.login()
+            start_date, end_date = get_default_school_year_range()
+            raw_interventions = client.get_planning(start_date, end_date)
+            normalized = [normalize_course(item) for item in raw_interventions]
+            if normalized:
+                raw_courses = normalized
+                feed_store.update_feed_courses(feed_id, normalized)
+        except Exception as e:
+            app.logger.warning(f"Could not refresh Auriga feed {feed_id} from remote: {e}")
+
+    # Apply filters to courses
+    if raw_courses:
         filtered, _ = filter_courses(
-            normalized,
-            include_regex=feed["include_regex"],
-            exclude_regex=feed["exclude_regex"],
-            allowed_types=feed["allowed_types"],
-            allowed_courses=feed.get("allowed_courses"),
-            hide_cancelled=feed["hide_cancelled"],
+            raw_courses,
+            include_regex=include_regex,
+            exclude_regex=exclude_regex,
+            allowed_types=feed.get("allowed_types"),
+            allowed_courses=allowed_courses,
+            hide_cancelled=hide_cancelled,
         )
-        fresh_ics = generate_ics_from_courses(filtered, feed["calendar_name"])
-        feed_store.update_feed_cache(feed_id, fresh_ics)
+        fresh_ics = generate_ics_from_courses(filtered, feed.get("calendar_name", "EpiKairos - EPITA Emploi du temps"))
+        if not has_query_overrides:
+            feed_store.update_feed_cache(feed_id, fresh_ics)
         return Response(
             fresh_ics,
             mimetype="text/calendar; charset=utf-8",
-            headers={"Content-Disposition": 'inline; filename="planning.ics"'},
+            headers={
+                "Content-Disposition": 'inline; filename="planning.ics"',
+                "Cache-Control": f"public, max-age={FEED_CACHE_DURATION}, must-revalidate",
+            },
         )
-    except Exception as e:
-        if feed["last_cached_ics"]:
-            return Response(
-                feed["last_cached_ics"],
-                mimetype="text/calendar; charset=utf-8",
-                headers={"Content-Disposition": 'inline; filename="planning.ics"'},
-            )
-        return Response(f"Erreur lors de la mise à jour du planning : {e}", status=500, mimetype="text/plain")
+
+    # Fallback to last cached ICS
+    if feed.get("last_cached_ics"):
+        return Response(
+            feed["last_cached_ics"],
+            mimetype="text/calendar; charset=utf-8",
+            headers={
+                "Content-Disposition": 'inline; filename="planning.ics"',
+                "Cache-Control": f"public, max-age={FEED_CACHE_DURATION}, must-revalidate",
+            },
+        )
+
+    return Response("Erreur lors de la mise à jour du planning ou aucun cours disponible.", status=500, mimetype="text/plain")
 
 
 @app.route("/health")

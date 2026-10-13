@@ -169,9 +169,15 @@ class TestAurigaCore(unittest.TestCase):
         self.assertEqual(len(filtered_by_course), 1)
         self.assertEqual(filtered_by_course[0]["id"], "1001")
 
-        # ICS Generation
+        # Empty allowed courses list (no courses allowed)
+        filtered_empty_courses, _ = filter_courses(courses, allowed_courses=[])
+        self.assertEqual(len(filtered_empty_courses), 0)
+
+        # ICS Generation with 1-2 times daily sync refresh headers
         ics = generate_ics_from_courses(courses, "Test Calendar")
         self.assertIn("BEGIN:VCALENDAR\r\n", ics)
+        self.assertIn("X-PUBLISHED-TTL:PT12H\r\n", ics)
+        self.assertIn("REFRESH-INTERVAL;VALUE=DURATION:PT12H\r\n", ics)
         self.assertIn("UID:auriga-1001@epita.fr\r\n", ics)
         self.assertIn("UID:auriga-1002@epita.fr\r\n", ics)
         self.assertIn("SUMMARY:[CM] Algorithmique et structures de données\r\n", ics)
@@ -180,3 +186,4 @@ class TestAurigaCore(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

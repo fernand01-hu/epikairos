@@ -957,63 +957,201 @@ document.addEventListener("DOMContentLoaded", () => {
     const feedModalSpinner = document.getElementById("feedModalSpinner");
     const feedModalContent = document.getElementById("feedModalContent");
     const feedUrlInput = document.getElementById("feedUrlInput");
+    const feedHttpsUrlInput = document.getElementById("feedHttpsUrlInput");
     const copyFeedUrlBtn = document.getElementById("copyFeedUrlBtn");
+    const copyHttpsFeedUrlBtn = document.getElementById("copyHttpsFeedUrlBtn");
+    const testFeedUrlBtn = document.getElementById("testFeedUrlBtn");
     const copyFeedback = document.getElementById("copyFeedback");
+    const feedFiltersBadges = document.getElementById("feedFiltersBadges");
+    const feedCredentialsStatus = document.getElementById("feedCredentialsStatus");
+    const feedAccountBadge = document.getElementById("feedAccountBadge");
+    const changeFeedCredsBtn = document.getElementById("changeFeedCredsBtn");
+    const feedCredentialsPrompt = document.getElementById("feedCredentialsPrompt");
+    const modalUsernameInput = document.getElementById("modalUsernameInput");
+    const modalPasswordInput = document.getElementById("modalPasswordInput");
+    const regenerateFeedWithCredsBtn = document.getElementById("regenerateFeedWithCredsBtn");
+
+    function escapeHtml(str) {
+        if (!str) return "";
+        return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    async function generateCalendarFeed(credsOverride = null) {
+        if (!feedModalSpinner || !feedModalContent) return;
+
+        feedModalSpinner.classList.remove("d-none");
+        feedModalContent.classList.add("d-none");
+        if (copyFeedback) copyFeedback.classList.add("d-none");
+        feedModalSpinner.innerHTML = `
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Génération du lien...</span>
+            </div>
+            <div class="small text-muted mt-2">Génération du lien sécurisé avec vos filtres...</div>
+        `;
+
+        // Refresh credentials from localStorage if available
+        const savedCreds = localStorage.getItem("zeus_credentials");
+        if (savedCreds) {
+            try { userCredentials = JSON.parse(savedCreds); } catch (e) {}
+        }
+
+        const username = credsOverride?.username !== undefined
+            ? credsOverride.username
+            : (userCredentials?.username || "");
+        const password = credsOverride?.password !== undefined
+            ? credsOverride.password
+            : (userCredentials?.password || "");
+
+        // Manage credentials UI status
+        if (username && password) {
+            if (feedCredentialsStatus) feedCredentialsStatus.classList.remove("d-none");
+            if (feedAccountBadge) feedAccountBadge.textContent = username;
+            if (feedCredentialsPrompt) feedCredentialsPrompt.classList.add("d-none");
+        } else {
+            if (feedCredentialsStatus) feedCredentialsStatus.classList.add("d-none");
+            if (feedCredentialsPrompt) feedCredentialsPrompt.classList.remove("d-none");
+            if (modalUsernameInput && !modalUsernameInput.value && username) {
+                modalUsernameInput.value = username;
+            }
+        }
+
+        // Collect filters from DOM
+        const includeRegex = includeRegexInput ? includeRegexInput.value.trim() : "";
+        const excludeRegex = excludeRegexInput ? excludeRegexInput.value.trim() : "";
+        const hideCancelled = hideCancelledSwitch ? hideCancelledSwitch.checked : false;
+
+        const allChips = Array.from(document.querySelectorAll(".type-filter-chip"));
+        const activeChips = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
+        const checkedCourses = activeChips.map(cb => cb.dataset.course).filter(Boolean);
+        const isCourseFiltered = allChips.length > 0 && activeChips.length < allChips.length;
+        const allowedCoursesToSend = isCourseFiltered ? checkedCourses : null;
+
+        const coursesToExport = visibleCourses.filter(c => selectedCourseIds.has(c.id));
+        const payloadCourses = coursesToExport.length > 0 ? coursesToExport : (visibleCourses.length > 0 ? visibleCourses : allCourses);
+
+        // Display active filter verification badges
+        if (feedFiltersBadges) {
+            feedFiltersBadges.innerHTML = `
+                <div class="col-sm-6">
+                    <span class="fw-semibold text-dark">Inclusion Regex :</span>
+                    ${includeRegex ? `<code class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">${escapeHtml(includeRegex)}</code>` : `<span class="badge bg-light text-secondary border">Tous les cours</span>`}
+                </div>
+                <div class="col-sm-6">
+                    <span class="fw-semibold text-dark">Exclusion Regex :</span>
+                    ${excludeRegex ? `<code class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace">${escapeHtml(excludeRegex)}</code>` : `<span class="badge bg-light text-secondary border">Aucune</span>`}
+                </div>
+                <div class="col-sm-6">
+                    <span class="fw-semibold text-dark">Matières :</span>
+                    ${isCourseFiltered ? `<span class="badge bg-info-subtle text-info border border-info-subtle">${activeChips.length}/${allChips.length} matières sélectionnées</span>` : `<span class="badge bg-light text-secondary border">Toutes (${allChips.length})</span>`}
+                </div>
+                <div class="col-sm-6">
+                    <span class="fw-semibold text-dark">Cours annulés :</span>
+                    ${hideCancelled ? `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Masqués</span>` : `<span class="badge bg-light text-secondary border">Inclus</span>`}
+                </div>
+                <div class="col-sm-6">
+                    <span class="fw-semibold text-dark">Séances incluses :</span>
+                    <span class="badge bg-dark">${payloadCourses.length} cours</span>
+                </div>
+                <div class="col-sm-6">
+                    <span class="fw-semibold text-dark">Mise à jour :</span>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">1 à 2x / jour (toutes les 12h)</span>
+                </div>
+            `;
+        }
+
+        try {
+            const res = await fetch("/api/create-feed", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    include_regex: includeRegex,
+                    exclude_regex: excludeRegex,
+                    allowed_courses: allowedCoursesToSend,
+                    hide_cancelled: hideCancelled,
+                    courses: payloadCourses
+                })
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Impossible de générer le lien de flux.");
+            }
+
+            if (feedUrlInput) feedUrlInput.value = data.webcal_url;
+            if (feedHttpsUrlInput) feedHttpsUrlInput.value = data.feed_url;
+            if (testFeedUrlBtn) testFeedUrlBtn.href = data.feed_url;
+
+            feedModalSpinner.classList.add("d-none");
+            feedModalContent.classList.remove("d-none");
+
+        } catch (err) {
+            feedModalSpinner.innerHTML = `
+                <div class="text-danger small mb-3">
+                    <i class="bi bi-exclamation-circle me-1"></i> Erreur : ${escapeHtml(err.message)}
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="retryFeedBtn">
+                    <i class="bi bi-arrow-clockwise me-1"></i> Réessayer
+                </button>
+            `;
+            document.getElementById("retryFeedBtn")?.addEventListener("click", () => generateCalendarFeed());
+        }
+    }
 
     if (openFeedModalBtn && feedModal) {
-        openFeedModalBtn.addEventListener("click", async () => {
+        openFeedModalBtn.addEventListener("click", () => {
             feedModal.show();
-            feedModalSpinner.classList.remove("d-none");
-            feedModalContent.classList.add("d-none");
-            copyFeedback.classList.add("d-none");
-
-            const activeChipElements = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
-            const checkedCourses = activeChipElements.map(cb => cb.dataset.course).filter(Boolean);
-
-            const coursesToExport = visibleCourses.filter(c => selectedCourseIds.has(c.id));
-
-            try {
-                const res = await fetch("/api/create-feed", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        username: userCredentials.username,
-                        password: userCredentials.password,
-                        include_regex: includeRegexInput.value.trim(),
-                        exclude_regex: excludeRegexInput.value.trim(),
-                        allowed_courses: checkedCourses,
-                        hide_cancelled: hideCancelledSwitch.checked,
-                        courses: coursesToExport
-                    })
-                });
-
-                const data = await res.json();
-                if (!res.ok || !data.success) {
-                    throw new Error(data.error || "Impossible de générer le lien de flux.");
-                }
-
-                feedUrlInput.value = data.feed_url;
-                feedModalSpinner.classList.add("d-none");
-                feedModalContent.classList.remove("d-none");
-
-            } catch (err) {
-                feedModalSpinner.innerHTML = `<div class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i> Erreur : ${err.message}</div>`;
-            }
+            generateCalendarFeed();
         });
     }
 
-    if (copyFeedUrlBtn) {
-        copyFeedUrlBtn.addEventListener("click", async () => {
-            try {
-                await navigator.clipboard.writeText(feedUrlInput.value);
+    if (changeFeedCredsBtn) {
+        changeFeedCredsBtn.addEventListener("click", () => {
+            if (feedCredentialsPrompt) feedCredentialsPrompt.classList.remove("d-none");
+            if (feedCredentialsStatus) feedCredentialsStatus.classList.add("d-none");
+        });
+    }
+
+    if (regenerateFeedWithCredsBtn) {
+        regenerateFeedWithCredsBtn.addEventListener("click", () => {
+            const userVal = modalUsernameInput ? modalUsernameInput.value.trim() : "";
+            const passVal = modalPasswordInput ? modalPasswordInput.value.trim() : "";
+            if (!userVal || !passVal) {
+                alert("Veuillez renseigner votre identifiant et votre mot de passe Auriga.");
+                return;
+            }
+            userCredentials.username = userVal;
+            userCredentials.password = passVal;
+            localStorage.setItem("zeus_credentials", JSON.stringify(userCredentials));
+            generateCalendarFeed({ username: userVal, password: passVal });
+        });
+    }
+
+    async function copyToClipboard(inputElement) {
+        if (!inputElement || !inputElement.value) return;
+        try {
+            await navigator.clipboard.writeText(inputElement.value);
+            if (copyFeedback) {
                 copyFeedback.classList.remove("d-none");
                 setTimeout(() => copyFeedback.classList.add("d-none"), 4000);
-            } catch {
-                feedUrlInput.select();
-                document.execCommand("copy");
-                copyFeedback.classList.remove("d-none");
             }
-        });
+        } catch {
+            inputElement.select();
+            document.execCommand("copy");
+            if (copyFeedback) {
+                copyFeedback.classList.remove("d-none");
+                setTimeout(() => copyFeedback.classList.add("d-none"), 4000);
+            }
+        }
+    }
+
+    if (copyFeedUrlBtn) {
+        copyFeedUrlBtn.addEventListener("click", () => copyToClipboard(feedUrlInput));
+    }
+
+    if (copyHttpsFeedUrlBtn) {
+        copyHttpsFeedUrlBtn.addEventListener("click", () => copyToClipboard(feedHttpsUrlInput));
     }
 
 });

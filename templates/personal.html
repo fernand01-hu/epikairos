@@ -202,45 +202,120 @@
 
 <!-- Modal: Google Calendar Feed Subscription -->
 <div class="modal fade" id="feedModal" tabindex="-1" aria-labelledby="feedModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content rounded-4 border-0 shadow">
             <div class="modal-header border-bottom">
                 <h5 class="modal-title fw-bold" id="feedModalLabel">
                     <i class="bi bi-arrow-repeat text-primary me-2"></i>
-                    Abonnement automatique Google Calendar
+                    Abonnement automatique Google Calendar (.ics)
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
                 <p class="text-muted small">
-                    Ce lien permet à Google Calendar de <strong>se synchroniser automatiquement</strong> avec votre emploi du temps et d'appliquer vos filtres Regex.
+                    Ce lien permet à <strong>Google Calendar</strong>, <strong>Apple Calendar</strong> ou <strong>Outlook</strong> de se synchroniser automatiquement <strong>1 à 2 fois par jour</strong> avec votre emploi du temps et vos filtres.
                 </p>
 
+                <!-- 1. Active Filters Verification Card -->
+                <div class="card bg-light border-0 rounded-3 p-3 mb-3" id="feedActiveFiltersCard">
+                    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                        <span class="small fw-bold text-navy">
+                            <i class="bi bi-funnel-fill text-primary me-1"></i> Filtres configurés dans ce lien ICS :
+                        </span>
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">
+                            <i class="bi bi-clock-history me-1"></i>Sync 1 à 2x / jour (12h)
+                        </span>
+                    </div>
+                    <div class="row g-2 small text-muted" id="feedFiltersBadges">
+                        <!-- Populated dynamically: Include regex, Exclude regex, Matières, Annulés -->
+                    </div>
+                </div>
+
+                <!-- 2. Credential Status or Input Section -->
+                <div id="feedCredentialsStatus" class="alert alert-success py-2 px-3 small d-flex align-items-center justify-content-between mb-3 d-none">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-shield-check fs-5 text-success"></i>
+                        <span>Synchronisation automatique active avec le compte <strong id="feedAccountBadge"></strong>.</span>
+                    </div>
+                    <button type="button" class="btn btn-xs btn-outline-success rounded-pill px-2" id="changeFeedCredsBtn">Modifier</button>
+                </div>
+
+                <div id="feedCredentialsPrompt" class="border rounded-3 p-3 mb-3 bg-white d-none">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small fw-bold text-dark">
+                            <i class="bi bi-key-fill text-warning me-1"></i> Identifiants Auriga (pour la mise à jour automatique 1-2x/jour)
+                        </span>
+                        <span class="badge bg-light text-secondary border">Optionnel</span>
+                    </div>
+                    <p class="small text-muted mb-2" style="font-size: 0.8rem;">
+                        Renseignez vos identifiants pour que le serveur rafraîchisse automatiquement votre emploi du temps depuis Auriga. Sans identifiants, le lien se synchronise sur vos cours actuellement chargés.
+                    </p>
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-6">
+                            <input type="text" class="form-control form-control-sm" id="modalUsernameInput" placeholder="prenom.nom@epita.fr">
+                        </div>
+                        <div class="col-sm-6">
+                            <input type="password" class="form-control form-control-sm" id="modalPasswordInput" placeholder="Mot de passe Auriga">
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="regenerateFeedWithCredsBtn">
+                            <i class="bi bi-arrow-repeat me-1"></i> Mettre à jour avec ces identifiants
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Spinner Loading State -->
                 <div id="feedModalSpinner" class="text-center py-4">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">Génération du lien...</span>
                     </div>
-                    <div class="small text-muted mt-2">Génération du lien sécurisé...</div>
+                    <div class="small text-muted mt-2">Génération du lien sécurisé avec vos filtres...</div>
                 </div>
 
+                <!-- 4. Generated Link and Copy Options -->
                 <div id="feedModalContent" class="d-none">
-                    <label class="form-label fw-semibold small">Lien de synchronisation Webcal / ICS :</label>
-                    <div class="input-group mb-3">
-                        <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
-                        <button class="btn btn-outline-primary" type="button" id="copyFeedUrlBtn">
-                            <i class="bi bi-clipboard me-1"></i> Copier
-                        </button>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small d-flex justify-content-between">
+                            <span><i class="bi bi-link-45deg me-1 text-primary"></i> Lien d'abonnement Webcal (Google Calendar & Apple) :</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" style="font-size: 0.7rem;">webcal://</span>
+                        </label>
+                        <div class="input-group mb-1">
+                            <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
+                            <button class="btn btn-primary" type="button" id="copyFeedUrlBtn">
+                                <i class="bi bi-clipboard me-1"></i> Copier Webcal
+                            </button>
+                        </div>
+                        <div class="form-text small text-muted">Format recommandé pour l'abonnement direct dans Google Calendar.</div>
                     </div>
-                    <div id="copyFeedback" class="text-success small fw-semibold mb-3 d-none">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small d-flex justify-content-between">
+                            <span><i class="bi bi-globe me-1 text-secondary"></i> Lien direct HTTPS / ICS :</span>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle font-monospace" style="font-size: 0.7rem;">https://</span>
+                        </label>
+                        <div class="input-group mb-1">
+                            <input type="text" class="form-control font-monospace small" id="feedHttpsUrlInput" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copyHttpsFeedUrlBtn">
+                                <i class="bi bi-clipboard me-1"></i> Copier HTTPS
+                            </button>
+                            <a href="#" class="btn btn-outline-dark" id="testFeedUrlBtn" target="_blank" rel="noopener" title="Télécharger ou tester le fichier .ics">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Tester
+                            </a>
+                        </div>
+                    </div>
+
+                    <div id="copyFeedback" class="alert alert-success py-2 px-3 small fw-semibold mb-3 d-none">
                         <i class="bi bi-check-circle me-1"></i> Lien copié dans le presse-papier !
                     </div>
 
                     <div class="bg-light p-3 rounded-3 small text-muted">
                         <div class="fw-bold text-dark mb-1"><i class="bi bi-lightbulb me-1 text-warning"></i> Comment l'ajouter à Google Calendar :</div>
                         <ol class="mb-0 ps-3">
-                            <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a>.</li>
-                            <li>À gauche, à côté de <em>"Autres agendas"</em>, cliquez sur <strong>+</strong> puis <strong>"À partir de l'URL"</strong>.</li>
-                            <li>Collez le lien ci-dessus et validez.</li>
+                            <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a> sur votre ordinateur.</li>
+                            <li>Dans le menu de gauche, à côté de <em>"Autres agendas"</em>, cliquez sur <strong>+</strong> puis sur <strong>"À partir de l'URL"</strong>.</li>
+                            <li>Collez le lien Webcal ci-dessus et cliquez sur <strong>"Ajouter un agenda"</strong>.</li>
+                            <li>Google Calendar se synchronisera <strong>1 à 2 fois par jour</strong> avec vos filtres.</li>
                         </ol>
                     </div>
                 </div>
@@ -254,5 +329,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261012"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261013-1"></script>
 {% endblock %}

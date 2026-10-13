@@ -87,13 +87,14 @@ class TestFlaskApp(unittest.TestCase):
             "searchable_text": "[TD] Mathématiques",
         }
 
-        # Create feed
+        # Create feed with filters
         res = self.client.post(
             "/api/create-feed",
             json={
                 "username": "student.test",
                 "password": "secret_password",
                 "include_regex": "MATH",
+                "hide_cancelled": True,
                 "courses": [sample_course],
             },
         )
@@ -102,16 +103,45 @@ class TestFlaskApp(unittest.TestCase):
         self.assertTrue(data.get("success"))
         feed_id = data.get("feed_id")
         self.assertIsNotNone(feed_id)
+        # Check that filters are set directly in the feed URL query parameters
+        self.assertIn("include=MATH", data.get("feed_url", ""))
+        self.assertIn("hide_cancelled=1", data.get("feed_url", ""))
+        self.assertIn("include=MATH", data.get("webcal_url", ""))
+        self.assertEqual(data.get("filter_summary", {}).get("sync_frequency"), "1 à 2 fois par jour (toutes les 12h)")
 
         # Retrieve feed ICS
         feed_res = self.client.get(f"/feed/{feed_id}.ics")
         self.assertEqual(feed_res.status_code, 200)
         self.assertIn("text/calendar", feed_res.headers.get("Content-Type", ""))
+        self.assertIn("max-age=43200", feed_res.headers.get("Cache-Control", ""))
         self.assertIn(b"BEGIN:VCALENDAR", feed_res.data)
+        self.assertIn(b"X-PUBLISHED-TTL:PT12H", feed_res.data)
+        self.assertIn(b"REFRESH-INTERVAL;VALUE=DURATION:PT12H", feed_res.data)
         self.assertIn(b"UID:auriga-3001@epita.fr", feed_res.data)
+
+        # Test query parameter override (e.g. exclude MATH excludes the course)
+        override_res = self.client.get(f"/feed/{feed_id}.ics?exclude=MATH")
+        self.assertEqual(override_res.status_code, 200)
+        self.assertNotIn(b"UID:auriga-3001@epita.fr", override_res.data)
 
         # Cleanup test feed
         feed_store.delete_feed(feed_id)
+
+        # Test feed creation without credentials (from loaded courses directly)
+        no_creds_res = self.client.post(
+            "/api/create-feed",
+            json={
+                "courses": [sample_course],
+            },
+        )
+        self.assertEqual(no_creds_res.status_code, 200)
+        no_creds_data = no_creds_res.get_json()
+        self.assertTrue(no_creds_data.get("success"))
+        no_creds_id = no_creds_data.get("feed_id")
+        no_creds_get = self.client.get(f"/feed/{no_creds_id}.ics")
+        self.assertEqual(no_creds_get.status_code, 200)
+        self.assertIn(b"UID:auriga-3001@epita.fr", no_creds_get.data)
+        feed_store.delete_feed(no_creds_id)
 
     def test_multi_page_routes(self):
         # Accueil Dashboard on /

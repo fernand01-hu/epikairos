@@ -404,8 +404,8 @@ def filter_courses(
         except re.error as e:
             return [], f"Erreur dans l'expression Regex d'exclusion : {e}"
 
-    allowed_types_set = set(t.upper() for t in allowed_types) if allowed_types else None
-    allowed_courses_set = set(c.strip().lower() for c in allowed_courses) if allowed_courses else None
+    allowed_types_set = set(t.upper() for t in allowed_types) if allowed_types is not None else None
+    allowed_courses_set = set(c.strip().lower() for c in allowed_courses) if allowed_courses is not None else None
 
     filtered = []
     for c in courses:
@@ -418,11 +418,11 @@ def filter_courses(
             continue
 
         # Check activity type filter
-        if allowed_types_set and c["activity_type"].upper() not in allowed_types_set:
+        if allowed_types_set is not None and c["activity_type"].upper() not in allowed_types_set:
             continue
 
         # Check course name filter
-        if allowed_courses_set and (c.get("course_name") or "").strip().lower() not in allowed_courses_set:
+        if allowed_courses_set is not None and (c.get("course_name") or "").strip().lower() not in allowed_courses_set:
             continue
 
         text = c["searchable_text"]
@@ -591,11 +591,13 @@ def generate_ics_from_courses(
     header = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//Auriga Calendar Exporter//EPITA//FR",
+        "PRODID:-//EpiKairos Calendar Exporter//EPITA//FR",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         fold_line(f"X-WR-CALNAME:{escape_ics_text(calendar_name)}"),
         "X-WR-TIMEZONE:Europe/Paris",
+        "X-PUBLISHED-TTL:PT12H",
+        "REFRESH-INTERVAL;VALUE=DURATION:PT12H",
     ]
 
     event_lines = []
