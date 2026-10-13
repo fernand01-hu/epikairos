@@ -6,6 +6,16 @@ let customCourses = [];
 let currentCalendarDate = new Date();
 let currentViewMode = "week";
 
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const teachersSelect = document.getElementById("teachersSelect");
     const roomsSelect = document.getElementById("roomsSelect");
@@ -330,16 +340,16 @@ document.addEventListener("DOMContentLoaded", () => {
                                 ${formatTime(c.start)} - ${formatTime(c.end)}
                             </span>
                             <span class="badge badge-${info.key} px-2 py-1" style="font-size: 0.7rem;">
-                                ${c.activity_type}
+                                ${escapeHtml(c.activity_type)}
                             </span>
                         </div>
-                        <div class="event-title" title="${c.course_name}">
-                            ${c.course_name}
+                        <div class="event-title" title="${escapeHtml(c.course_name)}">
+                            ${escapeHtml(c.course_name)}
                         </div>
                         <div class="event-meta">
-                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${roomsStr}"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${roomsStr}</div>` : ""}
-                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${teachersStr}"><i class="bi bi-person-fill text-primary me-1"></i>${teachersStr}</div>` : ""}
-                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${groupsStr}"><i class="bi bi-people-fill text-secondary me-1"></i>${groupsStr}</div>` : ""}
+                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${escapeHtml(roomsStr)}"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${escapeHtml(roomsStr)}</div>` : ""}
+                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${escapeHtml(teachersStr)}"><i class="bi bi-person-fill text-primary me-1"></i>${escapeHtml(teachersStr)}</div>` : ""}
+                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${escapeHtml(groupsStr)}"><i class="bi bi-people-fill text-secondary me-1"></i>${escapeHtml(groupsStr)}</div>` : ""}
                         </div>
                     `;
 
@@ -365,16 +375,20 @@ document.addEventListener("DOMContentLoaded", () => {
         customCourses.forEach(c => {
             const info = getTypeInfo(c.activity_type);
             const tr = document.createElement("tr");
+            const roomsFormatted = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join("<br>") : "-";
+            const teachersFormatted = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join("<br>") : "-";
+            const groupsFormatted = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join("<br>") : "-";
+
             tr.innerHTML = `
                 <td>
                     <span class="fw-semibold">${new Date(c.start).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })}</span><br>
                     <span class="text-muted small">${formatTime(c.start)} - ${formatTime(c.end)}</span>
                 </td>
-                <td><span class="badge badge-${info.key} px-2 py-1">${c.activity_type}</span></td>
-                <td><div class="fw-semibold">${c.course_name}</div></td>
-                <td>${c.rooms && c.rooms.length > 0 ? c.rooms.join("<br>") : "-"}</td>
-                <td>${c.teachers && c.teachers.length > 0 ? c.teachers.join("<br>") : "-"}</td>
-                <td>${c.groups && c.groups.length > 0 ? c.groups.join("<br>") : "-"}</td>
+                <td><span class="badge badge-${info.key} px-2 py-1">${escapeHtml(c.activity_type)}</span></td>
+                <td><div class="fw-semibold">${escapeHtml(c.course_name)}</div></td>
+                <td>${roomsFormatted}</td>
+                <td>${teachersFormatted}</td>
+                <td>${groupsFormatted}</td>
             `;
             tbody.appendChild(tr);
         });

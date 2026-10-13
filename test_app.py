@@ -380,6 +380,94 @@ class TestFlaskApp(unittest.TestCase):
         self.assertIn("fernand.huttois", html)
         self.assertIn('href="/logout"', html)
 
+    def test_security_headers_and_cookies(self):
+        # Verify defensive HTTP headers
+        res = self.client.get("/login")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(res.headers.get("X-Frame-Options"), "SAMEORIGIN")
+        self.assertEqual(res.headers.get("X-XSS-Protection"), "1; mode=block")
+        self.assertIn("strict-origin-when-cross-origin", res.headers.get("Referrer-Policy", ""))
+
+        # Verify session cookie flags
+        self.assertTrue(app.config.get("SESSION_COOKIE_HTTPONLY"))
+        self.assertEqual(app.config.get("SESSION_COOKIE_SAMESITE"), "Lax")
+
+    def test_feed_security_and_unauthenticated_access(self):
+        # Create a feed while authenticated
+        self.login_client()
+        sample_course = {
+            "id": "sec-4001",
+            "start": "2024-11-01T10:00:00",
+            "end": "2024-11-01T12:00:00",
+            "duration": 120,
+            "summary": "[CM] Sécurité Informatique",
+            "course_name": "Sécurité Informatique",
+            "course_code": "SEC",
+            "activity_type": "CM",
+            "activity_name": "Cours Magistral",
+            "is_exam": False,
+            "is_cancelled": False,
+            "status": "PLANIFIE",
+            "teachers": ["Expert Cyber"],
+            "rooms": ["Salle 404"],
+            "groups": ["ING1 Lyon"],
+            "description": "Cours de sécurité",
+            "searchable_text": "Sécurité Informatique CM Salle 404",
+        }
+        create_res = self.client.post(
+            "/api/create-feed",
+            json={"courses": [sample_course], "calendar_name": "Feed Securite"},
+        )
+        feed_id = create_res.get_json()["feed_id"]
+
+        # 1. Clear session / become unauthenticated (external client like Google Calendar)
+        self.client.get("/logout")
+
+        # 2. Access /feed/<feed_id>.ics without any session cookies
+        feed_res = self.client.get(f"/feed/{feed_id}.ics")
+        self.assertEqual(feed_res.status_code, 200)
+        self.assertIn(b"UID:auriga-sec-4001@epita.fr", feed_res.data)
+
+        # 3. Invalid characters in feed ID should be rejected with 400
+        bad_feed_res = self.client.get("/feed/bad*token!@.ics")
+        self.assertEqual(bad_feed_res.status_code, 400)
+
+        feed_store.delete_feed(feed_id)
+
+    def test_input_validation_and_rate_limiting(self):
+        self.login_client()
+        # Regex too long (> 300 chars)
+        excessive_regex = "A" * 350
+        res_regex = self.client.post(
+            "/api/create-feed",
+            json={"courses": [], "username": "user", "password": "pw", "include_regex": excessive_regex},
+        )
+        self.assertEqual(res_regex.status_code, 400)
+        self.assertIn("trop longue", res_regex.get_json().get("error", "").lower())
+
+        # Invalid regex syntax
+        res_syntax = self.client.post(
+            "/api/create-feed",
+            json={"courses": [], "username": "user", "password": "pw", "include_regex": "[unclosed("},
+        )
+        self.assertEqual(res_syntax.status_code, 400)
+        self.assertIn("invalide", res_syntax.get_json().get("error", "").lower())
+
+        # Rate limiting on /api/fetch-planning
+        from app import _LOGIN_ATTEMPTS
+        _LOGIN_ATTEMPTS.clear()
+
+        # Send 10 attempts
+        for _ in range(10):
+            self.client.post("/api/fetch-planning", json={})
+
+        # 11th attempt should trigger 429
+        res_rate = self.client.post("/api/fetch-planning", json={})
+        self.assertEqual(res_rate.status_code, 429)
+        self.assertFalse(res_rate.get_json().get("success"))
+        _LOGIN_ATTEMPTS.clear()
+
 
 if __name__ == "__main__":
     unittest.main()

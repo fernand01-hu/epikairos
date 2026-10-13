@@ -25,13 +25,17 @@ SECRET_FILE = ".server_secret"
 
 
 def _get_server_key() -> bytes:
-    """Retrieves or creates a 32-byte secret key for password encryption."""
+    """Retrieves or creates a 32-byte secret key for password encryption with secure permissions."""
     env_secret = os.getenv("SERVER_SECRET_KEY")
     if env_secret:
         return hashlib.sha256(env_secret.encode("utf-8")).digest()
 
     if os.path.exists(SECRET_FILE):
         try:
+            try:
+                os.chmod(SECRET_FILE, 0o600)
+            except OSError:
+                pass
             with open(SECRET_FILE, "rb") as f:
                 key = f.read().strip()
                 if len(key) == 32:
@@ -39,10 +43,11 @@ def _get_server_key() -> bytes:
         except Exception:
             pass
 
-    # Generate a fresh 32-byte key and store it
+    # Generate a fresh 32-byte key and store it with restricted (0600) permissions
     key = secrets.token_bytes(32)
     try:
-        with open(SECRET_FILE, "wb") as f:
+        fd = os.open(SECRET_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
             f.write(key)
     except Exception:
         pass

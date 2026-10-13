@@ -30,6 +30,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let lastData = null;
 
+    function escapeHtml(str) {
+        if (!str) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
     function setNow() {
         const now = new Date();
         const year = now.getFullYear();
@@ -173,7 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const nextInfo = r.next_course
                     ? `<div class="small text-muted mt-2 border-top pt-2">
-                         <i class="bi bi-calendar-event me-1 text-primary"></i> Prochain cours : <strong>${r.next_course.title}</strong> (${r.next_course.start} - ${r.next_course.end})
+                         <i class="bi bi-calendar-event me-1 text-primary"></i> Prochain cours : <strong>${escapeHtml(r.next_course.title)}</strong> (${escapeHtml(r.next_course.start)} - ${escapeHtml(r.next_course.end)})
                        </div>`
                     : '<div class="small text-muted mt-2 border-top pt-2"><i class="bi bi-check2-all text-success me-1"></i> Aucun cours ultérieur répertorié aujourd\'hui</div>';
 
@@ -187,7 +197,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         </div>
                         <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">
                             <i class="bi bi-door-open-fill text-success"></i>
-                            ${r.room_name}
+                            ${escapeHtml(r.room_name)}
                         </h6>
                         ${nextInfo}
                     </div>
@@ -230,17 +240,17 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <i class="bi bi-x-circle me-1"></i> OCCUPÉE
                             </span>
                             <span class="badge bg-body-secondary text-secondary border small">
-                                Jusqu'à ${c.end || "-"}
+                                Jusqu'à ${escapeHtml(c.end || "-")}
                             </span>
                         </div>
                         <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">
                             <i class="bi bi-door-closed-fill text-danger"></i>
-                            ${r.room_name}
+                            ${escapeHtml(r.room_name)}
                         </h6>
-                        <div class="small fw-semibold text-navy mt-1">${c.title || "Cours"}</div>
+                        <div class="small fw-semibold text-navy mt-1">${escapeHtml(c.title || "Cours")}</div>
                         <div class="small text-muted mt-2 border-top pt-2">
-                            <div><i class="bi bi-person me-1"></i> ${teachersStr}</div>
-                            <div><i class="bi bi-people me-1"></i> ${groupsStr}</div>
+                            <div><i class="bi bi-person me-1"></i> ${escapeHtml(teachersStr)}</div>
+                            <div><i class="bi bi-people me-1"></i> ${escapeHtml(groupsStr)}</div>
                         </div>
                     </div>
                 `;

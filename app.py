@@ -38,16 +38,84 @@ from auriga_core import (
 import database
 import feed_store
 
+def _get_flask_secret_key() -> str:
+    """
+    Retrieves or generates a cryptographically secure, persistent secret key for Flask sessions.
+    Prevents session cookie forgery by avoiding default hardcoded strings.
+    """
+    env_secret = os.getenv("FLASK_SECRET_KEY")
+    if env_secret and env_secret != "auriga-epita-secret-key-change-in-prod":
+        return env_secret
+
+    secret_file = os.path.join(os.path.dirname(__file__), ".flask_secret")
+    if os.path.exists(secret_file):
+        try:
+            try:
+                os.chmod(secret_file, 0o600)
+            except OSError:
+                pass
+            with open(secret_file, "r", encoding="utf-8") as f:
+                key = f.read().strip()
+                if len(key) >= 32:
+                    return key
+        except Exception:
+            pass
+
+    import secrets
+    new_key = secrets.token_hex(32)
+    try:
+        fd = os.open(secret_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(new_key)
+    except Exception:
+        pass
+    return new_key
+
+
 app = Flask(__name__)
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "auriga-epita-secret-key-change-in-prod")
+app.config["SECRET_KEY"] = _get_flask_secret_key()
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max payload
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "false").lower() in ("true", "1")
 app.permanent_session_lifetime = timedelta(days=30)
+
+# In-memory sliding window rate limiter for authentication endpoints
+_LOGIN_ATTEMPTS: dict[str, list[float]] = {}
+RATE_LIMIT_WINDOW = 60  # seconds
+MAX_LOGIN_ATTEMPTS_PER_WINDOW = 10
+
+def check_login_rate_limit(client_ip: str) -> bool:
+    """Returns False if client_ip has exceeded MAX_LOGIN_ATTEMPTS_PER_WINDOW in the last RATE_LIMIT_WINDOW seconds."""
+    now = time.time()
+    attempts = _LOGIN_ATTEMPTS.setdefault(client_ip, [])
+    # Keep attempts within the sliding window
+    _LOGIN_ATTEMPTS[client_ip] = [t for t in attempts if now - t < RATE_LIMIT_WINDOW]
+    if len(_LOGIN_ATTEMPTS[client_ip]) >= MAX_LOGIN_ATTEMPTS_PER_WINDOW:
+        return False
+    _LOGIN_ATTEMPTS[client_ip].append(now)
+    return True
 
 # Cache duration for live Google Calendar feeds (in seconds: default 12 hours = sync 1-2 times a day)
 FEED_CACHE_DURATION = int(os.getenv("FEED_CACHE_DURATION", 43200))
 
 # Ensure database tables exist
 database.init_db()
+
+
+# =============================================================================
+# Security Headers Middleware
+# =============================================================================
+
+@app.after_request
+def set_security_headers(response):
+    """Inject defensive HTTP security headers into all responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
 
 
 # =============================================================================
@@ -65,6 +133,7 @@ def require_auriga_login():
     # Public routes that do not require an active Auriga session
     if (
         path.startswith("/static/")
+        or path.startswith("/feed/")
         or path.startswith("/ics/")
         or path in (
             "/login",
@@ -234,6 +303,13 @@ def fetch_planning():
     Authenticates to Auriga, retrieves normalized courses,
     and with user consent, ingests them into the collaborative database.
     """
+    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+    if not check_login_rate_limit(client_ip):
+        return jsonify({
+            "success": False,
+            "error": "Trop de tentatives de connexion. Veuillez patienter une minute avant de réessayer."
+        }), 429
+
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     password = (data.get("password") or "").strip()
@@ -276,6 +352,13 @@ def fetch_planning():
         types_count[t] = types_count.get(t, 0) + 1
         if c["is_cancelled"]:
             cancelled_count += 1
+
+    stats = {
+        "total": len(normalized_courses),
+        "total_courses": len(normalized_courses),
+        "by_type": types_count,
+        "cancelled": cancelled_count,
+    }
 
     # Establish authenticated user session
     session.permanent = True
@@ -449,7 +532,7 @@ def export_ics():
     """Generates and downloads the .ics file from selected courses."""
     data = request.get_json(silent=True) or {}
     courses = data.get("courses", [])
-    calendar_name = data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps"
+    calendar_name = (data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps").strip()[:120]
 
     if not courses:
         return jsonify({"success": False, "error": "Aucun cours sélectionné pour l'exportation."}), 400
@@ -477,8 +560,19 @@ def create_feed():
     allowed_types = data.get("allowed_types")
     allowed_courses = data.get("allowed_courses")
     hide_cancelled = bool(data.get("hide_cancelled", False))
-    calendar_name = data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps"
+    calendar_name = (data.get("calendar_name") or "EpiKairos - EPITA Emploi du temps").strip()[:120]
     courses = data.get("courses", [])
+
+    # Validate regex lengths and syntax to prevent ReDoS
+    for r_label, r_val in [("d'inclusion", include_regex), ("d'exclusion", exclude_regex)]:
+        if r_val:
+            if len(r_val) > 300:
+                return jsonify({"success": False, "error": f"L'expression Regex {r_label} est trop longue (max 300 caractères)."}), 400
+            try:
+                import re as _re
+                _re.compile(r_val)
+            except _re.error as e:
+                return jsonify({"success": False, "error": f"Expression Regex {r_label} invalide : {e}"}), 400
 
     if not courses and (not username or not password):
         return jsonify({
@@ -544,6 +638,10 @@ def serve_feed(feed_id: str):
     Serves the live iCalendar feed to external subscribers (Google Calendar, Apple, Outlook).
     Respects query parameter filter overrides and auto-sync headers (1-2 times a day).
     """
+    import re as _re
+    if not _re.match(r"^[A-Za-z0-9_\-]{1,64}$", feed_id):
+        return Response("Identifiant de flux invalide.", status=400, mimetype="text/plain")
+
     feed = feed_store.get_feed(feed_id)
     if not feed:
         return Response("Flux de calendrier introuvable.", status=404, mimetype="text/plain")
@@ -551,6 +649,12 @@ def serve_feed(feed_id: str):
     # Read filter overrides from URL query parameters (if provided)
     include_regex = request.args.get("include") or request.args.get("include_regex") or feed.get("include_regex")
     exclude_regex = request.args.get("exclude") or request.args.get("exclude_regex") or feed.get("exclude_regex")
+
+    # Validate regex lengths to prevent ReDoS
+    if include_regex and len(include_regex) > 300:
+        include_regex = include_regex[:300]
+    if exclude_regex and len(exclude_regex) > 300:
+        exclude_regex = exclude_regex[:300]
 
     if "hide_cancelled" in request.args:
         hide_cancelled = request.args.get("hide_cancelled", "").lower() in ("1", "true", "yes")

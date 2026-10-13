@@ -12,6 +12,7 @@ ENV/
 # Secrets & Local Configuration
 .env
 .server_secret
+.flask_secret
 
 # Database & SQLite files
 feeds.db

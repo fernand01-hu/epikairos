@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
-COPY auriga_core.py feed_store.py app.py .
+COPY auriga_core.py feed_store.py database.py app.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
 
