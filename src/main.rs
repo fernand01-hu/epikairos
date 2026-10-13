@@ -114,7 +114,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[*] Starting EpiKairos Rust Backend on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }

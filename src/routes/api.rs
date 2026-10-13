@@ -122,14 +122,26 @@ pub async fn fetch_planning_handler(
     State(state): State<AppState>,
     cookies: Cookies,
     headers: HeaderMap,
+    connect_info: Option<axum::extract::ConnectInfo<std::net::SocketAddr>>,
     Json(payload): Json<FetchPlanningPayload>,
 ) -> Response {
-    let client_ip = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "127.0.0.1".to_string());
+    let trusted_proxy = std::env::var("TRUSTED_PROXY")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    let client_ip = if trusted_proxy {
+        headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .map(|s| s.trim().to_string())
+            .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
+            .unwrap_or_else(|| "127.0.0.1".to_string())
+    } else {
+        connect_info
+            .map(|ci| ci.0.ip().to_string())
+            .unwrap_or_else(|| "127.0.0.1".to_string())
+    };
 
     if !state.check_login_rate_limit(&client_ip).await {
         return (
@@ -228,16 +240,22 @@ pub async fn fetch_planning_handler(
         "Étudiant Auriga".to_string()
     };
 
-    // Set signed session cookie
+    // Set signed session cookie with 30-day lifetime and secure options
     let session = UserSession {
         logged_in: true,
         username: Some(user_display.clone()),
+        exp: Utc::now().timestamp() + crate::session::SESSION_LIFETIME_SECS,
     };
     let signed_val = sign_session(&session, &state.secret_key);
     let mut cookie = Cookie::new("session", signed_val);
     cookie.set_path("/");
     cookie.set_http_only(true);
     cookie.set_same_site(tower_cookies::cookie::SameSite::Lax);
+
+    let secure_cookie = std::env::var("SESSION_COOKIE_SECURE")
+        .map(|v| v.to_lowercase() == "true" || v == "1")
+        .unwrap_or(false);
+    cookie.set_secure(secure_cookie);
     cookies.add(cookie);
 
     Json(serde_json::json!({
@@ -537,7 +555,8 @@ pub async fn export_ics_handler(Json(payload): Json<ExportIcsPayload>) -> Respon
     let cal_name = payload
         .calendar_name
         .unwrap_or_else(|| "EpiKairos - EPITA Emploi du temps".to_string());
-    let ics_content = generate_ics_from_courses(&payload.courses, &cal_name);
+    let safe_cal_name = if cal_name.len() > 120 { &cal_name[..120] } else { &cal_name };
+    let ics_content = generate_ics_from_courses(&payload.courses, safe_cal_name);
 
     (
         [
@@ -561,6 +580,7 @@ pub async fn export_ics_handler(Json(payload): Json<ExportIcsPayload>) -> Respon
 // -----------------------------------------------------------------------------
 pub async fn create_feed_handler(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<CreateFeedPayload>,
 ) -> Response {
     let username = payload.username.clone().unwrap_or_default().trim().to_string();
@@ -667,7 +687,13 @@ pub async fn create_feed_handler(
     };
 
     let feed_url = format!("/feed/{}.ics{}", feed_id, query_str);
-    let webcal_url = format!("webcal://{}{}", "localhost:5000", feed_url);
+    let host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("localhost:5000");
+    let host_re = Regex::new(r"^[a-zA-Z0-9.:_-]+$").unwrap();
+    let safe_host = if host_re.is_match(host) { host } else { "localhost:5000" };
+    let webcal_url = format!("webcal://{}{}", safe_host, feed_url);
 
     let filter_summary = serde_json::json!({
         "include_regex": include_regex.unwrap_or_else(|| "Aucun".to_string()),
@@ -741,11 +767,23 @@ pub async fn serve_feed_handler(
     let include_regex = params
         .include
         .or(params.include_regex)
-        .or(feed_opt.include_regex.clone());
+        .or(feed_opt.include_regex.clone())
+        .map(|mut s| {
+            if s.len() > 300 {
+                s.truncate(300);
+            }
+            s
+        });
     let exclude_regex = params
         .exclude
         .or(params.exclude_regex)
-        .or(feed_opt.exclude_regex.clone());
+        .or(feed_opt.exclude_regex.clone())
+        .map(|mut s| {
+            if s.len() > 300 {
+                s.truncate(300);
+            }
+            s
+        });
 
     let hide_cancelled = match params.hide_cancelled.as_deref() {
         Some("1") | Some("true") | Some("yes") => true,

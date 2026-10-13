@@ -1218,8 +1218,9 @@ pub fn query_custom_courses(
     }
 
     if let Some(t_list) = teachers {
-        if !t_list.is_empty() {
-            let placeholders = t_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let t_slice = if t_list.len() > 100 { &t_list[..100] } else { t_list };
+        if !t_slice.is_empty() {
+            let placeholders = t_slice.iter().map(|_| "?").collect::<Vec<_>>().join(",");
             conditions.push(format!(
                 "c.id IN (
                     SELECT ct.course_id FROM course_teachers ct
@@ -1228,15 +1229,16 @@ pub fn query_custom_courses(
                 )",
                 placeholders
             ));
-            for t in t_list {
+            for t in t_slice {
                 params.push(t.clone().into());
             }
         }
     }
 
     if let Some(r_list) = rooms {
-        if !r_list.is_empty() {
-            let placeholders = r_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let r_slice = if r_list.len() > 100 { &r_list[..100] } else { r_list };
+        if !r_slice.is_empty() {
+            let placeholders = r_slice.iter().map(|_| "?").collect::<Vec<_>>().join(",");
             conditions.push(format!(
                 "c.id IN (
                     SELECT cr.course_id FROM course_rooms cr
@@ -1245,15 +1247,16 @@ pub fn query_custom_courses(
                 )",
                 placeholders
             ));
-            for r in r_list {
+            for r in r_slice {
                 params.push(r.clone().into());
             }
         }
     }
 
     if let Some(g_list) = groups {
-        if !g_list.is_empty() {
-            let placeholders = g_list.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let g_slice = if g_list.len() > 100 { &g_list[..100] } else { g_list };
+        if !g_slice.is_empty() {
+            let placeholders = g_slice.iter().map(|_| "?").collect::<Vec<_>>().join(",");
             conditions.push(format!(
                 "c.id IN (
                     SELECT cg.course_id FROM course_groups cg
@@ -1262,7 +1265,7 @@ pub fn query_custom_courses(
                 )",
                 placeholders
             ));
-            for g in g_list {
+            for g in g_slice {
                 params.push(g.clone().into());
             }
         }
@@ -1798,9 +1801,10 @@ pub fn query_courses_by_groups(
         params.push(d.to_string().into());
     }
 
-    if !patterns.is_empty() {
+    let pat_slice = if patterns.len() > 100 { &patterns[..100] } else { patterns };
+    if !pat_slice.is_empty() {
         let mut like_clauses = Vec::new();
-        for p in patterns {
+        for p in pat_slice {
             like_clauses.push("g.name LIKE ?".to_string());
             params.push(format!("%{}%", p).into());
         }

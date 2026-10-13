@@ -82,7 +82,8 @@ impl AurigaClient {
             return Err("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de '…'). Faites Clic droit sur le header Authorization -> 'Copier la valeur' dans DevTools.".to_string());
         }
 
-        // Check expiration
+        let mut extracted_username = String::new();
+        // Check expiration and username
         if let Ok(parts) = clean.split('.').collect::<Vec<&str>>().try_into() {
             let parts: [&str; 3] = parts;
             let mut payload_b64 = parts[1].to_string();
@@ -97,6 +98,11 @@ impl AurigaClient {
                             return Err("Ce jeton d'accès Auriga a expiré (durée de validité de 5 minutes dépassée). Veuillez rafraîchir Auriga (F5) et copier le nouveau jeton, ou utilisez vos identifiants.".to_string());
                         }
                     }
+                    if let Some(u) = v.get("preferred_username").and_then(|u| u.as_str()) {
+                        extracted_username = u.to_string();
+                    } else if let Some(u) = v.get("sub").and_then(|u| u.as_str()) {
+                        extracted_username = u.to_string();
+                    }
                 }
             }
         }
@@ -107,7 +113,7 @@ impl AurigaClient {
             .unwrap_or_default();
 
         Ok(Self {
-            username: String::new(),
+            username: extracted_username,
             password: String::new(),
             access_token: Some(clean),
             refresh_token: None,
@@ -455,12 +461,18 @@ pub fn generate_ics_from_courses(courses: &[Course], calendar_name: &str) -> Str
     lines.push("PRODID:-//EpiKairos//EPITA Calendar Rust//FR".to_string());
     lines.push("CALSCALE:GREGORIAN".to_string());
     lines.push("METHOD:PUBLISH".to_string());
-    lines.push(fold_line(&format!("X-WR-CALNAME:{}", escape_ics_text(calendar_name)), 75));
+    let clean_cal_name = calendar_name.replace(['\r', '\n'], " ");
+    lines.push(fold_line(&format!("X-WR-CALNAME:{}", escape_ics_text(&clean_cal_name)), 75));
     lines.push("X-WR-TIMEZONE:Europe/Paris".to_string());
 
     for c in courses {
+        let clean_id: String = c
+            .id
+            .chars()
+            .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+            .collect();
         lines.push("BEGIN:VEVENT".to_string());
-        lines.push(format!("UID:auriga-{}@epita.fr", c.id));
+        lines.push(format!("UID:auriga-{}@epita.fr", clean_id));
         lines.push(format!("DTSTAMP:{}", now_utc));
         lines.push(format!("DTSTART;TZID=Europe/Paris:{}", format_ics_datetime(&c.start)));
         lines.push(format!("DTEND;TZID=Europe/Paris:{}", format_ics_datetime(&c.end)));
@@ -565,4 +577,39 @@ pub fn filter_courses(
     }
 
     Ok(filtered)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_ics_crlf_sanitization() {
+        let course = Course {
+            id: "123\r\nX-INJECTED:PWNED\r\n456".to_string(),
+            start: "2026-10-13T09:00:00".to_string(),
+            end: "2026-10-13T11:00:00".to_string(),
+            duration: 120,
+            summary: "Test Course".to_string(),
+            rooms: vec!["Salle 1".to_string()],
+            teachers: vec!["Prof".to_string()],
+            groups: vec!["G1".to_string()],
+            course_name: "Rust 101".to_string(),
+            course_code: "CM".to_string(),
+            activity_type: "CM".to_string(),
+            activity_name: "Cours".to_string(),
+            is_exam: false,
+            is_cancelled: false,
+            status: "PLANIFIE".to_string(),
+            description: String::new(),
+            searchable_text: String::new(),
+        };
+
+        let cal_name = "Calendar\r\nEVIL-HEADER:VALUE\r\nName";
+        let ics = generate_ics_from_courses(&[course], cal_name);
+
+        assert!(!ics.contains("X-INJECTED:PWNED"));
+        assert!(!ics.contains("EVIL-HEADER:VALUE\r\n"));
+        assert!(ics.contains("UID:auriga-123X-INJECTEDPWNED456@epita.fr"));
+    }
 }
