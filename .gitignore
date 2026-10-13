@@ -31,3 +31,7 @@ ChrysalideApp-main/
 .vscode/
 *.swp
 *.swo
+
+# Rust
+/target/
+target/

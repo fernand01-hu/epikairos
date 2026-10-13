@@ -27,9 +27,24 @@ Conçu pour tourner sur votre **serveur personnel à la maison** (PC Linux, Rasp
 
 ---
 
-## 🚀 Démarrage rapide sur votre serveur à la maison
+## 🚀 Démarrage rapide
 
-### Méthode 1 : Avec Python (Le plus simple)
+### Méthode 1 : Backend Rust haute performance (Recommandé)
+
+1. **Compiler et exécuter avec Cargo :**
+   ```bash
+   cargo run --release
+   ```
+   *L'application démarre instantanément sur `http://localhost:5000` avec Axum, Tokio, MiniJinja et SQLite pooling.*
+
+Pour changer le port :
+```bash
+PORT=8080 cargo run --release
+```
+
+---
+
+### Méthode 2 : Avec Python (Fallback)
 
 1. **Installer les dépendances :**
    ```bash
