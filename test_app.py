@@ -47,6 +47,24 @@ class TestFlaskApp(unittest.TestCase):
         data = res.get_json()
         self.assertFalse(data.get("success"))
 
+        # Truncated token with unicode ellipsis
+        res_trunc = self.client.post(
+            "/api/fetch-planning",
+            json={"access_token": "eyJhbGciOi…truncated"},
+        )
+        self.assertEqual(res_trunc.status_code, 400)
+        trunc_data = res_trunc.get_json()
+        self.assertIn("tronqu", trunc_data.get("error", "").lower())
+
+        # Truncated token with 3 dots
+        res_dots = self.client.post(
+            "/api/fetch-planning",
+            json={"access_token": "eyJhbGciOi...truncated"},
+        )
+        self.assertEqual(res_dots.status_code, 400)
+        dots_data = res_dots.get_json()
+        self.assertIn("tronqu", dots_data.get("error", "").lower())
+
     def test_export_ics_route(self):
         self.login_client()
         sample_course = {

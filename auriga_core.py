@@ -89,7 +89,16 @@ class AurigaClient:
             "User-Agent": DEFAULT_USER_AGENT,
             "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
         })
-        self.access_token: str | None = access_token
+        if access_token:
+            clean_token = access_token.strip()
+            if clean_token.lower().startswith("bearer "):
+                clean_token = clean_token[7:].strip()
+            clean_token = clean_token.strip('"\'')
+            if "\u2026" in clean_token or "..." in clean_token:
+                raise ValueError("Le jeton collé est tronqué ('…'). Dans vos DevTools, faites Clic droit -> 'Copier la valeur' pour obtenir le jeton complet.")
+            self.access_token = clean_token
+        else:
+            self.access_token = None
         self.refresh_token: str | None = None
 
     def _perform_login_flow(self, user: str, pw: str) -> str:

@@ -101,8 +101,9 @@
                         <div class="mb-3">
                             <label for="tokenInput" class="form-label fw-semibold">Jeton d'accès Auriga (Bearer Token)</label>
                             <textarea class="form-control font-monospace small" id="tokenInput" rows="3" placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
-                            <div class="form-text">
-                                Si vous êtes déjà connecté à Auriga dans votre navigateur, collez directement votre jeton (Authorization Bearer).
+                            <div class="alert alert-info py-2 px-3 small mt-2 mb-0 border-0 bg-info-subtle text-info-emphasis rounded-3">
+                                <i class="bi bi-info-circle-fill me-1"></i>
+                                <strong>Important :</strong> Pour éviter que votre navigateur ne tronque le jeton avec des <code>...</code>, faites un <strong>clic droit</strong> sur la valeur du header <code>Authorization</code> dans l'onglet <em>Réseau (F12)</em> &rarr; <strong>« Copier la valeur » (Copy value)</strong>.
                             </div>
                         </div>
                     </div>
@@ -191,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
         alertBox.classList.add("d-none");
         successBox.classList.add("d-none");
 
-        const tokenInput = document.getElementById("tokenInput").value.trim();
+        let tokenInput = document.getElementById("tokenInput").value.trim();
         const username = document.getElementById("usernameInput").value.trim();
         const password = document.getElementById("passwordInput").value.trim();
         const startDate = document.getElementById("startDateInput").value.trim();
@@ -200,9 +201,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const isTokenActive = document.getElementById("tab-token-btn")?.classList.contains("active");
 
+        if (tokenInput) {
+            if (tokenInput.toLowerCase().startsWith("bearer ")) {
+                tokenInput = tokenInput.substring(7).trim();
+            }
+            tokenInput = tokenInput.replace(/^["']|["']$/g, '');
+        }
+
         if (isTokenActive || (tokenInput && !username)) {
             if (!tokenInput) {
                 showAlert("Veuillez coller votre jeton d'accès (access_token).");
+                return;
+            }
+            if (tokenInput.includes("…") || tokenInput.includes("...")) {
+                showAlert("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de points de suspension '…').<br><br>Dans vos DevTools (F12) &rarr; onglet Réseau, faites un <strong>clic droit</strong> sur le header <code>Authorization</code> &rarr; <strong>« Copier la valeur » (Copy value)</strong>.");
                 return;
             }
         } else {

@@ -317,6 +317,22 @@ def fetch_planning():
     start_date = (data.get("start_date") or "").strip()
     end_date = (data.get("end_date") or "").strip()
     consent = bool(data.get("consent", True))
+    if access_token:
+        if access_token.lower().startswith("bearer "):
+            access_token = access_token[7:].strip()
+        access_token = access_token.strip('"\'')
+        if "\u2026" in access_token or "..." in access_token:
+            return jsonify({
+                "success": False,
+                "error": "Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de points de suspension '…'). Dans l'onglet Réseau (Network) de vos DevTools (F12), faites un Clic droit sur le header 'Authorization' -> 'Copier la valeur' (Copy value)."
+            }), 400
+        try:
+            access_token.encode("ascii")
+        except UnicodeEncodeError:
+            return jsonify({
+                "success": False,
+                "error": "Le jeton collé contient des caractères non autorisés. Veuillez vous assurer d'avoir copié le jeton JWT complet sans caractères spéciaux."
+            }), 400
 
     if not access_token and (not username or not password):
         return jsonify({"success": False, "error": "Veuillez renseigner vos identifiants ou un jeton d'accès."}), 400
