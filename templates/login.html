@@ -217,6 +217,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 showAlert("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de points de suspension '…').<br><br>Dans vos DevTools (F12) &rarr; onglet Réseau, faites un <strong>clic droit</strong> sur le header <code>Authorization</code> &rarr; <strong>« Copier la valeur » (Copy value)</strong>.");
                 return;
             }
+            try {
+                const parts = tokenInput.split(".");
+                if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+                    if (payload.exp && Date.now() / 1000 > payload.exp) {
+                        showAlert("Ce jeton d'accès Auriga a expiré (validité de 5 minutes dépassée).<br><br>Veuillez rafraîchir la page Auriga (<kbd>F5</kbd>) et copier immédiatement le nouveau jeton, ou utilisez l'onglet <strong>« Identifiant & Mot de passe »</strong> pour une connexion automatique permanente.");
+                        return;
+                    }
+                }
+            } catch (e) {}
         } else {
             if (!username || !password) {
                 showAlert("Veuillez renseigner votre identifiant et mot de passe.");

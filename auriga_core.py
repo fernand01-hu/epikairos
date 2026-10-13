@@ -267,8 +267,17 @@ class AurigaClient:
         }
 
         res = self.session.get(endpoint, headers=headers)
-        if not res.ok:
-            raise RuntimeError(f"Erreur API Auriga ({res.status_code}) : {res.text}")
+        if res.status_code == 401:
+            raise RuntimeError(
+                "Accès refusé (401) par Auriga : Votre jeton d'accès est expiré ou invalide. "
+                "Les jetons Auriga ont une durée de vie très courte (5 minutes). "
+                "Veuillez rafraîchir Auriga (F5) et copier immédiatement le nouveau jeton, "
+                "ou utilisez l'onglet 'Identifiant & Mot de passe' pour une connexion automatique permanente."
+            )
+        elif not res.ok:
+            clean_err = re.sub(r"<[^>]+>", " ", res.text).strip()
+            clean_err = re.sub(r"\s+", " ", clean_err)[:250]
+            raise RuntimeError(f"Erreur API Auriga ({res.status_code}) : {clean_err}")
 
         data = res.json()
         if isinstance(data, list):

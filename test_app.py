@@ -65,6 +65,18 @@ class TestFlaskApp(unittest.TestCase):
         dots_data = res_dots.get_json()
         self.assertIn("tronqu", dots_data.get("error", "").lower())
 
+        # Expired JWT token test
+        import base64, json, time
+        payload = base64.urlsafe_b64encode(json.dumps({"exp": int(time.time()) - 3600}).encode()).decode().rstrip("=")
+        expired_token = f"eyJhbGciOiJSUzI1NiJ9.{payload}.fake_sig"
+        res_exp = self.client.post(
+            "/api/fetch-planning",
+            json={"access_token": expired_token},
+        )
+        self.assertEqual(res_exp.status_code, 400)
+        exp_data = res_exp.get_json()
+        self.assertIn("expir", exp_data.get("error", "").lower())
+
     def test_export_ics_route(self):
         self.login_client()
         sample_course = {

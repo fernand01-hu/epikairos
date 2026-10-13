@@ -11,6 +11,8 @@ Self-hosted multi-page web platform for EPITA students:
 """
 
 from datetime import datetime, date, timedelta
+import base64
+import json
 import os
 import sys
 import time
@@ -333,6 +335,20 @@ def fetch_planning():
                 "success": False,
                 "error": "Le jeton collé contient des caractères non autorisés. Veuillez vous assurer d'avoir copié le jeton JWT complet sans caractères spéciaux."
             }), 400
+
+        try:
+            parts = access_token.split(".")
+            if len(parts) == 3:
+                payload_b64 = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+                jwt_data = json.loads(base64.urlsafe_b64decode(payload_b64))
+                exp = jwt_data.get("exp")
+                if exp and time.time() > exp:
+                    return jsonify({
+                        "success": False,
+                        "error": "Ce jeton d'accès Auriga a expiré (durée de validité de 5 minutes dépassée). Veuillez rafraîchir votre page Auriga (F5) et copier immédiatement le nouveau jeton, ou utilisez l'onglet 'Identifiant & Mot de passe' pour une connexion automatique permanente."
+                    }), 400
+        except Exception:
+            pass
 
     if not access_token and (not username or not password):
         return jsonify({"success": False, "error": "Veuillez renseigner vos identifiants ou un jeton d'accès."}), 400
