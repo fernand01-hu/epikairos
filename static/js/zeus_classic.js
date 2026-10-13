@@ -23,6 +23,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnToggleGroupSection = document.getElementById("btnToggleGroupSection");
     const groupChevron = document.getElementById("groupChevron");
 
+    // Elements - Sidebar Toggle
+    const appBody = document.querySelector(".zeus-app-body");
+    const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+    const btnCloseSidebar = document.getElementById("btnCloseSidebar");
+    const toggleSidebarIcon = document.getElementById("toggleSidebarIcon");
+    const toggleSidebarLabel = document.getElementById("toggleSidebarLabel");
+
     // Elements - Timetable Topbar & Grid
     const btnPrevWeek = document.getElementById("btnPrevWeek");
     const btnNextWeek = document.getElementById("btnNextWeek");
@@ -38,9 +45,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const gridBody = document.getElementById("gridBody");
 
     // Modals
-    const findRoomModal = new bootstrap.Modal(document.getElementById("findRoomModal"));
-    const courseDetailModal = new bootstrap.Modal(document.getElementById("courseDetailModal"));
-    const authSyncModal = new bootstrap.Modal(document.getElementById("authSyncModal"));
+    const findRoomModalEl = document.getElementById("findRoomModal");
+    const findRoomModal = findRoomModalEl ? new bootstrap.Modal(findRoomModalEl) : null;
+    const courseDetailModalEl = document.getElementById("courseDetailModal");
+    const courseDetailModal = courseDetailModalEl ? new bootstrap.Modal(courseDetailModalEl) : null;
+    const authSyncModalEl = document.getElementById("authSyncModal");
+    const authSyncModal = authSyncModalEl ? new bootstrap.Modal(authSyncModalEl) : null;
 
     // User profile display
     const userDisplayName = document.getElementById("userDisplayName");
@@ -552,11 +562,66 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // =========================================================================
-    // 7. Modals: Trouver une salle & Sync
+    // 7. Sidebar Toggle & Modals
     // =========================================================================
-    btnFindRoom.addEventListener("click", () => {
-        findRoomModal.show();
-    });
+    function setSidebarCollapsed(collapsed) {
+        if (!appBody) return;
+        if (collapsed) {
+            appBody.classList.add("sidebar-collapsed");
+            if (toggleSidebarIcon) {
+                toggleSidebarIcon.className = "bi bi-layout-sidebar";
+            }
+            if (toggleSidebarLabel) {
+                toggleSidebarLabel.textContent = "Afficher le menu";
+            }
+            if (btnToggleSidebar) {
+                btnToggleSidebar.title = "Afficher le menu de sélection";
+                btnToggleSidebar.classList.add("btn-primary");
+                btnToggleSidebar.classList.remove("btn-outline-secondary");
+            }
+        } else {
+            appBody.classList.remove("sidebar-collapsed");
+            if (toggleSidebarIcon) {
+                toggleSidebarIcon.className = "bi bi-layout-sidebar-inset";
+            }
+            if (toggleSidebarLabel) {
+                toggleSidebarLabel.textContent = "Masquer le menu";
+            }
+            if (btnToggleSidebar) {
+                btnToggleSidebar.title = "Masquer le menu de sélection";
+                btnToggleSidebar.classList.remove("btn-primary");
+                btnToggleSidebar.classList.add("btn-outline-secondary");
+            }
+        }
+        try {
+            localStorage.setItem("zeus_sidebar_collapsed", collapsed ? "1" : "0");
+        } catch (e) {}
+    }
+
+    if (btnToggleSidebar) {
+        btnToggleSidebar.addEventListener("click", () => {
+            const isCurrentlyCollapsed = appBody && appBody.classList.contains("sidebar-collapsed");
+            setSidebarCollapsed(!isCurrentlyCollapsed);
+        });
+    }
+
+    if (btnCloseSidebar) {
+        btnCloseSidebar.addEventListener("click", () => {
+            setSidebarCollapsed(true);
+        });
+    }
+
+    try {
+        if (localStorage.getItem("zeus_sidebar_collapsed") === "1") {
+            setSidebarCollapsed(true);
+        }
+    } catch (e) {}
+
+    if (btnFindRoom && findRoomModal) {
+        btnFindRoom.addEventListener("click", () => {
+            findRoomModal.show();
+        });
+    }
 
     document.getElementById("quickRoomSearchForm").addEventListener("submit", async (e) => {
         e.preventDefault();

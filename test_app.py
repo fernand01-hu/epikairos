@@ -261,6 +261,10 @@ class TestFlaskApp(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Old Zeus", res.data)
         self.assertIn(b"fernand.huttois@epita.fr", res.data)
+        self.assertNotIn(b"Interface classique inspir", res.data)
+        self.assertNotIn(b"btnFindRoom", res.data)
+        self.assertIn(b"btnToggleSidebar", res.data)
+        self.assertIn(b"btnCloseSidebar", res.data)
 
         # Alias on /zeus
         res_alias = self.client.get("/zeus")
