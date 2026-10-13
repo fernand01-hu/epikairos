@@ -613,6 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         const totalDaysToShow = hasSundayCourses ? 7 : 6;
+        weekDaysGrid.classList.toggle("has-sunday", hasSundayCourses);
         const frenchDayNames = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
         const shortMonths = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
         const todayDate = new Date();
