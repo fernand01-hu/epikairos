@@ -14,7 +14,19 @@ class TestFlaskApp(unittest.TestCase):
         app.config["TESTING"] = True
         self.client = app.test_client()
 
+    def login_client(self, username="student.test"):
+        with self.client.session_transaction() as sess:
+            sess["logged_in"] = True
+            sess["username"] = username
+
     def test_index_route(self):
+        # Unauthenticated: redirects to /login
+        unauth_res = self.client.get("/")
+        self.assertEqual(unauth_res.status_code, 302)
+        self.assertIn("/login", unauth_res.headers.get("Location", ""))
+
+        # Authenticated: accesses dashboard
+        self.login_client()
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Auriga", res.data)
@@ -36,6 +48,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertFalse(data.get("success"))
 
     def test_export_ics_route(self):
+        self.login_client()
         sample_course = {
             "id": "2001",
             "start": "2024-10-16T08:30:00",
@@ -67,6 +80,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertIn(b"SUMMARY:[CM] Algorithmique et structures de", res.data)
 
     def test_feed_creation_and_serving(self):
+        self.login_client()
         sample_course = {
             "id": "3001",
             "start": "2024-10-17T09:00:00",
@@ -144,6 +158,7 @@ class TestFlaskApp(unittest.TestCase):
         feed_store.delete_feed(no_creds_id)
 
     def test_multi_page_routes(self):
+        self.login_client()
         # Accueil Dashboard on /
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
@@ -180,6 +195,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertIn(b"Salles Libres", res.data)
 
     def test_database_apis(self):
+        self.login_client()
         # Options
         res = self.client.get("/api/database/options")
         self.assertEqual(res.status_code, 200)
@@ -239,6 +255,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertTrue(detect_data.get("success"))
 
     def test_zeus_classic_routes(self):
+        self.login_client()
         # Old Zeus UI on /old-zeus
         res = self.client.get("/old-zeus")
         self.assertEqual(res.status_code, 200)
@@ -291,6 +308,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertIn("hors ligne".encode("utf-8"), res_off.data.lower())
 
     def test_rooms_instant_now_route(self):
+        self.login_client()
         res = self.client.get("/rooms?now=1")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b'data-is-now="1"', res.data)
@@ -298,6 +316,7 @@ class TestFlaskApp(unittest.TestCase):
         self.assertIn("1-CLIC DIRECT".encode("utf-8"), res.data)
 
     def test_dark_mode_and_pwa_markup(self):
+        self.login_client()
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
         html = res.data.decode("utf-8")
@@ -305,6 +324,62 @@ class TestFlaskApp(unittest.TestCase):
         self.assertIn('id="themeToggleBtn"', html)
         self.assertIn('href="/manifest.json"', html)
         self.assertIn('navigator.serviceWorker.register', html)
+
+    def test_authentication_middleware_and_logout(self):
+        # 1. Unauthenticated user visits protected pages -> 302 redirecting to /login
+        res_rooms = self.client.get("/rooms")
+        self.assertEqual(res_rooms.status_code, 302)
+        self.assertIn("/login", res_rooms.headers.get("Location", ""))
+
+        res_personal = self.client.get("/personal")
+        self.assertEqual(res_personal.status_code, 302)
+        self.assertIn("/login", res_personal.headers.get("Location", ""))
+
+        res_custom = self.client.get("/custom-calendar")
+        self.assertEqual(res_custom.status_code, 302)
+        self.assertIn("/login", res_custom.headers.get("Location", ""))
+
+        # 2. Unauthenticated user calls protected API -> 401 JSON error
+        res_api = self.client.get("/api/database/stats")
+        self.assertEqual(res_api.status_code, 401)
+        api_data = res_api.get_json()
+        self.assertFalse(api_data.get("success"))
+        self.assertEqual(api_data.get("redirect"), "/login")
+
+        # 3. Access to login page is permitted without authentication
+        res_login = self.client.get("/login")
+        self.assertEqual(res_login.status_code, 200)
+        self.assertIn(b"Connexion Auriga", res_login.data)
+
+        # 4. Authenticate and verify protected page access
+        self.login_client("fernand.huttois")
+        res_auth_rooms = self.client.get("/rooms")
+        self.assertEqual(res_auth_rooms.status_code, 200)
+
+        # 5. Logout clears session and redirects
+        res_logout = self.client.get("/logout")
+        self.assertEqual(res_logout.status_code, 302)
+        self.assertIn("logged_out=1", res_logout.headers.get("Location", ""))
+
+        # Verify access is restricted again after logout
+        res_after = self.client.get("/rooms")
+        self.assertEqual(res_after.status_code, 302)
+
+    def test_navbar_cleanups(self):
+        self.login_client("fernand.huttois")
+        res = self.client.get("/")
+        self.assertEqual(res.status_code, 200)
+        html = res.data.decode("utf-8")
+
+        # Ensure 'Accueil' duplicate button is not in nav items
+        self.assertNotIn('<i class="bi bi-speedometer2 me-1"></i> Accueil', html)
+
+        # Ensure 'Direct' badge next to Salles Libres is removed
+        self.assertNotIn('<span class="badge bg-success-subtle text-success border border-success rounded-pill px-2 py-0 ms-1 small" style="font-size: 0.65rem;">Direct</span>', html)
+
+        # Ensure user account button exists next to GitHub link with logout
+        self.assertIn("fernand.huttois", html)
+        self.assertIn('href="/logout"', html)
 
 
 if __name__ == "__main__":

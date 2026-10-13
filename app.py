@@ -10,7 +10,7 @@ Self-hosted multi-page web platform for EPITA students:
 5. Old Zeus classic interface replica with group treeview and 24h timetable.
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import os
 import sys
 import time
@@ -25,6 +25,7 @@ from flask import (
     send_from_directory,
     url_for,
     redirect,
+    session,
 )
 
 from auriga_core import (
@@ -40,12 +41,52 @@ import feed_store
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "auriga-epita-secret-key-change-in-prod")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max payload
+app.permanent_session_lifetime = timedelta(days=30)
 
 # Cache duration for live Google Calendar feeds (in seconds: default 12 hours = sync 1-2 times a day)
 FEED_CACHE_DURATION = int(os.getenv("FEED_CACHE_DURATION", 43200))
 
 # Ensure database tables exist
 database.init_db()
+
+
+# =============================================================================
+# Authentication Middleware (Mandatory Auriga Account)
+# =============================================================================
+
+@app.before_request
+def require_auriga_login():
+    """
+    Enforce mandatory Auriga login for all platform routes.
+    Unauthenticated visitors are restricted and redirected to /login.
+    """
+    path = request.path
+
+    # Public routes that do not require an active Auriga session
+    if (
+        path.startswith("/static/")
+        or path.startswith("/ics/")
+        or path in (
+            "/login",
+            "/logout",
+            "/api/fetch-planning",
+            "/manifest.json",
+            "/sw.js",
+            "/offline",
+            "/health",
+        )
+    ):
+        return None
+
+    # Check if user has an active authenticated session
+    if not session.get("logged_in"):
+        if path.startswith("/api/"):
+            return jsonify({
+                "success": False,
+                "error": "Authentification requise. Veuillez vous connecter avec votre compte Auriga.",
+                "redirect": "/login",
+            }), 401
+        return redirect(url_for("login_page"))
 
 
 # =============================================================================
@@ -88,7 +129,15 @@ def login_page():
         default_start=start_date,
         default_end=end_date,
         active_page="login",
+        logged_out=request.args.get("logged_out") == "1",
     )
+
+
+@app.route("/logout")
+def logout():
+    """Clears user session and redirects to login page."""
+    session.clear()
+    return redirect(url_for("login_page", logged_out="1"))
 
 
 @app.route("/personal")
@@ -228,16 +277,17 @@ def fetch_planning():
         if c["is_cancelled"]:
             cancelled_count += 1
 
-    stats = {
-        "total": len(normalized_courses),
-        "types": types_count,
-        "cancelled": cancelled_count,
-    }
+    # Establish authenticated user session
+    session.permanent = True
+    session["logged_in"] = True
+    user_display = username.split("@")[0] if "@" in username else (username or "Étudiant Auriga")
+    session["username"] = user_display
 
     return jsonify({
         "success": True,
         "courses": normalized_courses,
         "stats": stats,
+        "username": user_display,
     })
 
 

@@ -17,6 +17,36 @@
                 </p>
             </div>
 
+            <!-- Status & Auth Notifications -->
+            {% if logged_out %}
+            <div class="alert alert-info d-flex align-items-center gap-2 mb-4" role="alert">
+                <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+                <div class="small">Vous avez été déconnecté avec succès. Vos données locales ont été réinitialisées.</div>
+            </div>
+            {% endif %}
+
+            {% if session.get('logged_in') %}
+            <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4" role="alert">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-check-circle-fill fs-5 text-success flex-shrink-0"></i>
+                    <div class="small">
+                        Vous êtes actuellement connecté en tant que <strong>{{ session.get('username') }}</strong>.
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold">Accéder à l'Accueil</a>
+                    <a href="/logout" class="btn btn-sm btn-outline-danger rounded-pill px-3">Se déconnecter</a>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert bg-primary-subtle border border-primary-subtle text-primary d-flex align-items-center gap-2 mb-4 rounded-3" role="alert">
+                <i class="bi bi-shield-lock-fill fs-5 flex-shrink-0"></i>
+                <div class="small">
+                    <strong>Accès protégé :</strong> Veuillez vous connecter avec votre compte Auriga (EPITA) pour accéder à l'ensemble de la plateforme EpiKairos.
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Alert Notification -->
             <div id="alertBox" class="alert alert-danger d-none d-flex align-items-center gap-2 mb-4" role="alert">
                 <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0"></i>
@@ -133,6 +163,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const alertMessage = document.getElementById("alertMessage");
     const successBox = document.getElementById("successBox");
     const successMessage = document.getElementById("successMessage");
+
+    // If user logged out, clear local storage
+    if (window.location.search.includes("logged_out=1")) {
+        try {
+            localStorage.removeItem("zeus_courses");
+            localStorage.removeItem("zeus_credentials");
+            localStorage.removeItem("zeus_stats");
+            localStorage.removeItem("zeus_consent");
+        } catch (e) {}
+    }
 
     function showAlert(msg) {
         alertMessage.textContent = msg;
