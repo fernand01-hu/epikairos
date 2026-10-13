@@ -10,7 +10,7 @@ let userCredentials = { username: "", password: "", access_token: "" };
 let currentCalendarDate = new Date();
 let currentViewMode = "week"; // "week" | "table"
 
-const coursePalette = [
+const coursePaletteLight = [
     { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
     { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
     { bg: "#fef3c7", text: "#92400e", border: "#d97706" }, // Amber
@@ -24,6 +24,31 @@ const coursePalette = [
     { bg: "#ffedd5", text: "#9a3412", border: "#ea580c" }, // Orange
     { bg: "#fce7f3", text: "#9d174d", border: "#db2777" }, // Pink
 ];
+
+const coursePaletteDark = [
+    { bg: "rgba(37, 99, 235, 0.22)", text: "#93c5fd", border: "#3b82f6" }, // Blue
+    { bg: "rgba(5, 150, 105, 0.22)", text: "#6ee7b7", border: "#10b981" }, // Emerald
+    { bg: "rgba(217, 119, 6, 0.22)", text: "#fde047", border: "#f59e0b" }, // Amber
+    { bg: "rgba(124, 58, 237, 0.22)", text: "#d8b4fe", border: "#8b5cf6" }, // Purple
+    { bg: "rgba(13, 148, 136, 0.22)", text: "#5eead4", border: "#14b8a6" }, // Teal
+    { bg: "rgba(225, 29, 72, 0.22)", text: "#fda4af", border: "#f43f5e" }, // Rose
+    { bg: "rgba(2, 132, 199, 0.22)", text: "#7dd3fc", border: "#0ea5e9" }, // Sky
+    { bg: "rgba(192, 38, 211, 0.22)", text: "#f0abfc", border: "#d946ef" }, // Fuchsia
+    { bg: "rgba(100, 116, 139, 0.22)", text: "#cbd5e1", border: "#64748b" }, // Slate
+    { bg: "rgba(101, 163, 13, 0.22)", text: "#bef264", border: "#84cc16" }, // Lime
+    { bg: "rgba(234, 88, 12, 0.22)", text: "#fdba74", border: "#f97316" }, // Orange
+    { bg: "rgba(219, 39, 119, 0.22)", text: "#f9a8d4", border: "#ec4899" }, // Pink
+];
+
+function isDarkModeActive() {
+    return document.documentElement.getAttribute("data-bs-theme") === "dark";
+}
+
+function getCoursePalette() {
+    return isDarkModeActive() ? coursePaletteDark : coursePaletteLight;
+}
+
+const coursePalette = coursePaletteLight;
 
 document.addEventListener("DOMContentLoaded", () => {
     // DOM Elements - Login & Main UI
@@ -372,8 +397,11 @@ document.addEventListener("DOMContentLoaded", () => {
             .map(e => e[0]);
 
         typeButtonGroup.innerHTML = "";
+        const isDark = isDarkModeActive();
+        const palette = getCoursePalette();
+
         sortedCourses.forEach((courseName, idx) => {
-            const color = coursePalette[idx % coursePalette.length];
+            const color = palette[idx % palette.length];
             const count = courseCounts.get(courseName);
 
             const btn = document.createElement("button");
@@ -388,25 +416,29 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.style.color = color.text;
             btn.style.borderColor = color.border;
 
+            const badgeBg = isDark ? "rgba(0,0,0,0.4)" : "#ffffff";
+            const badgeColor = isDark ? color.text : "#0f172a";
+
             btn.innerHTML = `
                 <i class="bi bi-check-circle-fill"></i>
                 <span class="text-truncate" style="max-width: 240px;">${courseName}</span>
-                <span class="badge rounded-pill bg-white text-dark ms-1 shadow-sm" style="font-size:0.65rem; border: 1px solid ${color.border};">${count}</span>
+                <span class="badge rounded-pill ms-1 shadow-sm" style="font-size:0.65rem; background-color:${badgeBg}; color:${badgeColor}; border: 1px solid ${color.border};">${count}</span>
             `;
 
             btn.addEventListener("click", () => {
                 btn.classList.toggle("unchecked");
                 const icon = btn.querySelector("i");
+                const currentlyDark = isDarkModeActive();
                 if (btn.classList.contains("unchecked")) {
                     icon.className = "bi bi-circle";
-                    btn.style.backgroundColor = "#f1f5f9";
-                    btn.style.color = "#94a3b8";
-                    btn.style.borderColor = "#cbd5e1";
+                    btn.style.backgroundColor = currentlyDark ? "#0f172a" : "#f1f5f9";
+                    btn.style.color = currentlyDark ? "#64748b" : "#94a3b8";
+                    btn.style.borderColor = currentlyDark ? "#334155" : "#cbd5e1";
                 } else {
                     icon.className = "bi bi-check-circle-fill";
-                    btn.style.backgroundColor = color.bg;
-                    btn.style.color = color.text;
-                    btn.style.borderColor = color.border;
+                    btn.style.backgroundColor = btn.dataset.colorBg;
+                    btn.style.color = btn.dataset.colorText;
+                    btn.style.borderColor = btn.dataset.colorBorder;
                 }
                 applyFilters();
             });
@@ -433,17 +465,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (deselectAllTypesBtn) {
         deselectAllTypesBtn.addEventListener("click", () => {
+            const currentlyDark = isDarkModeActive();
             document.querySelectorAll(".type-filter-chip").forEach(btn => {
                 btn.classList.add("unchecked");
                 const icon = btn.querySelector("i");
                 if (icon) icon.className = "bi bi-circle";
-                btn.style.backgroundColor = "#f1f5f9";
-                btn.style.color = "#94a3b8";
-                btn.style.borderColor = "#cbd5e1";
+                btn.style.backgroundColor = currentlyDark ? "#0f172a" : "#f1f5f9";
+                btn.style.color = currentlyDark ? "#64748b" : "#94a3b8";
+                btn.style.borderColor = currentlyDark ? "#334155" : "#cbd5e1";
             });
             applyFilters();
         });
     }
+
+    // Refresh chips when theme changes dynamically
+    window.addEventListener("themeChanged", () => {
+        const isDark = isDarkModeActive();
+        const palette = getCoursePalette();
+        document.querySelectorAll(".type-filter-chip").forEach((btn, idx) => {
+            const color = palette[idx % palette.length];
+            btn.dataset.colorBg = color.bg;
+            btn.dataset.colorText = color.text;
+            btn.dataset.colorBorder = color.border;
+
+            const badge = btn.querySelector(".badge");
+            if (badge) {
+                badge.style.backgroundColor = isDark ? "rgba(0,0,0,0.4)" : "#ffffff";
+                badge.style.color = isDark ? color.text : "#0f172a";
+                badge.style.borderColor = color.border;
+            }
+
+            if (btn.classList.contains("unchecked")) {
+                btn.style.backgroundColor = isDark ? "#0f172a" : "#f1f5f9";
+                btn.style.color = isDark ? "#64748b" : "#94a3b8";
+                btn.style.borderColor = isDark ? "#334155" : "#cbd5e1";
+            } else {
+                btn.style.backgroundColor = color.bg;
+                btn.style.color = color.text;
+                btn.style.borderColor = color.border;
+            }
+        });
+    });
 
     // =========================================================================
     // 3. Realtime Regex & Filter Application

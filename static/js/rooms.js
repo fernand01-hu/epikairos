@@ -141,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!nextCourse || !nextCourse.start) {
             return `<span class="badge bg-success-subtle text-success border border-success small"><i class="bi bi-infinity me-1"></i> Libre jusqu'au soir</span>`;
         }
-        return `<span class="badge bg-light text-dark border small"><i class="bi bi-clock me-1 text-primary"></i> Libre jusqu'à ${nextCourse.start}</span>`;
+        return `<span class="badge bg-body-secondary text-body border small"><i class="bi bi-clock me-1 text-primary"></i> Libre jusqu'à ${nextCourse.start}</span>`;
     }
 
     function renderCards(data, filterQuery = "") {
@@ -185,7 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             </span>
                             ${remainingBadge}
                         </div>
-                        <h6 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
+                        <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">
                             <i class="bi bi-door-open-fill text-success"></i>
                             ${r.room_name}
                         </h6>
@@ -229,11 +229,11 @@ document.addEventListener("DOMContentLoaded", () => {
                             <span class="badge bg-danger-subtle text-danger border border-danger fw-bold px-2 py-1">
                                 <i class="bi bi-x-circle me-1"></i> OCCUPÉE
                             </span>
-                            <span class="badge bg-light text-muted border small">
+                            <span class="badge bg-body-secondary text-secondary border small">
                                 Jusqu'à ${c.end || "-"}
                             </span>
                         </div>
-                        <h6 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
+                        <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">
                             <i class="bi bi-door-closed-fill text-danger"></i>
                             ${r.room_name}
                         </h6>

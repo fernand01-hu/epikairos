@@ -153,6 +153,7 @@
                         localStorage.setItem('theme', activeTheme);
                     } catch (e) {}
                     syncIcon(activeTheme);
+                    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: activeTheme } }));
                 });
             }
         })();

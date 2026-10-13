@@ -522,3 +522,183 @@
     border-left-color: #64748b;
     color: #334155;
 }
+
+/* ==========================================================================
+   Zeus Classic Dark Mode Overrides (data-bs-theme="dark")
+   ========================================================================== */
+
+[data-bs-theme="dark"] .zeus-app-body {
+    background-color: #0b1320;
+    border-color: #334155;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+}
+
+[data-bs-theme="dark"] .zeus-sidebar {
+    background-color: #0f172a;
+    border-right-color: #334155;
+}
+
+[data-bs-theme="dark"] .zeus-group-header {
+    color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .zeus-search-input {
+    background-color: #0b1320;
+    border-color: #334155;
+    color: #f1f5f9;
+}
+
+[data-bs-theme="dark"] .zeus-search-input:focus {
+    border-color: #38bdf8;
+}
+
+[data-bs-theme="dark"] .tree-node-content {
+    color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .tree-node-content:hover {
+    background-color: #1e293b;
+}
+
+[data-bs-theme="dark"] .tree-toggle {
+    color: #94a3b8;
+}
+
+[data-bs-theme="dark"] .zeus-sidebar-actions {
+    border-top-color: #334155;
+}
+
+[data-bs-theme="dark"] .btn-clear-selection {
+    color: #38bdf8;
+}
+
+[data-bs-theme="dark"] .zeus-sidebar-footer {
+    color: #94a3b8;
+}
+
+[data-bs-theme="dark"] .zeus-sidebar-footer a {
+    color: #38bdf8;
+}
+
+[data-bs-theme="dark"] .zeus-timetable-area {
+    background-color: #0b1320;
+}
+
+[data-bs-theme="dark"] .zeus-timetable-topbar {
+    background-color: #0f172a;
+    border-bottom-color: #334155;
+}
+
+[data-bs-theme="dark"] .btn-topbar-arrow {
+    background-color: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .btn-topbar-arrow:hover {
+    background-color: #334155;
+}
+
+[data-bs-theme="dark"] .topbar-title {
+    color: #f8fafc;
+}
+
+[data-bs-theme="dark"] .topbar-datepicker {
+    background-color: #0b1320;
+    border-color: #334155;
+    color: #f8fafc;
+}
+
+[data-bs-theme="dark"] .zeus-grid-header {
+    background-color: #0f172a;
+    border-bottom-color: #334155;
+}
+
+[data-bs-theme="dark"] .grid-time-spacer {
+    border-right-color: #334155;
+}
+
+[data-bs-theme="dark"] .grid-day-header {
+    color: #cbd5e1;
+    border-right-color: #334155;
+}
+
+[data-bs-theme="dark"] .grid-day-header.is-today {
+    color: #38bdf8;
+}
+
+[data-bs-theme="dark"] .grid-time-column {
+    background-color: #0f172a;
+    border-right-color: #334155;
+}
+
+[data-bs-theme="dark"] .grid-hour-label {
+    color: #94a3b8;
+}
+
+[data-bs-theme="dark"] .grid-day-column {
+    border-right-color: #334155;
+}
+
+[data-bs-theme="dark"] .grid-hour-slot {
+    border-bottom-color: #1e293b;
+}
+
+[data-bs-theme="dark"] .grid-hour-slot::after {
+    border-bottom-color: #172033;
+}
+
+/* Event Types Color Palette in Zeus Classic Dark Mode */
+[data-bs-theme="dark"] .card-type-cm,
+[data-bs-theme="dark"] .card-type-cme {
+    background-color: #172554;
+    border-color: #3b82f6;
+    border-left-color: #60a5fa;
+    color: #bfdbfe;
+}
+
+[data-bs-theme="dark"] .card-type-td,
+[data-bs-theme="dark"] .card-type-tde {
+    background-color: #064e3b;
+    border-color: #10b981;
+    border-left-color: #34d399;
+    color: #a7f3d0;
+}
+
+[data-bs-theme="dark"] .card-type-tp,
+[data-bs-theme="dark"] .card-type-tpe {
+    background-color: #451a03;
+    border-color: #f59e0b;
+    border-left-color: #fbbf24;
+    color: #fde68a;
+}
+
+[data-bs-theme="dark"] .card-type-ex,
+[data-bs-theme="dark"] .card-type-exam {
+    background-color: #450a0a;
+    border-color: #ef4444;
+    border-left-color: #f87171;
+    color: #fecaca;
+}
+
+[data-bs-theme="dark"] .card-type-conf {
+    background-color: #3b0764;
+    border-color: #a855f7;
+    border-left-color: #c084fc;
+    color: #e9d5ff;
+}
+
+[data-bs-theme="dark"] .card-type-evn {
+    background-color: #042f2e;
+    border-color: #14b8a6;
+    border-left-color: #2dd4bf;
+    color: #99f6e4;
+}
+
+[data-bs-theme="dark"] .card-type-autre {
+    background-color: #1e293b;
+    border-color: #475569;
+    border-left-color: #94a3b8;
+    color: #e2e8f0;
+}
+
