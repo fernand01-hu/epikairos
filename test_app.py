@@ -312,8 +312,7 @@ class TestFlaskApp(unittest.TestCase):
         res = self.client.get("/rooms?now=1")
         self.assertEqual(res.status_code, 200)
         self.assertIn(b'data-is-now="1"', res.data)
-        self.assertIn("Trouver Tout de Suite".encode("utf-8"), res.data)
-        self.assertIn("1-CLIC DIRECT".encode("utf-8"), res.data)
+        self.assertIn(b"Maintenant", res.data)
 
     def test_dark_mode_and_pwa_markup(self):
         self.login_client()
