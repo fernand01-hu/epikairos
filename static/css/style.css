@@ -316,3 +316,208 @@ body {
     border-color: #3b82f6;
     box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.15);
 }
+
+/* ==========================================================================
+   Native Dark Mode Custom Overrides (data-bs-theme="dark")
+   ========================================================================== */
+
+[data-bs-theme="dark"] {
+    --primary-navy: #091322;
+    --accent-blue: #38bdf8;
+    --accent-blue-hover: #0284c7;
+    --bg-light: #0b1320;
+    --card-border: #334155;
+}
+
+[data-bs-theme="dark"] body {
+    background-color: #0b1320 !important;
+    color: #e2e8f0 !important;
+}
+
+[data-bs-theme="dark"] .bg-navy {
+    background-color: #070e1a !important;
+    border-bottom: 1px solid #1e293b;
+}
+
+[data-bs-theme="dark"] .text-navy {
+    color: #38bdf8 !important;
+}
+
+[data-bs-theme="dark"] .hero-card {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+    border-color: #334155 !important;
+    color: #f8fafc;
+}
+
+[data-bs-theme="dark"] .hero-card .bg-white {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f1f5f9;
+}
+
+[data-bs-theme="dark"] .card-custom {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .card-custom .text-dark {
+    color: #f8fafc !important;
+}
+
+[data-bs-theme="dark"] .card-custom .badge.bg-light {
+    background-color: #334155 !important;
+    color: #f1f5f9 !important;
+    border-color: #475569 !important;
+}
+
+[data-bs-theme="dark"] .sticky-action-bar {
+    background-color: rgba(15, 23, 42, 0.95) !important;
+    border-color: #334155 !important;
+    color: #f8fafc;
+}
+
+[data-bs-theme="dark"] footer.bg-body {
+    background-color: #0b1320 !important;
+    border-color: #1e293b !important;
+}
+
+/* Day columns & calendar cards in dark mode */
+[data-bs-theme="dark"] .day-column {
+    background-color: #172033 !important;
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .day-column-header {
+    background-color: #0f172a !important;
+    border-bottom-color: #334155 !important;
+    color: #e2e8f0 !important;
+}
+
+[data-bs-theme="dark"] .day-column.is-today {
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 0 1.5px #38bdf8 !important;
+}
+
+[data-bs-theme="dark"] .day-column.is-today .day-column-header {
+    background-color: #1e3a8a !important;
+    color: #93c5fd !important;
+}
+
+[data-bs-theme="dark"] .calendar-card {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f1f5f9;
+}
+
+[data-bs-theme="dark"] .calendar-card .event-title {
+    color: #f8fafc !important;
+}
+
+[data-bs-theme="dark"] .calendar-card .event-time {
+    color: #cbd5e1 !important;
+}
+
+[data-bs-theme="dark"] .calendar-card .event-meta {
+    color: #94a3b8 !important;
+}
+
+[data-bs-theme="dark"] .calendar-card.deselected,
+[data-bs-theme="dark"] .calendar-card.card-cancelled {
+    background-color: #0f172a !important;
+    opacity: 0.5;
+}
+
+/* Event cards background tint for dark mode */
+[data-bs-theme="dark"] .border-cm, [data-bs-theme="dark"] .border-cme {
+    background-color: #172554 !important;
+    border-left-color: #3b82f6 !important;
+}
+[data-bs-theme="dark"] .border-td, [data-bs-theme="dark"] .border-tde {
+    background-color: #064e3b !important;
+    border-left-color: #10b981 !important;
+}
+[data-bs-theme="dark"] .border-tp, [data-bs-theme="dark"] .border-tpe {
+    background-color: #451a03 !important;
+    border-left-color: #f59e0b !important;
+}
+[data-bs-theme="dark"] .border-ex, [data-bs-theme="dark"] .border-exam {
+    background-color: #450a0a !important;
+    border-left-color: #ef4444 !important;
+}
+[data-bs-theme="dark"] .border-conf {
+    background-color: #3b0764 !important;
+    border-left-color: #a855f7 !important;
+}
+[data-bs-theme="dark"] .border-evn {
+    background-color: #042f2e !important;
+    border-left-color: #14b8a6 !important;
+}
+[data-bs-theme="dark"] .border-vc {
+    background-color: #1e1b4b !important;
+    border-left-color: #6366f1 !important;
+}
+[data-bs-theme="dark"] .border-prj, [data-bs-theme="dark"] .border-projet, [data-bs-theme="dark"] .border-sout {
+    background-color: #500724 !important;
+    border-left-color: #ec4899 !important;
+}
+[data-bs-theme="dark"] .border-autre {
+    background-color: #1e293b !important;
+    border-left-color: #64748b !important;
+}
+
+/* Filter chips */
+[data-bs-theme="dark"] .course-filter-chip {
+    background-color: #1e293b !important;
+    color: #f8fafc;
+}
+[data-bs-theme="dark"] .course-filter-chip.unchecked {
+    background-color: #0f172a !important;
+    color: #64748b !important;
+    border-color: #334155 !important;
+}
+
+/* Form controls & tables */
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    background-color: #0f172a !important;
+    border-color: #334155 !important;
+    color: #f8fafc !important;
+}
+[data-bs-theme="dark"] .input-group-text {
+    background-color: #0f172a !important;
+    border-color: #334155 !important;
+    color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .table {
+    --bs-table-bg: transparent;
+    --bs-table-color: #e2e8f0;
+    border-color: #334155;
+}
+[data-bs-theme="dark"] .table th {
+    color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .course-row-cancelled {
+    background-color: #0f172a !important;
+}
+[data-bs-theme="dark"] .modal-content {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f1f5f9;
+}
+[data-bs-theme="dark"] .list-group-item {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #f1f5f9 !important;
+}
+[data-bs-theme="dark"] .dropdown-menu {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+}
+[data-bs-theme="dark"] .dropdown-item {
+    color: #e2e8f0 !important;
+}
+[data-bs-theme="dark"] .dropdown-item:hover {
+    background-color: #334155 !important;
+}
+

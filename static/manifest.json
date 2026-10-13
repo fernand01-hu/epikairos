@@ -1,0 +1,61 @@
+{
+  "name": "EpiKairos — Emploi du Temps EPITA",
+  "short_name": "EpiKairos",
+  "description": "Emploi du temps EPITA, filtres regex, export Google Calendar et recherche de salles libres",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1e38",
+  "theme_color": "#0e1e38",
+  "categories": ["education", "utilities", "productivity"],
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Salles libres maintenant",
+      "short_name": "Salles direct",
+      "description": "Trouver immédiatement une salle de classe libre",
+      "url": "/rooms?now=1",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mon planning",
+      "short_name": "Planning",
+      "description": "Consulter mon emploi du temps personnel",
+      "url": "/personal",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Old Zeus",
+      "short_name": "Zeus",
+      "description": "Interface classique Zeus avec groupes et promotions",
+      "url": "/old-zeus",
+      "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

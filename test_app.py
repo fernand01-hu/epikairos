@@ -266,8 +266,49 @@ class TestFlaskApp(unittest.TestCase):
         sched_data = sched_res.get_json()
         self.assertTrue(sched_data.get("success"))
 
+    def test_pwa_and_offline_routes(self):
+        # Manifest
+        res_m = self.client.get("/manifest.json")
+        self.assertEqual(res_m.status_code, 200)
+        self.assertIn("application/manifest+json", res_m.headers.get("Content-Type", ""))
+        manifest_data = json.loads(res_m.data.decode("utf-8"))
+        self.assertEqual(manifest_data.get("short_name"), "EpiKairos")
+        self.assertEqual(manifest_data.get("display"), "standalone")
+        self.assertTrue(len(manifest_data.get("icons", [])) >= 2)
+        res_m.close()
+
+        # Service Worker
+        res_sw = self.client.get("/sw.js")
+        self.assertEqual(res_sw.status_code, 200)
+        self.assertIn("javascript", res_sw.headers.get("Content-Type", ""))
+        self.assertEqual(res_sw.headers.get("Service-Worker-Allowed"), "/")
+        self.assertIn(b"CACHE_NAME", res_sw.data)
+        res_sw.close()
+
+        # Offline fallback page
+        res_off = self.client.get("/offline")
+        self.assertEqual(res_off.status_code, 200)
+        self.assertIn("hors ligne".encode("utf-8"), res_off.data.lower())
+
+    def test_rooms_instant_now_route(self):
+        res = self.client.get("/rooms?now=1")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b'data-is-now="1"', res.data)
+        self.assertIn("Trouver Tout de Suite".encode("utf-8"), res.data)
+        self.assertIn("1-CLIC DIRECT".encode("utf-8"), res.data)
+
+    def test_dark_mode_and_pwa_markup(self):
+        res = self.client.get("/")
+        self.assertEqual(res.status_code, 200)
+        html = res.data.decode("utf-8")
+        self.assertIn('data-bs-theme="light"', html)
+        self.assertIn('id="themeToggleBtn"', html)
+        self.assertIn('href="/manifest.json"', html)
+        self.assertIn('navigator.serviceWorker.register', html)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

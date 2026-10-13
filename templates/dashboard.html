@@ -20,8 +20,8 @@
                         <a href="/login" class="btn btn-primary fw-semibold px-4 rounded-pill shadow-sm">
                             <i class="bi bi-box-arrow-in-right me-1"></i> Se connecter à Auriga
                         </a>
-                        <a href="/rooms" class="btn btn-outline-success fw-semibold px-4 rounded-pill">
-                            <i class="bi bi-door-open me-1"></i> Trouver une salle libre
+                        <a href="/rooms?now=1" class="btn btn-success fw-semibold px-4 rounded-pill shadow-sm">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> Salle libre maintenant
                         </a>
                         <a href="/custom-calendar" class="btn btn-outline-secondary fw-semibold px-4 rounded-pill">
                             <i class="bi bi-sliders me-1"></i> Agendas sur-mesure
@@ -118,9 +118,12 @@
                     Besoin d'un endroit calme pour réviser ou travailler en groupe ? Indiquez un créneau horaire dans la journée et découvrez immédiatement <strong>toutes les salles libres</strong> avec l'heure de leur prochain cours.
                 </p>
             </div>
-            <div>
-                <a href="/rooms" class="btn btn-outline-success w-100 rounded-pill fw-semibold">
-                    Consulter les salles libres <i class="bi bi-arrow-right ms-1"></i>
+            <div class="d-flex flex-column gap-2">
+                <a href="/rooms?now=1" class="btn btn-success w-100 rounded-pill fw-semibold shadow-sm">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> Salle libre tout de suite
+                </a>
+                <a href="/rooms" class="btn btn-outline-secondary w-100 rounded-pill btn-sm">
+                    Choisir un autre créneau <i class="bi bi-arrow-right ms-1"></i>
                 </a>
             </div>
         </div>

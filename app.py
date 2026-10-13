@@ -22,6 +22,7 @@ from flask import (
     jsonify,
     Response,
     send_file,
+    send_from_directory,
     url_for,
     redirect,
 )
@@ -116,17 +117,62 @@ def custom_calendar():
 def rooms_page():
     """Available classrooms finder at any given time slot."""
     today_str = date.today().isoformat()
-    now_hour = datetime.now().hour
-    start_h = f"{now_hour:02d}:00" if 8 <= now_hour <= 19 else "14:00"
-    end_h = f"{(now_hour + 2):02d}:00" if 8 <= now_hour <= 19 else "16:00"
+    now_dt = datetime.now()
+    now_hour = now_dt.hour
+    now_minute = now_dt.minute
+
+    # If ?now=1 is specified or requested
+    is_now = request.args.get("now") in ("1", "true", "yes")
+    if is_now:
+        start_h = f"{now_hour:02d}:{now_minute:02d}"
+        end_hour = (now_hour + 2) % 24
+        end_h = f"{end_hour:02d}:{now_minute:02d}"
+    else:
+        start_h = f"{now_hour:02d}:00" if 8 <= now_hour <= 19 else "14:00"
+        end_h = f"{(now_hour + 2):02d}:00" if 8 <= now_hour <= 19 else "16:00"
 
     return render_template(
         "rooms.html",
         today_date=today_str,
         default_start_time=start_h,
         default_end_time=end_h,
+        is_now=is_now,
         active_page="rooms",
     )
+
+
+# =============================================================================
+# Progressive Web App (PWA) & Offline Shell Routes
+# =============================================================================
+
+@app.route("/manifest.json")
+def pwa_manifest():
+    """Serve the Progressive Web App manifest."""
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "manifest.json",
+        mimetype="application/manifest+json",
+    )
+
+
+@app.route("/sw.js")
+def service_worker():
+    """Serve the root Service Worker script with unrestricted root scope."""
+    response = send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "sw.js",
+        mimetype="application/javascript",
+    )
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
+@app.route("/offline")
+def offline_page():
+    """Offline fallback page served by the service worker."""
+    return render_template("offline.html")
+
 
 
 # =============================================================================
