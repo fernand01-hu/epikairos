@@ -724,7 +724,7 @@ pub async fn serve_feed_handler(
     Path(feed_id_param): Path<String>,
     Query(params): Query<FeedQueryParams>,
 ) -> Response {
-    let feed_id = feed_id_param.trim_end_matches(".ics");
+    let feed_id = feed_id_param.strip_suffix(".ics").unwrap_or(&feed_id_param);
 
     let id_re = Regex::new(r"^[A-Za-z0-9_\-]{1,64}$").unwrap();
     if !id_re.is_match(feed_id) {

@@ -17,6 +17,8 @@ ENV/
 # Database & SQLite files
 feeds.db
 *.db
+*.db-wal
+*.db-shm
 *.sqlite3
 
 # Exported Calendar Files

@@ -32,11 +32,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let school_db_path = std::env::var("SCHOOL_DB_PATH").unwrap_or_else(|_| "school.db".to_string());
     let feeds_db_path = std::env::var("FEEDS_DB_PATH").unwrap_or_else(|_| "feeds.db".to_string());
 
-    // Connection pools
-    let school_manager = SqliteConnectionManager::file(&school_db_path);
+    // Connection pools with WAL mode and busy timeout for concurrent durability
+    let school_manager = SqliteConnectionManager::file(&school_db_path).with_init(|c| {
+        c.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA busy_timeout = 5000;
+             PRAGMA synchronous = NORMAL;
+             PRAGMA foreign_keys = ON;",
+        )
+    });
     let db_pool = Pool::builder().max_size(16).build(school_manager)?;
 
-    let feeds_manager = SqliteConnectionManager::file(&feeds_db_path);
+    let feeds_manager = SqliteConnectionManager::file(&feeds_db_path).with_init(|c| {
+        c.execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA busy_timeout = 5000;
+             PRAGMA synchronous = NORMAL;",
+        )
+    });
     let feed_pool = Pool::builder().max_size(16).build(feeds_manager)?;
 
     // Initialize databases

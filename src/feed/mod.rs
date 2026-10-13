@@ -224,16 +224,16 @@ pub fn get_feed(conn: &rusqlite::Connection, feed_id: &str) -> rusqlite::Result<
     let mut rows = stmt.query(params![feed_id])?;
     if let Some(row) = rows.next()? {
         let feed_id: String = row.get(0)?;
-        let username: String = row.get(1)?;
-        let enc_pw: String = row.get(2)?;
-        let inc_re: String = row.get(3)?;
-        let exc_re: String = row.get(4)?;
-        let types_s: String = row.get(5)?;
-        let hide_canc: i64 = row.get(6)?;
-        let cal_name: String = row.get(7)?;
-        let last_ics: String = row.get(8)?;
-        let last_at: f64 = row.get(9)?;
-        let created: f64 = row.get(10)?;
+        let username: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
+        let enc_pw: String = row.get::<_, Option<String>>(2)?.unwrap_or_default();
+        let inc_re: String = row.get::<_, Option<String>>(3)?.unwrap_or_default();
+        let exc_re: String = row.get::<_, Option<String>>(4)?.unwrap_or_default();
+        let types_s: String = row.get::<_, Option<String>>(5)?.unwrap_or_default();
+        let hide_canc: i64 = row.get::<_, Option<i64>>(6)?.unwrap_or(0);
+        let cal_name: String = row.get::<_, Option<String>>(7)?.unwrap_or_default();
+        let last_ics: String = row.get::<_, Option<String>>(8)?.unwrap_or_default();
+        let last_at: f64 = row.get::<_, Option<f64>>(9)?.unwrap_or(0.0);
+        let created: f64 = row.get::<_, Option<f64>>(10)?.unwrap_or(0.0);
         let courses_col: Option<String> = row.get(11)?;
         let courses_json: Option<String> = row.get(12)?;
 
