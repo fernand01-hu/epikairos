@@ -1,6 +1,6 @@
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use chrono_tz::Europe::Paris;
 use rand::RngCore;
 use regex::Regex;
@@ -46,6 +46,50 @@ pub fn get_default_school_year_range() -> (String, String) {
     (format!("{}-09-01", start_year), format!("{}-08-31", end_year))
 }
 
+/// Truncates a UTF-8 string to at most `max_bytes` without splitting multi-byte character boundaries.
+pub fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut cut = max_bytes;
+    while cut > 0 && !s.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    &s[..cut]
+}
+
+/// Validates that a date parameter matches `^\d{4}-\d{2}-\d{2}$`.
+pub fn is_valid_date_format(date: &str) -> bool {
+    static DATE_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
+        Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap()
+    });
+    DATE_REGEX.is_match(date)
+}
+
+/// Extracts the login form action URL and validates that its destination host matches `auth_base_url`.
+pub fn extract_and_validate_form_action(html: &str, auth_base: &str) -> Result<reqwest::Url, String> {
+    let form_re = Regex::new(r#"(?i)<form[^>]*id="kc-form-login"[^>]*action="([^"]+)""#)
+        .or_else(|_| Regex::new(r#"(?i)<form[^>]*action="([^"]+)"[^>]*id="kc-form-login""#))
+        .map_err(|e| e.to_string())?;
+
+    let action_cap = form_re
+        .captures(html)
+        .ok_or_else(|| "Formulaire de connexion Auriga introuvable.".to_string())?;
+
+    let raw_action = action_cap[1].replace("&amp;", "&");
+    let auth_base_url = reqwest::Url::parse(auth_base).map_err(|e| e.to_string())?;
+    let action_url = auth_base_url.join(&raw_action).map_err(|e| e.to_string())?;
+
+    if action_url.host_str() != auth_base_url.host_str() {
+        return Err(format!(
+            "Destination du formulaire non autorisée: host {:?}",
+            action_url.host_str()
+        ));
+    }
+
+    Ok(action_url)
+}
+
 pub struct AurigaClient {
     pub username: String,
     pub password: String,
@@ -57,6 +101,8 @@ pub struct AurigaClient {
 impl AurigaClient {
     pub fn new(username: &str, password: &str) -> Self {
         let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .connect_timeout(std::time::Duration::from_secs(5))
             .cookie_store(true)
             .redirect(reqwest::redirect::Policy::none())
             .build()
@@ -72,11 +118,10 @@ impl AurigaClient {
     }
 
     pub fn with_access_token(token: &str) -> Result<Self, String> {
-        let mut clean = token.trim().to_string();
+        let mut clean = token.trim().trim_matches('"').trim_matches('\'').trim().to_string();
         if clean.to_lowercase().starts_with("bearer ") {
-            clean = clean[7..].trim().to_string();
+            clean = clean[7..].trim().trim_matches('"').trim_matches('\'').trim().to_string();
         }
-        clean = clean.trim_matches('"').trim_matches('\'').to_string();
 
         if clean.contains('\u{2026}') || clean.contains("...") {
             return Err("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de '…'). Faites Clic droit sur le header Authorization -> 'Copier la valeur' dans DevTools.".to_string());
@@ -90,7 +135,7 @@ impl AurigaClient {
             while payload_b64.len() % 4 != 0 {
                 payload_b64.push('=');
             }
-            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&payload_b64).or_else(|_| URL_SAFE_NO_PAD.decode(&parts[1])) {
+            if let Ok(decoded) = URL_SAFE_NO_PAD.decode(parts[1]).or_else(|_| base64::engine::general_purpose::STANDARD.decode(&payload_b64)) {
                 if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&decoded) {
                     if let Some(exp) = v.get("exp").and_then(|e| e.as_i64()) {
                         let now = Utc::now().timestamp();
@@ -108,7 +153,10 @@ impl AurigaClient {
         }
 
         let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .connect_timeout(std::time::Duration::from_secs(5))
             .cookie_store(true)
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .unwrap_or_default();
 
@@ -157,18 +205,7 @@ impl AurigaClient {
 
         let html = res.text().await.map_err(|e| e.to_string())?;
 
-        let form_re = Regex::new(r#"(?i)<form[^>]*id="kc-form-login"[^>]*action="([^"]+)""#)
-            .or_else(|_| Regex::new(r#"(?i)<form[^>]*action="([^"]+)"[^>]*id="kc-form-login""#))
-            .map_err(|e| e.to_string())?;
-
-        let action_cap = form_re
-            .captures(&html)
-            .ok_or_else(|| "Formulaire de connexion Auriga introuvable.".to_string())?;
-
-        let raw_action = action_cap[1].replace("&amp;", "&");
-        let action_url = reqwest::Url::parse(AUTH_BASE_URL)
-            .and_then(|base| base.join(&raw_action))
-            .map_err(|e| e.to_string())?;
+        let action_url = extract_and_validate_form_action(&html, AUTH_BASE_URL)?;
 
         let login_params = [
             ("username", self.username.as_str()),
@@ -249,10 +286,16 @@ impl AurigaClient {
             return Err("Jeton d'accès manquant dans la réponse Keycloak.".to_string());
         }
 
+        self.password.clear();
+
         Ok(())
     }
 
     pub async fn get_planning(&self, start_date: &str, end_date: &str) -> Result<Vec<serde_json::Value>, String> {
+        if !is_valid_date_format(start_date) || !is_valid_date_format(end_date) {
+            return Err("Format de date invalide (attendu: YYYY-MM-DD)".to_string());
+        }
+
         let token = self.access_token.as_ref().ok_or_else(|| "Non authentifié.".to_string())?;
 
         let url = format!(
@@ -277,7 +320,7 @@ impl AurigaClient {
         if !res.status().is_success() {
             let err_txt = res.text().await.unwrap_or_default();
             let clean = Regex::new(r"<[^>]+>").unwrap().replace_all(&err_txt, " ").trim().to_string();
-            return Err(format!("Erreur API Auriga: {}", &clean[..clean.len().min(250)]));
+            return Err(format!("Erreur API Auriga: {}", safe_truncate(&clean, 250)));
         }
 
         let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
@@ -447,8 +490,13 @@ pub fn format_ics_datetime(iso_str: &str) -> String {
     if let Ok(dt) = DateTime::parse_from_rfc3339(iso_str) {
         let in_paris = dt.with_timezone(&Paris);
         in_paris.format("%Y%m%dT%H%M%S").to_string()
+    } else if let Ok(ndt) = NaiveDateTime::parse_from_str(iso_str, "%Y-%m-%dT%H:%M:%S") {
+        ndt.format("%Y%m%dT%H%M%S").to_string()
     } else {
-        iso_str.replace(['-', ':', 'Z'], "")
+        iso_str
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == 'T')
+            .collect()
     }
 }
 
@@ -611,5 +659,140 @@ mod tests {
         assert!(!ics.contains("X-INJECTED:PWNED"));
         assert!(!ics.contains("EVIL-HEADER:VALUE\r\n"));
         assert!(ics.contains("UID:auriga-123X-INJECTEDPWNED456@epita.fr"));
+    }
+
+    #[test]
+    fn test_format_ics_datetime_rfc3339() {
+        let utc_dt = "2026-10-13T07:00:00Z";
+        let formatted = format_ics_datetime(utc_dt);
+        // In October, Paris is CEST (UTC+2), so 07:00Z -> 09:00:00
+        assert_eq!(formatted, "20261013T090000");
+
+        let offset_dt = "2026-10-13T09:00:00+02:00";
+        let formatted_offset = format_ics_datetime(offset_dt);
+        assert_eq!(formatted_offset, "20261013T090000");
+    }
+
+    #[test]
+    fn test_format_ics_datetime_naive() {
+        let naive_dt = "2026-10-13T09:00:00";
+        let formatted = format_ics_datetime(naive_dt);
+        assert_eq!(formatted, "20261013T090000");
+    }
+
+    #[test]
+    fn test_format_ics_datetime_crlf_injection() {
+        let malicious = "2026-10-13T09:00:00\r\nSUMMARY:INJECTED\r\n";
+        let result = format_ics_datetime(malicious);
+        assert!(!result.contains('\r'));
+        assert!(!result.contains('\n'));
+        assert!(!result.contains(':'));
+        assert!(!result.contains("SUMMARY"));
+        assert!(result.chars().all(|c| c.is_ascii_digit() || c == 'T'));
+
+        let evil_only = "\r\nEVIL\r\n";
+        let evil_result = format_ics_datetime(evil_only);
+        assert_eq!(evil_result, "");
+    }
+
+    #[test]
+    fn test_safe_truncate() {
+        // ASCII cases
+        assert_eq!(safe_truncate("hello world", 50), "hello world");
+        assert_eq!(safe_truncate("hello world", 5), "hello");
+        assert_eq!(safe_truncate("hello world", 0), "");
+        assert_eq!(safe_truncate("", 10), "");
+
+        // Multi-byte UTF-8: French accents ('é' is 2 bytes: 0xC3 0xA9)
+        let s = "héllò";
+        // 'h' (1) + 'é' (2) = 3 bytes
+        assert_eq!(safe_truncate(s, 3), "hé");
+        // Byte index 2 falls in the middle of 'é' (cut back to 1: 'h')
+        assert_eq!(safe_truncate(s, 2), "h");
+
+        // 4-byte characters: Crab emoji 🦀 is 4 bytes
+        let s_emoji = "Rust 🦀 rocks";
+        // "Rust " is 5 bytes. 🦀 starts at 5 and ends at 9.
+        assert_eq!(safe_truncate(s_emoji, 5), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 6), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 7), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 8), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 9), "Rust 🦀");
+    }
+
+    #[test]
+    fn test_extract_and_validate_form_action() {
+        let auth_base = "https://ionisepita-auth.np-auriga.nfrance.net/auth/realms/npionisepita/protocol/openid-connect/auth";
+
+        // Relative action path (legitimate)
+        let html_rel = r#"<html><body><form id="kc-form-login" action="/auth/realms/npionisepita/login-actions/authenticate?session_code=123"></form></body></html>"#;
+        let action_url = extract_and_validate_form_action(html_rel, auth_base).unwrap();
+        assert_eq!(action_url.host_str(), Some("ionisepita-auth.np-auriga.nfrance.net"));
+        assert_eq!(action_url.path(), "/auth/realms/npionisepita/login-actions/authenticate");
+
+        // Absolute action URL matching host (legitimate)
+        let html_abs = r#"<html><body><form id="kc-form-login" action="https://ionisepita-auth.np-auriga.nfrance.net/auth/realms/npionisepita/login-actions/authenticate"></form></body></html>"#;
+        let action_url_abs = extract_and_validate_form_action(html_abs, auth_base).unwrap();
+        assert_eq!(action_url_abs.host_str(), Some("ionisepita-auth.np-auriga.nfrance.net"));
+
+        // Attacker external host
+        let html_evil = r#"<html><body><form id="kc-form-login" action="https://evil-attacker.com/steal-creds"></form></body></html>"#;
+        let err = extract_and_validate_form_action(html_evil, auth_base).unwrap_err();
+        assert!(err.contains("Destination du formulaire non autorisée"));
+
+        // Attacker lookalike subdomain
+        let html_subdomain = r#"<html><body><form id="kc-form-login" action="https://ionisepita-auth.np-auriga.nfrance.net.evil.com/auth"></form></body></html>"#;
+        let err_sub = extract_and_validate_form_action(html_subdomain, auth_base).unwrap_err();
+        assert!(err_sub.contains("Destination du formulaire non autorisée"));
+
+        // Missing login form
+        let html_missing = "<html><body><div>No form here</div></body></html>";
+        let err_missing = extract_and_validate_form_action(html_missing, auth_base).unwrap_err();
+        assert!(err_missing.contains("Formulaire de connexion Auriga introuvable"));
+    }
+
+    #[test]
+    fn test_is_valid_date_format() {
+        // Valid ISO date strings (YYYY-MM-DD)
+        assert!(is_valid_date_format("2026-10-14"));
+        assert!(is_valid_date_format("2026-01-01"));
+        assert!(is_valid_date_format("1999-12-31"));
+
+        // Parameter injection attempts
+        assert!(!is_valid_date_format("2026-10-14&other_param=1"));
+        assert!(!is_valid_date_format("2026-10-14#fragment"));
+        assert!(!is_valid_date_format("2026-10-14\r\n"));
+        assert!(!is_valid_date_format("2026-10-14' OR '1'='1"));
+        assert!(!is_valid_date_format("2026/10/14"));
+        assert!(!is_valid_date_format("2026-1-1"));
+        assert!(!is_valid_date_format("14-10-2026"));
+        assert!(!is_valid_date_format(""));
+        assert!(!is_valid_date_format("   "));
+    }
+
+    #[tokio::test]
+    async fn test_get_planning_date_validation() {
+        let mut client = AurigaClient::new("test_user", "test_pw");
+        client.access_token = Some("fake_token".to_string());
+
+        // Invalid start date (injection attempt)
+        let res_inj = client.get_planning("2026-10-14&evil=1", "2026-10-20").await;
+        assert!(res_inj.is_err());
+        assert_eq!(res_inj.unwrap_err(), "Format de date invalide (attendu: YYYY-MM-DD)");
+
+        // Invalid end date
+        let res_end = client.get_planning("2026-10-14", "not-a-date").await;
+        assert!(res_end.is_err());
+        assert_eq!(res_end.unwrap_err(), "Format de date invalide (attendu: YYYY-MM-DD)");
+    }
+
+    #[test]
+    fn test_password_cleanup() {
+        let mut client = AurigaClient::new("test_user", "super_secret_password");
+        assert_eq!(client.password, "super_secret_password");
+
+        // Simulate successful login cleanup
+        client.password.clear();
+        assert!(client.password.is_empty());
     }
 }

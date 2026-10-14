@@ -219,7 +219,7 @@ async def phase2_db_lock_contention(feed_count=60):
         async def create_single_feed(idx):
             nonlocal lock_errors, write_successes
             payload = {
-                "username": f"student_{idx}@epita.fr",
+                "username": "test_student",
                 "calendar_name": f"Stress Feed {idx}",
                 "courses": [SAMPLE_COURSE],
                 "include_regex": f"course_{idx}",
@@ -303,8 +303,8 @@ async def phase3_fuzzing_resilience():
             ("SQL Injection in free-rooms date", "POST", "/api/database/free-rooms", json.dumps({"date": "2026-10-14' OR '1'='1", "time": "14:00"}), "application/json", [200, 400], auth_headers),
             
             # 3. Invalid Regex & Length Overload
-            ("Invalid regex syntax (unclosed)", "POST", "/api/create-feed", json.dumps({"username": "test@epita.fr", "password": "x", "include_regex": "[unclosed"}), "application/json", [400, 422], auth_headers),
-            ("Oversized regex (>300 chars)", "POST", "/api/create-feed", json.dumps({"username": "test@epita.fr", "password": "x", "include_regex": "a" * 350}), "application/json", [400], auth_headers),
+            ("Invalid regex syntax (unclosed)", "POST", "/api/create-feed", json.dumps({"username": "test_student", "password": "x", "include_regex": "[unclosed"}), "application/json", [400, 422], auth_headers),
+            ("Oversized regex (>300 chars)", "POST", "/api/create-feed", json.dumps({"username": "test_student", "password": "x", "include_regex": "a" * 350}), "application/json", [400], auth_headers),
             
             # 4. Oversized Payload (5MB body)
             ("Huge payload body (5MB)", "POST", "/api/export-ics", json.dumps({"courses": [SAMPLE_COURSE] * 1000}), "application/json", [200, 400, 413], auth_headers),

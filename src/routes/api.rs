@@ -18,10 +18,125 @@ use crate::auriga::{
 };
 use crate::db::*;
 use crate::feed::*;
-use crate::session::{sign_session, UserSession};
+use crate::session::{sign_session, verify_session, UserSession};
 use crate::state::AppState;
 
 const FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
+
+/// Truncates a string slice to at most `max_bytes` while respecting UTF-8 char boundaries.
+pub fn truncate_str(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut boundary = max_bytes;
+    while boundary > 0 && !s.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    &s[..boundary]
+}
+
+/// Truncates a mutable `String` to at most `max_bytes` while respecting UTF-8 char boundaries.
+pub fn truncate_string(s: &mut String, max_bytes: usize) {
+    if s.len() <= max_bytes {
+        return;
+    }
+    let mut boundary = max_bytes;
+    while boundary > 0 && !s.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    s.truncate(boundary);
+}
+
+/// Extracts client IP for rate limiting with trusted proxy support and IP validation.
+pub fn extract_client_ip(
+    headers: &HeaderMap,
+    connect_info: Option<&axum::extract::ConnectInfo<std::net::SocketAddr>>,
+    trusted_proxy: bool,
+) -> String {
+    if trusted_proxy {
+        let xff_ip = headers
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.rsplit(',').next().map(|s| s.trim()))
+            .filter(|s| s.parse::<std::net::IpAddr>().is_ok())
+            .map(|s| s.to_string());
+
+        let x_real_ip = headers
+            .get("x-real-ip")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.trim())
+            .filter(|s| s.parse::<std::net::IpAddr>().is_ok())
+            .map(|s| s.to_string());
+
+        xff_ip
+            .or(x_real_ip)
+            .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
+            .unwrap_or_else(|| "127.0.0.1".to_string())
+    } else {
+        connect_info
+            .map(|ci| ci.0.ip().to_string())
+            .unwrap_or_else(|| "127.0.0.1".to_string())
+    }
+}
+
+/// Resolves a safe host header using ALLOWED_HOSTS and SERVER_DOMAIN whitelists.
+pub fn resolve_safe_host(headers: &HeaderMap) -> String {
+    let raw_host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim())
+        .unwrap_or("");
+
+    let server_domain = std::env::var("SERVER_DOMAIN")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    let allowed_hosts = std::env::var("ALLOWED_HOSTS")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|h| h.trim().to_string())
+                .filter(|h| !h.is_empty())
+                .collect::<Vec<String>>()
+        })
+        .filter(|v| !v.is_empty());
+
+    let default_fallback = server_domain
+        .clone()
+        .or_else(|| allowed_hosts.as_ref().and_then(|hosts| hosts.first().cloned()))
+        .unwrap_or_else(|| "localhost:5000".to_string());
+
+    let host_valid_chars = Regex::new(r"^[a-zA-Z0-9.:_-]+$").unwrap();
+
+    if !raw_host.is_empty() && host_valid_chars.is_match(raw_host) {
+        let mut is_allowed = false;
+        if let Some(ref hosts) = allowed_hosts {
+            if hosts.iter().any(|h| h.eq_ignore_ascii_case(raw_host)) {
+                is_allowed = true;
+            }
+        }
+        if let Some(ref domain) = server_domain {
+            if domain.eq_ignore_ascii_case(raw_host) {
+                is_allowed = true;
+            }
+        }
+        if allowed_hosts.is_none() && server_domain.is_none() {
+            is_allowed = matches!(
+                raw_host.to_ascii_lowercase().as_str(),
+                "localhost:5000" | "127.0.0.1:5000" | "localhost" | "127.0.0.1" | "0.0.0.0:5000"
+            );
+        }
+
+        if is_allowed {
+            raw_host.to_string()
+        } else {
+            default_fallback
+        }
+    } else {
+        default_fallback
+    }
+}
 
 #[derive(Deserialize)]
 pub struct FetchPlanningPayload {
@@ -129,19 +244,7 @@ pub async fn fetch_planning_handler(
         .map(|v| v == "true" || v == "1")
         .unwrap_or(false);
 
-    let client_ip = if trusted_proxy {
-        headers
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.split(',').next())
-            .map(|s| s.trim().to_string())
-            .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
-            .unwrap_or_else(|| "127.0.0.1".to_string())
-    } else {
-        connect_info
-            .map(|ci| ci.0.ip().to_string())
-            .unwrap_or_else(|| "127.0.0.1".to_string())
-    };
+    let client_ip = extract_client_ip(&headers, connect_info.as_ref(), trusted_proxy);
 
     if !state.check_login_rate_limit(&client_ip).await {
         return (
@@ -555,7 +658,7 @@ pub async fn export_ics_handler(Json(payload): Json<ExportIcsPayload>) -> Respon
     let cal_name = payload
         .calendar_name
         .unwrap_or_else(|| "EpiKairos - EPITA Emploi du temps".to_string());
-    let safe_cal_name = if cal_name.len() > 120 { &cal_name[..120] } else { &cal_name };
+    let safe_cal_name = truncate_str(&cal_name, 120);
     let ics_content = generate_ics_from_courses(&payload.courses, safe_cal_name);
 
     (
@@ -580,10 +683,38 @@ pub async fn export_ics_handler(Json(payload): Json<ExportIcsPayload>) -> Respon
 // -----------------------------------------------------------------------------
 pub async fn create_feed_handler(
     State(state): State<AppState>,
+    cookies: Cookies,
     headers: HeaderMap,
-    Json(payload): Json<CreateFeedPayload>,
+    Json(mut payload): Json<CreateFeedPayload>,
 ) -> Response {
-    let username = payload.username.clone().unwrap_or_default().trim().to_string();
+    let session_user = cookies
+        .get("session")
+        .and_then(|c| verify_session(c.value(), &state.secret_key))
+        .filter(|s| s.logged_in)
+        .and_then(|s| s.username);
+
+    let mut username = payload.username.clone().unwrap_or_default().trim().to_string();
+
+    if let Some(ref auth_user) = session_user {
+        if !username.is_empty() {
+            let req_prefix = username.split('@').next().unwrap_or(&username);
+            let auth_prefix = auth_user.split('@').next().unwrap_or(auth_user);
+            if username != *auth_user && req_prefix != auth_prefix {
+                return (
+                    StatusCode::FORBIDDEN,
+                    Json(serde_json::json!({
+                        "success": false,
+                        "error": "Accès refusé : le nom d'utilisateur spécifié ne correspond pas à la session connectée."
+                    })),
+                )
+                    .into_response();
+            }
+        } else {
+            username = auth_user.clone();
+        }
+        payload.username = Some(username.clone());
+    }
+
     let password = payload.password.unwrap_or_default().trim().to_string();
     let include_regex = payload.include_regex.filter(|s| !s.trim().is_empty());
     let exclude_regex = payload.exclude_regex.filter(|s| !s.trim().is_empty());
@@ -630,14 +761,15 @@ pub async fn create_feed_handler(
     let cal_name = payload
         .calendar_name
         .unwrap_or_else(|| "EpiKairos - EPITA Emploi du temps".to_string());
+    let safe_cal_name = truncate_str(&cal_name, 120);
     let initial_ics = if !payload.courses.is_empty() {
-        Some(generate_ics_from_courses(&payload.courses, &cal_name))
+        Some(generate_ics_from_courses(&payload.courses, safe_cal_name))
     } else {
         None
     };
 
     let pool = state.feed_pool.clone();
-    let c_name = cal_name.clone();
+    let c_name = safe_cal_name.to_string();
     let courses_clone = payload.courses.clone();
     let inc_r = include_regex.clone();
     let exc_r = exclude_regex.clone();
@@ -687,12 +819,7 @@ pub async fn create_feed_handler(
     };
 
     let feed_url = format!("/feed/{}.ics{}", feed_id, query_str);
-    let host = headers
-        .get("host")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("localhost:5000");
-    let host_re = Regex::new(r"^[a-zA-Z0-9.:_-]+$").unwrap();
-    let safe_host = if host_re.is_match(host) { host } else { "localhost:5000" };
+    let safe_host = resolve_safe_host(&headers);
     let webcal_url = format!("webcal://{}{}", safe_host, feed_url);
 
     let filter_summary = serde_json::json!({
@@ -768,22 +895,42 @@ pub async fn serve_feed_handler(
         .include
         .or(params.include_regex)
         .or(feed_opt.include_regex.clone())
+        .filter(|s| !s.trim().is_empty())
         .map(|mut s| {
-            if s.len() > 300 {
-                s.truncate(300);
-            }
+            truncate_string(&mut s, 300);
             s
         });
     let exclude_regex = params
         .exclude
         .or(params.exclude_regex)
         .or(feed_opt.exclude_regex.clone())
+        .filter(|s| !s.trim().is_empty())
         .map(|mut s| {
-            if s.len() > 300 {
-                s.truncate(300);
-            }
+            truncate_string(&mut s, 300);
             s
         });
+
+    if let Some(ref r) = include_regex {
+        if let Err(e) = Regex::new(r) {
+            return (
+                StatusCode::BAD_REQUEST,
+                [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+                format!("Expression Regex d'inclusion invalide : {}", e),
+            )
+                .into_response();
+        }
+    }
+
+    if let Some(ref r) = exclude_regex {
+        if let Err(e) = Regex::new(r) {
+            return (
+                StatusCode::BAD_REQUEST,
+                [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+                format!("Expression Regex d'exclusion invalide : {}", e),
+            )
+                .into_response();
+        }
+    }
 
     let hide_cancelled = match params.hide_cancelled.as_deref() {
         Some("1") | Some("true") | Some("yes") => true,
@@ -936,5 +1083,153 @@ mod urlencoding {
             }
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderMap;
+
+    #[test]
+    fn test_truncate_str_utf8() {
+        // String with French accents
+        let s = "Mathématiques Appliquées & Électronique";
+        let truncated = truncate_str(s, 10);
+        assert!(std::str::from_utf8(truncated.as_bytes()).is_ok());
+        assert!(truncated.len() <= 10);
+
+        // String with emoji (4 bytes per emoji)
+        let s_emoji = "📅 Calendrier EPITA 🚀";
+        let trunc_emoji = truncate_str(s_emoji, 3); // 3 bytes is inside '📅' (4 bytes)
+        assert_eq!(trunc_emoji, "");
+
+        let trunc_emoji4 = truncate_str(s_emoji, 4);
+        assert_eq!(trunc_emoji4, "📅");
+
+        let trunc_full = truncate_str("Short", 100);
+        assert_eq!(trunc_full, "Short");
+    }
+
+    #[test]
+    fn test_truncate_string_utf8() {
+        let mut s = "Élève ingénieur".to_string();
+        // 'É' is 2 bytes (0..2). Truncating at 1 byte should step back to 0.
+        truncate_string(&mut s, 1);
+        assert_eq!(s, "");
+
+        let mut s2 = "Élève ingénieur".to_string();
+        truncate_string(&mut s2, 2);
+        assert_eq!(s2, "É");
+
+        let mut s3 = "Hello world".to_string();
+        truncate_string(&mut s3, 5);
+        assert_eq!(s3, "Hello");
+    }
+
+    #[test]
+    fn test_extract_client_ip_trusted_proxy() {
+        let mut headers = HeaderMap::new();
+        // Malicious client spoofing first IP, trusted proxy appends real IP last
+        headers.insert("x-forwarded-for", "1.2.3.4, 203.0.113.195".parse().unwrap());
+        let ip = extract_client_ip(&headers, None, true);
+        assert_eq!(ip, "203.0.113.195");
+
+        // Invalid IP in x-forwarded-for should fall back to x-real-ip
+        headers.insert("x-forwarded-for", "invalid_ip".parse().unwrap());
+        headers.insert("x-real-ip", "198.51.100.10".parse().unwrap());
+        let ip2 = extract_client_ip(&headers, None, true);
+        assert_eq!(ip2, "198.51.100.10");
+
+        // When trusted_proxy is false, ignore forwarded headers
+        let ip3 = extract_client_ip(&headers, None, false);
+        assert_eq!(ip3, "127.0.0.1");
+    }
+
+    #[test]
+    fn test_resolve_safe_host_whitelist() {
+        let mut headers = HeaderMap::new();
+        // Safe localhost
+        headers.insert("host", "localhost:5000".parse().unwrap());
+        let h = resolve_safe_host(&headers);
+        assert_eq!(h, "localhost:5000");
+
+        // Malicious host with default env (neither ALLOWED_HOSTS nor SERVER_DOMAIN)
+        headers.insert("host", "evil-phishing.com".parse().unwrap());
+        let h_evil = resolve_safe_host(&headers);
+        assert_eq!(h_evil, "localhost:5000");
+    }
+
+    #[test]
+    fn test_feed_regex_validation() {
+        assert!(Regex::new(r"^[0-9]+$").is_ok());
+        assert!(Regex::new(r"[unclosed-bracket").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_create_feed_horizontal_privilege_escalation_blocked() {
+        use r2d2_sqlite::SqliteConnectionManager;
+
+        let db_pool = r2d2::Pool::builder().max_size(1).build(SqliteConnectionManager::memory()).unwrap();
+        let feed_pool = r2d2::Pool::builder().max_size(1).build(SqliteConnectionManager::memory()).unwrap();
+        crate::feed::init_db(&feed_pool.get().unwrap()).unwrap();
+        let jinja = minijinja::Environment::new();
+        let state = AppState::new(db_pool, feed_pool, jinja);
+
+        let session = UserSession {
+            logged_in: true,
+            username: Some("alice".to_string()),
+            exp: chrono::Utc::now().timestamp() + 3600,
+        };
+        let signed_cookie = sign_session(&session, &state.secret_key);
+
+        let cookies = Cookies::default();
+        cookies.add(Cookie::new("session", signed_cookie));
+
+        // Attacker attempts to create a feed for "bob"
+        let payload = CreateFeedPayload {
+            username: Some("bob".to_string()),
+            password: Some("secret123".to_string()),
+            include_regex: None,
+            exclude_regex: None,
+            allowed_types: None,
+            allowed_courses: None,
+            hide_cancelled: false,
+            calendar_name: None,
+            courses: vec![],
+        };
+
+        let response = create_feed_handler(
+            State(state.clone()),
+            cookies.clone(),
+            HeaderMap::new(),
+            Json(payload),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+        // Matching username is accepted (not 403)
+        let payload_valid = CreateFeedPayload {
+            username: Some("alice".to_string()),
+            password: Some("secret123".to_string()),
+            include_regex: None,
+            exclude_regex: None,
+            allowed_types: None,
+            allowed_courses: None,
+            hide_cancelled: false,
+            calendar_name: None,
+            courses: vec![],
+        };
+
+        let response_valid = create_feed_handler(
+            State(state),
+            cookies,
+            HeaderMap::new(),
+            Json(payload_valid),
+        )
+        .await;
+
+        assert_ne!(response_valid.status(), StatusCode::FORBIDDEN);
     }
 }

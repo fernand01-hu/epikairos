@@ -45,8 +45,14 @@ impl AppState {
             .unwrap_or(0.0);
 
         let mut lock = self.login_attempts.lock().await;
+
+        // Prune expired timestamps across all entries and remove entries that become empty
+        lock.retain(|_ip, attempts| {
+            attempts.retain(|&t| now - t < RATE_LIMIT_WINDOW);
+            !attempts.is_empty()
+        });
+
         let attempts = lock.entry(client_ip.to_string()).or_default();
-        attempts.retain(|&t| now - t < RATE_LIMIT_WINDOW);
 
         if attempts.len() >= MAX_LOGIN_ATTEMPTS {
             return false;
@@ -96,5 +102,57 @@ mod hex {
             s.push_str(&format!("{:02x}", b));
         }
         s
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use r2d2_sqlite::SqliteConnectionManager;
+
+    fn create_test_state() -> AppState {
+        let db_manager = SqliteConnectionManager::memory();
+        let db_pool = r2d2::Pool::builder().max_size(1).build(db_manager).unwrap();
+        let feed_manager = SqliteConnectionManager::memory();
+        let feed_pool = r2d2::Pool::builder().max_size(1).build(feed_manager).unwrap();
+        let jinja = minijinja::Environment::new();
+        AppState::new(db_pool, feed_pool, jinja)
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_allows_up_to_max() {
+        let state = create_test_state();
+        let ip = "192.168.1.100";
+
+        for _ in 0..10 {
+            assert!(state.check_login_rate_limit(ip).await);
+        }
+
+        // 11th attempt should fail
+        assert!(!state.check_login_rate_limit(ip).await);
+
+        // Different IP should succeed
+        assert!(state.check_login_rate_limit("192.168.1.101").await);
+    }
+
+    #[tokio::test]
+    async fn test_rate_limiter_prunes_expired_and_empty_entries() {
+        let state = create_test_state();
+
+        // Inject old timestamps for an IP
+        {
+            let mut lock = state.login_attempts.lock().await;
+            lock.insert("10.0.0.1".to_string(), vec![1.0, 2.0, 3.0]); // Very old timestamps
+            lock.insert("10.0.0.2".to_string(), vec![]); // Already empty
+        }
+
+        // Check for another IP; this triggers pruning across the entire map
+        assert!(state.check_login_rate_limit("10.0.0.3").await);
+
+        let lock = state.login_attempts.lock().await;
+        // Expired entry and empty entry should have been pruned and removed completely
+        assert!(!lock.contains_key("10.0.0.1"));
+        assert!(!lock.contains_key("10.0.0.2"));
+        assert!(lock.contains_key("10.0.0.3"));
     }
 }

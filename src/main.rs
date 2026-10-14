@@ -47,7 +47,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         c.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA busy_timeout = 5000;
-             PRAGMA synchronous = NORMAL;",
+             PRAGMA synchronous = NORMAL;
+             PRAGMA foreign_keys = ON;",
         )
     });
     let feed_pool = Pool::builder().max_size(16).build(feeds_manager)?;
@@ -114,6 +115,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/feed/:feed_id", get(routes::api::serve_feed_handler))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
+        // Request body limit layer (2 MB)
+        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         // Auth and Security middleware layers
         .layer(from_fn_with_state(
             app_state.clone(),

@@ -28,6 +28,10 @@ fn get_session_info(cookies: &Cookies, secret: &str) -> (bool, Option<String>) {
     if let Some(cookie) = cookies.get("session") {
         if let Some(sess) = verify_session(cookie.value(), secret) {
             return (sess.logged_in, sess.username);
+        } else {
+            let mut removal = Cookie::new("session", "");
+            removal.set_path("/");
+            cookies.remove(removal);
         }
     }
     (false, None)
@@ -125,6 +129,12 @@ pub async fn login_handler(
 pub async fn logout_handler(cookies: Cookies) -> Redirect {
     let mut cookie = Cookie::new("session", "");
     cookie.set_path("/");
+    cookie.set_http_only(true);
+    cookie.set_same_site(tower_cookies::cookie::SameSite::Lax);
+    let secure_cookie = std::env::var("SESSION_COOKIE_SECURE")
+        .map(|v| v.to_lowercase() == "true" || v == "1")
+        .unwrap_or(false);
+    cookie.set_secure(secure_cookie);
     cookies.remove(cookie);
     Redirect::to("/login?logged_out=1")
 }

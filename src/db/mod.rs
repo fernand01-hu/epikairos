@@ -64,6 +64,29 @@ pub const EPITA_PROMOTIONS_DEF: &[(&str, &str, &str, &str, i32, &str)] = &[
     ),
 ];
 
+pub fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut boundary = max_bytes;
+    while boundary > 0 && !s.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    &s[..boundary]
+}
+
+pub fn safe_slice(s: &str, start_bytes: usize, end_bytes: usize) -> Option<&str> {
+    if start_bytes <= end_bytes
+        && end_bytes <= s.len()
+        && s.is_char_boundary(start_bytes)
+        && s.is_char_boundary(end_bytes)
+    {
+        Some(&s[start_bytes..end_bytes])
+    } else {
+        None
+    }
+}
+
 pub fn sanitize_room_name(name: &str) -> String {
     if name.is_empty() {
         return String::new();
@@ -281,12 +304,16 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_courses_date ON courses(date_str);
         CREATE INDEX IF NOT EXISTS idx_courses_start ON courses(start);
         CREATE INDEX IF NOT EXISTS idx_courses_type ON courses(activity_type);
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_courses_slot ON courses(start, end, course_name);
+        DROP INDEX IF EXISTS idx_courses_slot;
+        CREATE INDEX IF NOT EXISTS idx_courses_slot ON courses(start, end, course_name);
         CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name);
         CREATE INDEX IF NOT EXISTS idx_rooms_name ON rooms(name);
         CREATE INDEX IF NOT EXISTS idx_groups_name ON groups(name);
         CREATE INDEX IF NOT EXISTS idx_rec_day ON recurring_courses(day_of_week, start_time);
-        CREATE INDEX IF NOT EXISTS idx_rec_promo ON recurring_courses(promo_id);",
+        CREATE INDEX IF NOT EXISTS idx_rec_promo ON recurring_courses(promo_id);
+        CREATE INDEX IF NOT EXISTS idx_course_teachers_tid ON course_teachers(teacher_id);
+        CREATE INDEX IF NOT EXISTS idx_course_rooms_rid ON course_rooms(room_id);
+        CREATE INDEX IF NOT EXISTS idx_course_groups_gid ON course_groups(group_id);",
     )?;
 
     // Check dynamic columns
@@ -367,7 +394,16 @@ pub fn ingest_courses(
         }));
     }
 
-    init_db(conn)?;
+    let table_exists: bool = conn
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='courses'",
+            [],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+    if !table_exists {
+        init_db(conn)?;
+    }
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -377,7 +413,7 @@ pub fn ingest_courses(
     let mut inserted_count = 0;
     let mut updated_count = 0;
 
-    let tx = conn.transaction()?;
+    let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
     for c in courses {
         let c_id = c.id.trim();
@@ -388,18 +424,18 @@ pub fn ingest_courses(
             continue;
         }
 
-        let date_str = if start.len() >= 10 { &start[..10] } else { start };
-        let start_time_str = if start.len() >= 16 { &start[11..16] } else { "00:00" };
-        let end_time_str = if end.len() >= 16 { &end[11..16] } else { "23:59" };
+        let date_str = safe_truncate(start, 10);
+        let start_time_str = safe_slice(start, 11, 16).unwrap_or("00:00");
+        let end_time_str = safe_slice(end, 11, 16).unwrap_or("23:59");
 
-        let course_name = if c.course_name.len() > 300 { &c.course_name[..300] } else { &c.course_name };
-        let course_code = if c.course_code.len() > 100 { &c.course_code[..100] } else { &c.course_code };
+        let course_name = safe_truncate(&c.course_name, 300);
+        let course_code = safe_truncate(&c.course_code, 100);
         let activity_type = c.activity_type.trim().to_uppercase();
-        let activity_name = if c.activity_name.len() > 100 { &c.activity_name[..100] } else { &c.activity_name };
+        let activity_name = safe_truncate(&c.activity_name, 100);
         let is_exam = if c.is_exam { 1 } else { 0 };
         let is_cancelled = if c.is_cancelled { 1 } else { 0 };
-        let status = if c.status.len() > 50 { &c.status[..50] } else { &c.status };
-        let description = if c.description.len() > 2000 { &c.description[..2000] } else { &c.description };
+        let status = safe_truncate(&c.status, 50);
+        let description = safe_truncate(&c.description, 2000);
         let duration = if c.duration > 0 { c.duration } else { 90 };
         let default_search = format!("{} {}", course_name, activity_type);
         let searchable_text = if !c.searchable_text.is_empty() {
@@ -408,32 +444,14 @@ pub fn ingest_courses(
             &default_search
         };
 
-        let mut actual_id = c_id.to_string();
-        let mut exists = false;
-
-        let check_exists: bool = tx
+        let actual_id = c_id;
+        let exists: bool = tx
             .query_row(
                 "SELECT 1 FROM courses WHERE id = ?1",
-                params![c_id],
+                params![actual_id],
                 |_| Ok(true),
             )
             .unwrap_or(false);
-
-        if check_exists {
-            exists = true;
-        } else {
-            let slot_row: Option<String> = tx
-                .query_row(
-                    "SELECT id FROM courses WHERE start = ?1 AND end = ?2 AND course_name = ?3",
-                    params![start, end, course_name],
-                    |r| r.get(0),
-                )
-                .ok();
-            if let Some(sid) = slot_row {
-                actual_id = sid;
-                exists = true;
-            }
-        }
 
         if exists {
             tx.execute(
@@ -559,8 +577,6 @@ pub fn ingest_courses(
 }
 
 pub fn get_database_stats(conn: &Connection) -> rusqlite::Result<DatabaseStats> {
-    init_db(conn)?;
-
     let total_courses: i64 = conn.query_row("SELECT COUNT(*) FROM courses", [], |r| r.get(0))?;
     let total_teachers: i64 = conn.query_row("SELECT COUNT(*) FROM teachers", [], |r| r.get(0))?;
     let total_rooms: i64 = conn.query_row("SELECT COUNT(*) FROM rooms", [], |r| r.get(0))?;
@@ -601,7 +617,6 @@ pub fn get_database_stats(conn: &Connection) -> rusqlite::Result<DatabaseStats> 
 }
 
 pub fn get_all_teachers(conn: &Connection) -> rusqlite::Result<Vec<String>> {
-    init_db(conn)?;
     let mut stmt = conn.prepare("SELECT name FROM teachers ORDER BY name COLLATE NOCASE ASC")?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     let mut set = HashSet::new();
@@ -617,7 +632,6 @@ pub fn get_all_teachers(conn: &Connection) -> rusqlite::Result<Vec<String>> {
 }
 
 pub fn get_all_rooms(conn: &Connection) -> rusqlite::Result<Vec<String>> {
-    init_db(conn)?;
     let mut stmt = conn.prepare("SELECT name FROM rooms ORDER BY name COLLATE NOCASE ASC")?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     let mut set = HashSet::new();
@@ -633,7 +647,6 @@ pub fn get_all_rooms(conn: &Connection) -> rusqlite::Result<Vec<String>> {
 }
 
 pub fn get_all_groups(conn: &Connection) -> rusqlite::Result<Vec<String>> {
-    init_db(conn)?;
     let mut stmt = conn.prepare("SELECT name FROM groups ORDER BY name COLLATE NOCASE ASC")?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     let mut list = Vec::new();
@@ -644,7 +657,6 @@ pub fn get_all_groups(conn: &Connection) -> rusqlite::Result<Vec<String>> {
 }
 
 pub fn get_all_groups_structured(conn: &Connection) -> rusqlite::Result<Vec<serde_json::Value>> {
-    init_db(conn)?;
     let mut stmt = conn.prepare(
         "SELECT g.id, g.name, g.clean_name, g.promo_id, g.subgroup, g.display_name,
                 p.name AS promo_name, p.cycle, p.year
@@ -671,8 +683,6 @@ pub fn get_all_groups_structured(conn: &Connection) -> rusqlite::Result<Vec<serd
 }
 
 pub fn get_structured_promotions_and_groups(conn: &Connection) -> rusqlite::Result<Vec<serde_json::Value>> {
-    init_db(conn)?;
-
     let mut promo_stmt = conn.prepare("SELECT id, code, name, cycle, year, semesters FROM promotions ORDER BY year ASC")?;
     let promo_rows = promo_stmt.query_map([], |r| {
         Ok((
@@ -761,14 +771,12 @@ pub fn get_structured_promotions_and_groups(conn: &Connection) -> rusqlite::Resu
 }
 
 pub fn get_all_activity_types(conn: &Connection) -> rusqlite::Result<Vec<String>> {
-    init_db(conn)?;
     let mut stmt = conn.prepare("SELECT DISTINCT activity_type FROM courses ORDER BY activity_type ASC")?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     Ok(rows.filter_map(Result::ok).collect())
 }
 
 pub fn detect_and_sync_recurring_courses(conn: &mut Connection) -> rusqlite::Result<serde_json::Value> {
-    init_db(conn)?;
 
     struct CourseRow {
         id: String,
@@ -857,7 +865,7 @@ pub fn detect_and_sync_recurring_courses(conn: &mut Connection) -> rusqlite::Res
         let clean_start = r.start.replace('Z', "").split('+').next().unwrap_or("").to_string();
         let dow = if let Ok(dt) = NaiveDateTime::parse_from_str(&clean_start, "%Y-%m-%dT%H:%M:%S") {
             dt.date().format("%u").to_string().parse::<usize>().unwrap_or(1) - 1
-        } else if let Ok(d) = NaiveDate::parse_from_str(if clean_start.len() >= 10 { &clean_start[..10] } else { "" }, "%Y-%m-%d") {
+        } else if let Ok(d) = NaiveDate::parse_from_str(safe_truncate(&clean_start, 10), "%Y-%m-%d") {
             d.format("%u").to_string().parse::<usize>().unwrap_or(1) - 1
         } else {
             0
@@ -910,7 +918,7 @@ pub fn detect_and_sync_recurring_courses(conn: &mut Connection) -> rusqlite::Res
         });
 
         entry.course_ids.push(r.id);
-        let d_part = if clean_start.len() >= 10 { clean_start[..10].to_string() } else { clean_start };
+        let d_part = safe_truncate(&clean_start, 10).to_string();
         entry.dates.push(d_part);
 
         if let Some(t_str) = r.teachers {
@@ -1066,8 +1074,6 @@ pub fn query_recurring_courses(
     teacher: Option<&str>,
     keyword: Option<&str>,
 ) -> rusqlite::Result<serde_json::Value> {
-    init_db(conn)?;
-
     let mut conditions = vec!["1=1".to_string()];
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
@@ -1175,6 +1181,84 @@ pub fn query_recurring_courses(
     }))
 }
 
+pub fn fetch_course_teachers_batched(
+    conn: &Connection,
+    course_ids: &[String],
+) -> rusqlite::Result<HashMap<String, Vec<String>>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    for chunk in course_ids.chunks(400) {
+        if chunk.is_empty() {
+            continue;
+        }
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let id_params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT ct.course_id, t.name FROM course_teachers ct
+             JOIN teachers t ON ct.teacher_id = t.id
+             WHERE ct.course_id IN ({})
+             ORDER BY t.name ASC;",
+            placeholders
+        ))?;
+        let rows = stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        for item in rows.flatten() {
+            map.entry(item.0).or_default().push(item.1);
+        }
+    }
+    Ok(map)
+}
+
+pub fn fetch_course_rooms_batched(
+    conn: &Connection,
+    course_ids: &[String],
+) -> rusqlite::Result<HashMap<String, Vec<String>>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    for chunk in course_ids.chunks(400) {
+        if chunk.is_empty() {
+            continue;
+        }
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let id_params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT cr.course_id, r.name FROM course_rooms cr
+             JOIN rooms r ON cr.room_id = r.id
+             WHERE cr.course_id IN ({})
+             ORDER BY r.name ASC;",
+            placeholders
+        ))?;
+        let rows = stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        for item in rows.flatten() {
+            map.entry(item.0).or_default().push(item.1);
+        }
+    }
+    Ok(map)
+}
+
+pub fn fetch_course_groups_batched(
+    conn: &Connection,
+    course_ids: &[String],
+) -> rusqlite::Result<HashMap<String, Vec<String>>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    for chunk in course_ids.chunks(400) {
+        if chunk.is_empty() {
+            continue;
+        }
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let id_params: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT cg.course_id, g.name FROM course_groups cg
+             JOIN groups g ON cg.group_id = g.id
+             WHERE cg.course_id IN ({})
+             ORDER BY g.name ASC;",
+            placeholders
+        ))?;
+        let rows = stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        for item in rows.flatten() {
+            map.entry(item.0).or_default().push(item.1);
+        }
+    }
+    Ok(map)
+}
+
 pub fn query_custom_courses(
     conn: &Connection,
     teachers: Option<&[String]>,
@@ -1186,8 +1270,6 @@ pub fn query_custom_courses(
     end_date: Option<&str>,
     hide_cancelled: bool,
 ) -> rusqlite::Result<Vec<Course>> {
-    init_db(conn)?;
-
     let mut conditions = vec!["1=1".to_string()];
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
@@ -1196,22 +1278,23 @@ pub fn query_custom_courses(
     }
 
     if let Some(sd) = start_date {
-        let d = if sd.len() >= 10 { &sd[..10] } else { sd };
+        let d = safe_truncate(sd, 10);
         conditions.push("c.date_str >= ?".to_string());
         params.push(d.to_string().into());
     }
 
     if let Some(ed) = end_date {
-        let d = if ed.len() >= 10 { &ed[..10] } else { ed };
+        let d = safe_truncate(ed, 10);
         conditions.push("c.date_str <= ?".to_string());
         params.push(d.to_string().into());
     }
 
     if let Some(types) = activity_types {
-        if !types.is_empty() {
-            let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let types_slice = if types.len() > 100 { &types[..100] } else { types };
+        if !types_slice.is_empty() {
+            let placeholders = types_slice.iter().map(|_| "?").collect::<Vec<_>>().join(",");
             conditions.push(format!("c.activity_type IN ({})", placeholders));
-            for t in types {
+            for t in types_slice {
                 params.push(t.to_uppercase().into());
             }
         }
@@ -1288,7 +1371,8 @@ pub fn query_custom_courses(
                 c.status, c.description, c.searchable_text
          FROM courses c
          WHERE {}
-         ORDER BY c.start ASC;",
+         ORDER BY c.start ASC
+         LIMIT 2000;",
         conditions.join(" AND ")
     );
 
@@ -1337,47 +1421,9 @@ pub fn query_custom_courses(
     }
 
     let course_ids: Vec<String> = course_rows.iter().map(|c| c.id.clone()).collect();
-    let id_placeholders = course_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let id_params: Vec<&dyn rusqlite::ToSql> = course_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
-
-    let mut teacher_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut t_stmt = conn.prepare(&format!(
-        "SELECT ct.course_id, t.name FROM course_teachers ct
-         JOIN teachers t ON ct.teacher_id = t.id
-         WHERE ct.course_id IN ({})
-         ORDER BY t.name ASC;",
-        id_placeholders
-    ))?;
-    let t_rows = t_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-    for item in t_rows.flatten() {
-        teacher_map.entry(item.0).or_default().push(item.1);
-    }
-
-    let mut room_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut r_stmt = conn.prepare(&format!(
-        "SELECT cr.course_id, r.name FROM course_rooms cr
-         JOIN rooms r ON cr.room_id = r.id
-         WHERE cr.course_id IN ({})
-         ORDER BY r.name ASC;",
-        id_placeholders
-    ))?;
-    let r_rows = r_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-    for item in r_rows.flatten() {
-        room_map.entry(item.0).or_default().push(item.1);
-    }
-
-    let mut group_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut g_stmt = conn.prepare(&format!(
-        "SELECT cg.course_id, g.name FROM course_groups cg
-         JOIN groups g ON cg.group_id = g.id
-         WHERE cg.course_id IN ({})
-         ORDER BY g.name ASC;",
-        id_placeholders
-    ))?;
-    let g_rows = g_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-    for item in g_rows.flatten() {
-        group_map.entry(item.0).or_default().push(item.1);
-    }
+    let mut teacher_map = fetch_course_teachers_batched(conn, &course_ids)?;
+    let mut room_map = fetch_course_rooms_batched(conn, &course_ids)?;
+    let mut group_map = fetch_course_groups_batched(conn, &course_ids)?;
 
     let result: Vec<Course> = course_rows
         .into_iter()
@@ -1415,9 +1461,7 @@ pub fn query_free_rooms(
     start_time: &str,
     end_time: &str,
 ) -> rusqlite::Result<FreeRoomsResponse> {
-    init_db(conn)?;
-
-    let target_d = if target_date.len() >= 10 { &target_date[..10] } else { target_date };
+    let target_d = safe_truncate(target_date, 10);
     let t_start = start_time.trim();
     let t_end = end_time.trim();
 
@@ -1476,36 +1520,18 @@ pub fn query_free_rooms(
         room_courses_map.entry(dc.room_id).or_default().push(idx);
     }
 
-    let course_ids: Vec<String> = day_courses.iter().map(|dc| dc.id.clone()).collect();
-    let mut teacher_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut group_map: HashMap<String, Vec<String>> = HashMap::new();
+    let mut course_ids: Vec<String> = day_courses.iter().map(|dc| dc.id.clone()).collect();
+    course_ids.sort();
+    course_ids.dedup();
 
-    if !course_ids.is_empty() {
-        let placeholders = course_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let id_params: Vec<&dyn rusqlite::ToSql> = course_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
-
-        let mut t_stmt = conn.prepare(&format!(
-            "SELECT ct.course_id, t.name FROM course_teachers ct
-             JOIN teachers t ON ct.teacher_id = t.id
-             WHERE ct.course_id IN ({});",
-            placeholders
-        ))?;
-        let t_rows = t_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-        for item in t_rows.flatten() {
-            teacher_map.entry(item.0).or_default().push(item.1);
-        }
-
-        let mut g_stmt = conn.prepare(&format!(
-            "SELECT cg.course_id, g.name FROM course_groups cg
-             JOIN groups g ON cg.group_id = g.id
-             WHERE cg.course_id IN ({});",
-            placeholders
-        ))?;
-        let g_rows = g_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-        for item in g_rows.flatten() {
-            group_map.entry(item.0).or_default().push(item.1);
-        }
-    }
+    let (teacher_map, group_map) = if !course_ids.is_empty() {
+        (
+            fetch_course_teachers_batched(conn, &course_ids)?,
+            fetch_course_groups_batched(conn, &course_ids)?,
+        )
+    } else {
+        (HashMap::new(), HashMap::new())
+    };
 
     let mut free_rooms = Vec::new();
     let mut occupied_rooms = Vec::new();
@@ -1784,19 +1810,17 @@ pub fn query_courses_by_groups(
     start_date: Option<&str>,
     end_date: Option<&str>,
 ) -> rusqlite::Result<Vec<Course>> {
-    init_db(conn)?;
-
     let mut conditions = vec!["c.is_cancelled = 0".to_string()];
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
     if let Some(sd) = start_date {
-        let d = if sd.len() >= 10 { &sd[..10] } else { sd };
+        let d = safe_truncate(sd, 10);
         conditions.push("c.date_str >= ?".to_string());
         params.push(d.to_string().into());
     }
 
     if let Some(ed) = end_date {
-        let d = if ed.len() >= 10 { &ed[..10] } else { ed };
+        let d = safe_truncate(ed, 10);
         conditions.push("c.date_str <= ?".to_string());
         params.push(d.to_string().into());
     }
@@ -1874,44 +1898,9 @@ pub fn query_courses_by_groups(
     }
 
     let course_ids: Vec<String> = course_rows.iter().map(|c| c.id.clone()).collect();
-    let id_placeholders = course_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-    let id_params: Vec<&dyn rusqlite::ToSql> = course_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
-
-    let mut teacher_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut t_stmt = conn.prepare(&format!(
-        "SELECT ct.course_id, t.name FROM course_teachers ct
-         JOIN teachers t ON ct.teacher_id = t.id
-         WHERE ct.course_id IN ({});",
-        id_placeholders
-    ))?;
-    let t_rows = t_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-    for item in t_rows.flatten() {
-        teacher_map.entry(item.0).or_default().push(item.1);
-    }
-
-    let mut room_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut r_stmt = conn.prepare(&format!(
-        "SELECT cr.course_id, r.name FROM course_rooms cr
-         JOIN rooms r ON cr.room_id = r.id
-         WHERE cr.course_id IN ({});",
-        id_placeholders
-    ))?;
-    let r_rows = r_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-    for item in r_rows.flatten() {
-        room_map.entry(item.0).or_default().push(item.1);
-    }
-
-    let mut group_map: HashMap<String, Vec<String>> = HashMap::new();
-    let mut g_stmt = conn.prepare(&format!(
-        "SELECT cg.course_id, g.name FROM course_groups cg
-         JOIN groups g ON cg.group_id = g.id
-         WHERE cg.course_id IN ({});",
-        id_placeholders
-    ))?;
-    let g_rows = g_stmt.query_map(&id_params[..], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
-    for item in g_rows.flatten() {
-        group_map.entry(item.0).or_default().push(item.1);
-    }
+    let mut teacher_map = fetch_course_teachers_batched(conn, &course_ids)?;
+    let mut room_map = fetch_course_rooms_batched(conn, &course_ids)?;
+    let mut group_map = fetch_course_groups_batched(conn, &course_ids)?;
 
     let result: Vec<Course> = course_rows
         .into_iter()
@@ -1941,4 +1930,278 @@ pub fn query_courses_by_groups(
         .collect();
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    #[test]
+    fn test_safe_truncate_ascii() {
+        assert_eq!(safe_truncate("hello world", 5), "hello");
+        assert_eq!(safe_truncate("hello", 10), "hello");
+        assert_eq!(safe_truncate("hello", 5), "hello");
+        assert_eq!(safe_truncate("hello", 0), "");
+        assert_eq!(safe_truncate("", 5), "");
+    }
+
+    #[test]
+    fn test_safe_truncate_utf8_multibyte() {
+        // "É" is 2 bytes: 0xC3 0x89
+        let french = "ÉpiKaïros";
+        assert_eq!(safe_truncate(french, 1), ""); // Boundary falls inside "É" -> truncates to 0
+        assert_eq!(safe_truncate(french, 2), "É");
+        assert_eq!(safe_truncate(french, 3), "Ép");
+
+        // "🦀" is 4 bytes: 0xF0 0x9F 0xA6 0x80
+        let crab = "🦀 Crab";
+        assert_eq!(safe_truncate(crab, 1), "");
+        assert_eq!(safe_truncate(crab, 2), "");
+        assert_eq!(safe_truncate(crab, 3), "");
+        assert_eq!(safe_truncate(crab, 4), "🦀");
+        assert_eq!(safe_truncate(crab, 5), "🦀 ");
+        assert_eq!(safe_truncate(crab, 10), "🦀 Crab");
+    }
+
+    #[test]
+    fn test_safe_slice() {
+        let ts = "2026-10-14T08:58:09";
+        assert_eq!(safe_slice(ts, 0, 10), Some("2026-10-14"));
+        assert_eq!(safe_slice(ts, 11, 16), Some("08:58"));
+        assert_eq!(safe_slice(ts, 11, 25), None); // Out of bounds
+        assert_eq!(safe_slice(ts, 15, 10), None); // Start > End
+
+        // Multibyte string
+        let emoji = "🦀🚀"; // Each emoji is 4 bytes
+        assert_eq!(safe_slice(emoji, 0, 4), Some("🦀"));
+        assert_eq!(safe_slice(emoji, 4, 8), Some("🚀"));
+        assert_eq!(safe_slice(emoji, 0, 2), None); // Invalid boundary
+        assert_eq!(safe_slice(emoji, 2, 6), None); // Invalid boundary
+    }
+
+    #[test]
+    fn test_query_chunking_secondary_queries() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        init_db(&conn).unwrap();
+
+        // Generate 850 course IDs to test chunking across batches of 400 (400 + 400 + 50)
+        let total_courses = 850;
+        let mut courses = Vec::new();
+        for i in 0..total_courses {
+            courses.push(Course {
+                id: format!("course_{:04}", i),
+                start: "2026-10-14T09:00:00".to_string(),
+                end: "2026-10-14T10:30:00".to_string(),
+                duration: 90,
+                summary: format!("Course {}", i),
+                course_name: format!("Maths {:04}", i),
+                course_code: "MATH".to_string(),
+                activity_type: "COURS".to_string(),
+                activity_name: "Cours magistral".to_string(),
+                is_exam: false,
+                is_cancelled: false,
+                status: "PLANIFIE".to_string(),
+                teachers: vec![format!("Prof {:04}", i % 10)],
+                rooms: vec![format!("Room {:04}", i % 5)],
+                groups: vec![format!("G{:04}", i % 20)],
+                description: "Test description".to_string(),
+                searchable_text: "".to_string(),
+            });
+        }
+
+        ingest_courses(&mut conn, &courses, true).unwrap();
+
+        let all_ids: Vec<String> = (0..total_courses).map(|i| format!("course_{:04}", i)).collect();
+        assert_eq!(all_ids.len(), 850);
+
+        // Fetch teachers, rooms, groups using batched helpers
+        let teacher_map = fetch_course_teachers_batched(&conn, &all_ids).unwrap();
+        let room_map = fetch_course_rooms_batched(&conn, &all_ids).unwrap();
+        let group_map = fetch_course_groups_batched(&conn, &all_ids).unwrap();
+
+        assert_eq!(teacher_map.len(), total_courses);
+        assert_eq!(room_map.len(), total_courses);
+        assert_eq!(group_map.len(), total_courses);
+
+        for (i, id) in all_ids.iter().enumerate() {
+            assert_eq!(teacher_map.get(id).unwrap(), &[format!("Prof {:04}", i % 10)]);
+            assert_eq!(room_map.get(id).unwrap(), &[format!("Room {:04}", i % 5)]);
+            assert_eq!(group_map.get(id).unwrap(), &[format!("G{:04}", i % 20)]);
+        }
+    }
+
+    #[test]
+    fn test_cross_cohort_no_overwrite_and_non_unique_index() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        init_db(&conn).unwrap();
+
+        // Two courses with the same slot and course name, but different cohorts/IDs
+        let course1 = Course {
+            id: "auriga_g1_algo".to_string(),
+            start: "2026-10-14T09:00:00".to_string(),
+            end: "2026-10-14T10:30:00".to_string(),
+            duration: 90,
+            summary: "Algo G1".to_string(),
+            course_name: "Algorithmique".to_string(),
+            course_code: "ALGO".to_string(),
+            activity_type: "COURS".to_string(),
+            activity_name: "Cours".to_string(),
+            is_exam: false,
+            is_cancelled: false,
+            status: "PLANIFIE".to_string(),
+            teachers: vec!["Teacher A".to_string()],
+            rooms: vec!["Room 101".to_string()],
+            groups: vec!["SUP-1".to_string()],
+            description: "SUP group".to_string(),
+            searchable_text: "".to_string(),
+        };
+
+        let course2 = Course {
+            id: "auriga_g2_algo".to_string(),
+            start: "2026-10-14T09:00:00".to_string(),
+            end: "2026-10-14T10:30:00".to_string(),
+            duration: 90,
+            summary: "Algo G2".to_string(),
+            course_name: "Algorithmique".to_string(),
+            course_code: "ALGO".to_string(),
+            activity_type: "COURS".to_string(),
+            activity_name: "Cours".to_string(),
+            is_exam: false,
+            is_cancelled: false,
+            status: "PLANIFIE".to_string(),
+            teachers: vec!["Teacher B".to_string()],
+            rooms: vec!["Room 102".to_string()],
+            groups: vec!["SPE-1".to_string()],
+            description: "SPE group".to_string(),
+            searchable_text: "".to_string(),
+        };
+
+        ingest_courses(&mut conn, &[course1], true).unwrap();
+        ingest_courses(&mut conn, &[course2], true).unwrap();
+
+        // Verify both courses exist independently
+        let courses = query_custom_courses(&conn, None, None, None, None, None, None, None, false).unwrap();
+        assert_eq!(courses.len(), 2);
+
+        let c1 = courses.iter().find(|c| c.id == "auriga_g1_algo").expect("course 1 must exist");
+        let c2 = courses.iter().find(|c| c.id == "auriga_g2_algo").expect("course 2 must exist");
+
+        assert_eq!(c1.groups, vec!["SUP-1"]);
+        assert_eq!(c1.teachers, vec!["Teacher A"]);
+        assert_eq!(c1.rooms, vec!["Room 101"]);
+
+        assert_eq!(c2.groups, vec!["SPE-1"]);
+        assert_eq!(c2.teachers, vec!["Teacher B"]);
+        assert_eq!(c2.rooms, vec!["Room 102"]);
+    }
+
+    #[test]
+    fn test_custom_courses_limit_and_activity_types_cap() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        init_db(&conn).unwrap();
+
+        // Verify cap on activity_types (pass > 100 activity types)
+        let many_types: Vec<String> = (0..150).map(|i| format!("TYPE_{}", i)).collect();
+        let res = query_custom_courses(&conn, None, None, None, Some(&many_types), None, None, None, false);
+        assert!(res.is_ok());
+
+        // Verify default LIMIT 2000
+        let mut courses = Vec::new();
+        for i in 0..2100 {
+            courses.push(Course {
+                id: format!("c_{}", i),
+                start: format!("2026-10-14T{:02}:{:02}:00", (i / 60) % 24, i % 60),
+                end: format!("2026-10-14T{:02}:{:02}:00", (i / 60) % 24, (i % 60) + 1),
+                duration: 60,
+                summary: format!("C {}", i),
+                course_name: format!("Course {}", i),
+                course_code: "".to_string(),
+                activity_type: "COURS".to_string(),
+                activity_name: "".to_string(),
+                is_exam: false,
+                is_cancelled: false,
+                status: "PLANIFIE".to_string(),
+                teachers: vec![],
+                rooms: vec![],
+                groups: vec![],
+                description: "".to_string(),
+                searchable_text: "".to_string(),
+            });
+        }
+        ingest_courses(&mut conn, &courses, true).unwrap();
+
+        let queried = query_custom_courses(&conn, None, None, None, None, None, None, None, false).unwrap();
+        assert_eq!(queried.len(), 2000);
+    }
+
+    #[test]
+    fn test_init_db_drops_unique_index_and_creates_reverse_indices() {
+        let conn = Connection::open_in_memory().unwrap();
+
+        // 1. Manually create tables and a UNIQUE idx_courses_slot to simulate legacy schema
+        conn.execute_batch(
+            "CREATE TABLE courses (
+                id TEXT PRIMARY KEY,
+                start TEXT NOT NULL,
+                end TEXT NOT NULL,
+                date_str TEXT NOT NULL,
+                start_time_str TEXT NOT NULL,
+                end_time_str TEXT NOT NULL,
+                duration INTEGER DEFAULT 90,
+                course_name TEXT NOT NULL,
+                course_code TEXT,
+                activity_type TEXT NOT NULL,
+                activity_name TEXT,
+                is_exam INTEGER DEFAULT 0,
+                is_cancelled INTEGER DEFAULT 0,
+                status TEXT,
+                description TEXT,
+                searchable_text TEXT,
+                updated_at REAL NOT NULL
+            );
+            CREATE UNIQUE INDEX idx_courses_slot ON courses(start, end, course_name);",
+        ).unwrap();
+
+        // Verify it was unique
+        let is_unique: bool = conn.query_row(
+            "SELECT \"unique\" FROM pragma_index_list('courses') WHERE name = 'idx_courses_slot'",
+            [],
+            |r| r.get(0),
+        ).unwrap();
+        assert!(is_unique);
+
+        // 2. Run init_db
+        init_db(&conn).unwrap();
+
+        // 3. Verify idx_courses_slot is now non-unique
+        let is_unique_after: bool = conn.query_row(
+            "SELECT \"unique\" FROM pragma_index_list('courses') WHERE name = 'idx_courses_slot'",
+            [],
+            |r| r.get(0),
+        ).unwrap();
+        assert!(!is_unique_after);
+
+        // 4. Verify reverse indices exist
+        let t_idx: bool = conn.query_row(
+            "SELECT 1 FROM pragma_index_list('course_teachers') WHERE name = 'idx_course_teachers_tid'",
+            [],
+            |_| Ok(true),
+        ).unwrap();
+        assert!(t_idx);
+
+        let r_idx: bool = conn.query_row(
+            "SELECT 1 FROM pragma_index_list('course_rooms') WHERE name = 'idx_course_rooms_rid'",
+            [],
+            |_| Ok(true),
+        ).unwrap();
+        assert!(r_idx);
+
+        let g_idx: bool = conn.query_row(
+            "SELECT 1 FROM pragma_index_list('course_groups') WHERE name = 'idx_course_groups_gid'",
+            [],
+            |_| Ok(true),
+        ).unwrap();
+        assert!(g_idx);
+    }
 }
