@@ -9,6 +9,7 @@ use serde::Deserialize;
 use tower_cookies::{Cookie, Cookies};
 
 use crate::auriga::get_default_school_year_range;
+use crate::community::lookup_role;
 use crate::db::get_database_stats;
 use crate::session::verify_session;
 use crate::state::AppState;
@@ -37,6 +38,16 @@ fn get_session_info(cookies: &Cookies, secret: &str) -> (bool, Option<String>) {
     (false, None)
 }
 
+/// Template `session` object, including the user's role for role-dependent navigation.
+pub async fn session_context(state: &AppState, cookies: &Cookies) -> minijinja::Value {
+    let (logged_in, username) = get_session_info(cookies, &state.secret_key);
+    let role = match (&username, logged_in) {
+        (Some(user), true) => Some(lookup_role(&state.db_pool, user).await),
+        _ => None,
+    };
+    create_session_value(logged_in, username.as_deref(), role.map(|r| r.as_str()))
+}
+
 pub async fn dashboard_handler(
     State(state): State<AppState>,
     cookies: Cookies,
@@ -49,8 +60,7 @@ pub async fn dashboard_handler(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)??;
 
-    let (logged_in, username) = get_session_info(&cookies, &state.secret_key);
-    let session_val = create_session_value(logged_in, username.as_deref());
+    let session_val = session_context(&state, &cookies).await;
 
     let tmpl = state
         .jinja
@@ -76,8 +86,7 @@ pub async fn old_zeus_handler(
     let now: DateTime<chrono_tz::Tz> = Utc::now().with_timezone(&Paris);
     let today_str = now.format("%Y-%m-%d").to_string();
 
-    let (logged_in, username) = get_session_info(&cookies, &state.secret_key);
-    let session_val = create_session_value(logged_in, username.as_deref());
+    let session_val = session_context(&state, &cookies).await;
 
     let tmpl = state
         .jinja
@@ -105,8 +114,7 @@ pub async fn login_handler(
     let (start_date, end_date) = get_default_school_year_range();
     let is_logged_out = params.logged_out.as_deref() == Some("1");
 
-    let (logged_in, username) = get_session_info(&cookies, &state.secret_key);
-    let session_val = create_session_value(logged_in, username.as_deref());
+    let session_val = session_context(&state, &cookies).await;
 
     let tmpl = state
         .jinja
@@ -143,8 +151,7 @@ pub async fn personal_handler(
     State(state): State<AppState>,
     cookies: Cookies,
 ) -> Result<Html<String>, StatusCode> {
-    let (logged_in, username) = get_session_info(&cookies, &state.secret_key);
-    let session_val = create_session_value(logged_in, username.as_deref());
+    let session_val = session_context(&state, &cookies).await;
 
     let tmpl = state
         .jinja
@@ -166,8 +173,7 @@ pub async fn custom_calendar_handler(
     cookies: Cookies,
 ) -> Result<Html<String>, StatusCode> {
     let (start_date, end_date) = get_default_school_year_range();
-    let (logged_in, username) = get_session_info(&cookies, &state.secret_key);
-    let session_val = create_session_value(logged_in, username.as_deref());
+    let session_val = session_context(&state, &cookies).await;
 
     let tmpl = state
         .jinja
@@ -208,8 +214,7 @@ pub async fn rooms_handler(
         ("14:00".to_string(), "16:00".to_string())
     };
 
-    let (logged_in, username) = get_session_info(&cookies, &state.secret_key);
-    let session_val = create_session_value(logged_in, username.as_deref());
+    let session_val = session_context(&state, &cookies).await;
 
     let tmpl = state
         .jinja

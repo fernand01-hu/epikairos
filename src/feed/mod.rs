@@ -10,10 +10,10 @@ use sha2::{Digest, Sha256};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::models::Course;
+use crate::state::secret_path;
 
 pub type FeedDbPool = Pool<SqliteConnectionManager>;
 
@@ -29,8 +29,9 @@ pub fn get_server_key() -> [u8; 32] {
         return key;
     }
 
-    if Path::new(SECRET_FILE).exists() {
-        if let Ok(mut f) = File::open(SECRET_FILE) {
+    let secret_file = secret_path(SECRET_FILE);
+    if secret_file.exists() {
+        if let Ok(mut f) = File::open(&secret_file) {
             let mut key = [0u8; 32];
             if f.read_exact(&mut key).is_ok() {
                 return key;
@@ -46,7 +47,7 @@ pub fn get_server_key() -> [u8; 32] {
     #[cfg(unix)]
     opts.mode(0o600);
 
-    if let Ok(mut f) = opts.open(SECRET_FILE) {
+    if let Ok(mut f) = opts.open(&secret_file) {
         let _ = f.write_all(&key);
     }
 

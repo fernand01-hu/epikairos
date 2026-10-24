@@ -3,146 +3,89 @@
 {% block title %}Connexion Auriga — EpiKairos{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8 col-xl-7">
+<div class="row justify-content-center py-md-4">
+    <div class="col-md-8 col-lg-6 col-xl-5">
 
-        <div class="card card-custom p-4 p-md-5 mb-4">
-            <div class="text-center mb-4">
-                <div class="d-inline-flex align-items-center justify-content-center bg-primary-subtle text-primary rounded-circle p-3 mb-3" style="width: 64px; height: 64px;">
-                    <i class="bi bi-shield-lock fs-2"></i>
-                </div>
-                <h3 class="fw-bold mb-1">Connexion Auriga (EPITA)</h3>
-                <p class="text-muted small">
-                    Récupérez automatiquement votre emploi du temps officiel via l'authentification Keycloak / Auriga.
-                </p>
-            </div>
+        <div class="page-header text-center">
+            <h1>Connexion</h1>
+            <p>Récupérez votre emploi du temps depuis Auriga.</p>
+        </div>
 
-            <!-- Status & Auth Notifications -->
-            {% if logged_out %}
-            <div class="alert alert-info d-flex align-items-center gap-2 mb-4" role="alert">
-                <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
-                <div class="small">Vous avez été déconnecté avec succès. Vos données locales ont été réinitialisées.</div>
-            </div>
-            {% endif %}
+        {% if logged_out %}
+        <div class="alert mb-3" role="alert">Vous avez été déconnecté. Vos données locales ont été effacées.</div>
+        {% endif %}
 
-            {% if session.get('logged_in') %}
-            <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4" role="alert">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-check-circle-fill fs-5 text-success flex-shrink-0"></i>
-                    <div class="small">
-                        Vous êtes actuellement connecté en tant que <strong>{{ session.get('username') }}</strong>.
-                    </div>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="/" class="btn btn-sm btn-success rounded-pill px-3 fw-semibold">Accéder à l'Accueil</a>
-                    <a href="/logout" class="btn btn-sm btn-outline-danger rounded-pill px-3">Se déconnecter</a>
-                </div>
-            </div>
-            {% else %}
-            <div class="alert bg-primary-subtle border border-primary-subtle text-primary d-flex align-items-center gap-2 mb-4 rounded-3" role="alert">
-                <i class="bi bi-shield-lock-fill fs-5 flex-shrink-0"></i>
-                <div class="small">
-                    <strong>Accès protégé :</strong> Veuillez vous connecter avec votre compte Auriga (EPITA) pour accéder à l'ensemble de la plateforme EpiKairos.
-                </div>
-            </div>
-            {% endif %}
+        {% if session.get('logged_in') %}
+        <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3" role="alert">
+            <span>Connecté en tant que <strong>{{ session.get('username') }}</strong>.</span>
+            <span class="d-flex gap-2">
+                <a href="/personal" class="btn btn-sm btn-outline-secondary">Mon planning</a>
+                <a href="/logout" class="btn btn-sm btn-outline-danger">Se déconnecter</a>
+            </span>
+        </div>
+        {% endif %}
 
-            <!-- Alert Notification -->
-            <div id="alertBox" class="alert alert-danger d-none d-flex align-items-center gap-2 mb-4" role="alert">
-                <i class="bi bi-exclamation-triangle-fill fs-5 flex-shrink-0"></i>
-                <div id="alertMessage" class="small"></div>
-            </div>
+        <div id="alertBox" class="alert alert-danger d-none mb-3" role="alert">
+            <div id="alertMessage"></div>
+        </div>
+        <div id="successBox" class="alert alert-success d-none mb-3" role="alert">
+            <div id="successMessage"></div>
+        </div>
 
-            <div id="successBox" class="alert alert-success d-none d-flex align-items-center gap-2 mb-4" role="alert">
-                <i class="bi bi-check-circle-fill fs-5 flex-shrink-0"></i>
-                <div id="successMessage" class="small"></div>
-            </div>
-
-            <!-- Login Method Tabs -->
-            <ul class="nav nav-pills nav-fill mb-4 bg-light p-1 rounded-pill" id="loginTabs" role="tablist">
+        <div class="card p-4">
+            <ul class="nav nav-fill segmented mb-4" id="loginTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active rounded-pill fw-semibold py-2" id="tab-credentials-btn" data-bs-toggle="pill" data-bs-target="#tab-credentials" type="button" role="tab">
-                        <i class="bi bi-person-fill-lock me-1"></i> Identifiant & Mot de passe
-                    </button>
+                    <button class="nav-link active" id="tab-credentials-btn" data-bs-toggle="pill" data-bs-target="#tab-credentials" type="button" role="tab">Identifiants</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link rounded-pill fw-semibold py-2" id="tab-token-btn" data-bs-toggle="pill" data-bs-target="#tab-token" type="button" role="tab">
-                        <i class="bi bi-key me-1"></i> Jeton d'accès (Token)
-                    </button>
+                    <button class="nav-link" id="tab-token-btn" data-bs-toggle="pill" data-bs-target="#tab-token" type="button" role="tab">Jeton d'accès</button>
                 </li>
             </ul>
 
             <form id="loginForm">
-                <div class="tab-content mb-4" id="loginTabsContent">
-
-                    <!-- Tab 1: Credentials Form -->
+                <div class="tab-content mb-3" id="loginTabsContent">
                     <div class="tab-pane fade show active" id="tab-credentials" role="tabpanel">
                         <div class="mb-3">
-                            <label for="usernameInput" class="form-label fw-semibold">Identifiant EPITA</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-white"><i class="bi bi-person text-muted"></i></span>
-                                <input type="text" class="form-control" id="usernameInput" placeholder="prenom.nom@epita.fr" autocomplete="username">
-                            </div>
-                            <div class="form-text">Votre email EPITA officiel ou login Auriga.</div>
+                            <label for="usernameInput" class="form-label">Identifiant EPITA</label>
+                            <input type="text" class="form-control" id="usernameInput" placeholder="prenom.nom@epita.fr" autocomplete="username">
                         </div>
-
-                        <div class="mb-3">
-                            <label for="passwordInput" class="form-label fw-semibold">Mot de passe</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-white"><i class="bi bi-lock text-muted"></i></span>
-                                <input type="password" class="form-control" id="passwordInput" placeholder="••••••••••••" autocomplete="current-password">
-                            </div>
-                            <div class="form-text">Connexion directe et sécurisée via protocole OAuth2 PKCE.</div>
+                        <div>
+                            <label for="passwordInput" class="form-label">Mot de passe</label>
+                            <input type="password" class="form-control" id="passwordInput" autocomplete="current-password">
                         </div>
                     </div>
 
-                    <!-- Tab 2: Direct Token Form -->
                     <div class="tab-pane fade" id="tab-token" role="tabpanel">
-                        <div class="mb-3">
-                            <label for="tokenInput" class="form-label fw-semibold">Jeton d'accès Auriga (Bearer Token)</label>
-                            <textarea class="form-control font-monospace small" id="tokenInput" rows="3" placeholder="eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
-                            <div class="alert alert-info py-2 px-3 small mt-2 mb-0 border-0 bg-info-subtle text-info-emphasis rounded-3">
-                                <i class="bi bi-info-circle-fill me-1"></i>
-                                <strong>Important :</strong> Pour éviter que votre navigateur ne tronque le jeton avec des <code>...</code>, faites un <strong>clic droit</strong> sur la valeur du header <code>Authorization</code> dans l'onglet <em>Réseau (F12)</em> &rarr; <strong>« Copier la valeur » (Copy value)</strong>.
-                            </div>
+                        <label for="tokenInput" class="form-label">Jeton Auriga (Bearer)</label>
+                        <textarea class="form-control font-monospace small" id="tokenInput" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."></textarea>
+                        <div class="form-text">
+                            Dans l'onglet Réseau (F12), faites un clic droit sur le header <code>Authorization</code> puis « Copier la valeur », sinon le jeton est tronqué.
                         </div>
                     </div>
-
                 </div>
 
-                <!-- Date Range Selection -->
-                <div class="row g-2 mb-4 p-3 bg-light rounded-4">
-                    <div class="col-12 mb-1">
-                        <span class="small fw-bold text-muted text-uppercase">Période à récupérer</span>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label for="startDateInput" class="form-label">Du</label>
+                        <input type="date" class="form-control" id="startDateInput" value="{{ default_start }}">
                     </div>
-                    <div class="col-sm-6">
-                        <label for="startDateInput" class="form-label small fw-semibold">Date de début</label>
-                        <input type="date" class="form-control form-control-sm" id="startDateInput" value="{{ default_start }}">
-                    </div>
-                    <div class="col-sm-6">
-                        <label for="endDateInput" class="form-label small fw-semibold">Date de fin</label>
-                        <input type="date" class="form-control form-control-sm" id="endDateInput" value="{{ default_end }}">
+                    <div class="col-6">
+                        <label for="endDateInput" class="form-label">Au</label>
+                        <input type="date" class="form-control" id="endDateInput" value="{{ default_end }}">
                     </div>
                 </div>
 
-                <!-- User Consent Box (Database Contribution) -->
-                <div class="card p-3 mb-4 border-primary border-opacity-25 bg-primary-subtle rounded-4">
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input" type="checkbox" id="consentCheckbox" checked>
-                        <label class="form-check-label fw-bold text-navy small" for="consentCheckbox">
-                            Contribuer à la base collaborative EPITA (Recommandé)
-                        </label>
-                    </div>
-                    <div class="small text-muted mt-2" style="font-size: 0.8rem;">
-                        <i class="bi bi-info-circle me-1 text-primary"></i>
-                        En cochant cette case, vos créneaux de cours (matières, salles, professeurs et groupes) sont anonymisés et enregistrés dans la base commune pour alimenter la <strong>recherche de salles libres</strong> et les <strong>agendas sur-mesure</strong>. Aucun mot de passe ni identifiant n'est jamais conservé.
+                <div class="form-check form-switch mb-4">
+                    <input class="form-check-input" type="checkbox" id="consentCheckbox" checked>
+                    <label class="form-check-label small" for="consentCheckbox">Contribuer à la base commune</label>
+                    <div class="form-text mt-1">
+                        Vos créneaux (matières, salles, enseignants, groupes) alimentent la recherche de salles et les agendas sur-mesure. Aucun identifiant n'est conservé.
                     </div>
                 </div>
 
-                <!-- Action Button -->
-                <button type="submit" class="btn btn-primary w-100 py-2 rounded-pill fw-semibold shadow-sm d-flex align-items-center justify-content-center gap-2" id="loginBtn">
+                <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" id="loginBtn">
                     <span class="spinner-border spinner-border-sm d-none" id="loginSpinner" role="status"></span>
-                    <i class="bi bi-cloud-arrow-down-fill" id="loginIcon"></i>
+                    <i class="bi bi-arrow-right" id="loginIcon"></i>
                     <span id="loginBtnText">Récupérer mon emploi du temps</span>
                 </button>
             </form>
@@ -214,7 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
             if (tokenInput.includes("…") || tokenInput.includes("...")) {
-                showAlert("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de points de suspension '…').<br><br>Dans vos DevTools (F12) &rarr; onglet Réseau, faites un <strong>clic droit</strong> sur le header <code>Authorization</code> &rarr; <strong>« Copier la valeur » (Copy value)</strong>.");
+                showAlert("Le jeton collé est tronqué (il contient « … »). Dans l'onglet Réseau (F12), faites un clic droit sur le header Authorization puis « Copier la valeur ».");
                 return;
             }
             try {
@@ -222,7 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (parts.length === 3) {
                     const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
                     if (payload.exp && Date.now() / 1000 > payload.exp) {
-                        showAlert("Ce jeton d'accès Auriga a expiré (validité de 5 minutes dépassée).<br><br>Veuillez rafraîchir la page Auriga (<kbd>F5</kbd>) et copier immédiatement le nouveau jeton, ou utilisez l'onglet <strong>« Identifiant & Mot de passe »</strong> pour une connexion automatique permanente.");
+                        showAlert("Ce jeton a expiré (validité de 5 minutes). Rafraîchissez Auriga et copiez le nouveau jeton, ou utilisez l'onglet « Identifiants ».");
                         return;
                     }
                 }

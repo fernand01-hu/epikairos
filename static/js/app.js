@@ -20,46 +20,6 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
-const coursePaletteLight = [
-    { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
-    { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
-    { bg: "#fef3c7", text: "#92400e", border: "#d97706" }, // Amber
-    { bg: "#ede9fe", text: "#5b21b6", border: "#7c3aed" }, // Purple
-    { bg: "#ccfbf1", text: "#115e59", border: "#0d9488" }, // Teal
-    { bg: "#ffe4e6", text: "#9f1239", border: "#e11d48" }, // Rose
-    { bg: "#e0f2fe", text: "#0369a1", border: "#0284c7" }, // Sky
-    { bg: "#fae8ff", text: "#86198f", border: "#c026d3" }, // Fuchsia
-    { bg: "#f8fafc", text: "#334155", border: "#64748b" }, // Slate
-    { bg: "#ecfccb", text: "#3f6212", border: "#65a30d" }, // Lime
-    { bg: "#ffedd5", text: "#9a3412", border: "#ea580c" }, // Orange
-    { bg: "#fce7f3", text: "#9d174d", border: "#db2777" }, // Pink
-];
-
-const coursePaletteDark = [
-    { bg: "rgba(37, 99, 235, 0.22)", text: "#93c5fd", border: "#3b82f6" }, // Blue
-    { bg: "rgba(5, 150, 105, 0.22)", text: "#6ee7b7", border: "#10b981" }, // Emerald
-    { bg: "rgba(217, 119, 6, 0.22)", text: "#fde047", border: "#f59e0b" }, // Amber
-    { bg: "rgba(124, 58, 237, 0.22)", text: "#d8b4fe", border: "#8b5cf6" }, // Purple
-    { bg: "rgba(13, 148, 136, 0.22)", text: "#5eead4", border: "#14b8a6" }, // Teal
-    { bg: "rgba(225, 29, 72, 0.22)", text: "#fda4af", border: "#f43f5e" }, // Rose
-    { bg: "rgba(2, 132, 199, 0.22)", text: "#7dd3fc", border: "#0ea5e9" }, // Sky
-    { bg: "rgba(192, 38, 211, 0.22)", text: "#f0abfc", border: "#d946ef" }, // Fuchsia
-    { bg: "rgba(100, 116, 139, 0.22)", text: "#cbd5e1", border: "#64748b" }, // Slate
-    { bg: "rgba(101, 163, 13, 0.22)", text: "#bef264", border: "#84cc16" }, // Lime
-    { bg: "rgba(234, 88, 12, 0.22)", text: "#fdba74", border: "#f97316" }, // Orange
-    { bg: "rgba(219, 39, 119, 0.22)", text: "#f9a8d4", border: "#ec4899" }, // Pink
-];
-
-function isDarkModeActive() {
-    return document.documentElement.getAttribute("data-bs-theme") === "dark";
-}
-
-function getCoursePalette() {
-    return isDarkModeActive() ? coursePaletteDark : coursePaletteLight;
-}
-
-const coursePalette = coursePaletteLight;
-
 document.addEventListener("DOMContentLoaded", () => {
     // DOM Elements - Login & Main UI
     const loginForm = document.getElementById("loginForm");
@@ -407,49 +367,22 @@ document.addEventListener("DOMContentLoaded", () => {
             .map(e => e[0]);
 
         typeButtonGroup.innerHTML = "";
-        const isDark = isDarkModeActive();
-        const palette = getCoursePalette();
 
-        sortedCourses.forEach((courseName, idx) => {
-            const color = palette[idx % palette.length];
+        sortedCourses.forEach(courseName => {
             const count = courseCounts.get(courseName);
 
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "type-filter-chip course-filter-chip";
             btn.dataset.course = courseName;
-            btn.dataset.colorBg = color.bg;
-            btn.dataset.colorText = color.text;
-            btn.dataset.colorBorder = color.border;
             btn.title = `Matière : ${courseName} (${count} séance${count > 1 ? "s" : ""})`;
-            btn.style.backgroundColor = color.bg;
-            btn.style.color = color.text;
-            btn.style.borderColor = color.border;
-
-            const badgeBg = isDark ? "rgba(0,0,0,0.4)" : "#ffffff";
-            const badgeColor = isDark ? color.text : "#0f172a";
-
             btn.innerHTML = `
-                <i class="bi bi-check-circle-fill"></i>
-                <span class="text-truncate" style="max-width: 240px;">${courseName}</span>
-                <span class="badge rounded-pill ms-1 shadow-sm" style="font-size:0.65rem; background-color:${badgeBg}; color:${badgeColor}; border: 1px solid ${color.border};">${count}</span>
+                <span class="chip-label text-truncate">${escapeHtml(courseName)}</span>
+                <span class="chip-count">${count}</span>
             `;
 
             btn.addEventListener("click", () => {
                 btn.classList.toggle("unchecked");
-                const icon = btn.querySelector("i");
-                const currentlyDark = isDarkModeActive();
-                if (btn.classList.contains("unchecked")) {
-                    icon.className = "bi bi-circle";
-                    btn.style.backgroundColor = currentlyDark ? "#0f172a" : "#f1f5f9";
-                    btn.style.color = currentlyDark ? "#64748b" : "#94a3b8";
-                    btn.style.borderColor = currentlyDark ? "#334155" : "#cbd5e1";
-                } else {
-                    icon.className = "bi bi-check-circle-fill";
-                    btn.style.backgroundColor = btn.dataset.colorBg;
-                    btn.style.color = btn.dataset.colorText;
-                    btn.style.borderColor = btn.dataset.colorBorder;
-                }
                 applyFilters();
             });
 
@@ -459,63 +392,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (selectAllTypesBtn) {
         selectAllTypesBtn.addEventListener("click", () => {
-            document.querySelectorAll(".type-filter-chip").forEach(btn => {
-                btn.classList.remove("unchecked");
-                const icon = btn.querySelector("i");
-                if (icon) icon.className = "bi bi-check-circle-fill";
-                if (btn.dataset.colorBg) {
-                    btn.style.backgroundColor = btn.dataset.colorBg;
-                    btn.style.color = btn.dataset.colorText;
-                    btn.style.borderColor = btn.dataset.colorBorder;
-                }
-            });
+            document.querySelectorAll(".type-filter-chip").forEach(btn => btn.classList.remove("unchecked"));
             applyFilters();
         });
     }
 
     if (deselectAllTypesBtn) {
         deselectAllTypesBtn.addEventListener("click", () => {
-            const currentlyDark = isDarkModeActive();
-            document.querySelectorAll(".type-filter-chip").forEach(btn => {
-                btn.classList.add("unchecked");
-                const icon = btn.querySelector("i");
-                if (icon) icon.className = "bi bi-circle";
-                btn.style.backgroundColor = currentlyDark ? "#0f172a" : "#f1f5f9";
-                btn.style.color = currentlyDark ? "#64748b" : "#94a3b8";
-                btn.style.borderColor = currentlyDark ? "#334155" : "#cbd5e1";
-            });
+            document.querySelectorAll(".type-filter-chip").forEach(btn => btn.classList.add("unchecked"));
             applyFilters();
         });
     }
-
-    // Refresh chips when theme changes dynamically
-    window.addEventListener("themeChanged", () => {
-        const isDark = isDarkModeActive();
-        const palette = getCoursePalette();
-        document.querySelectorAll(".type-filter-chip").forEach((btn, idx) => {
-            const color = palette[idx % palette.length];
-            btn.dataset.colorBg = color.bg;
-            btn.dataset.colorText = color.text;
-            btn.dataset.colorBorder = color.border;
-
-            const badge = btn.querySelector(".badge");
-            if (badge) {
-                badge.style.backgroundColor = isDark ? "rgba(0,0,0,0.4)" : "#ffffff";
-                badge.style.color = isDark ? color.text : "#0f172a";
-                badge.style.borderColor = color.border;
-            }
-
-            if (btn.classList.contains("unchecked")) {
-                btn.style.backgroundColor = isDark ? "#0f172a" : "#f1f5f9";
-                btn.style.color = isDark ? "#64748b" : "#94a3b8";
-                btn.style.borderColor = isDark ? "#334155" : "#cbd5e1";
-            } else {
-                btn.style.backgroundColor = color.bg;
-                btn.style.color = color.text;
-                btn.style.borderColor = color.border;
-            }
-        });
-    });
 
     // =========================================================================
     // 3. Realtime Regex & Filter Application
@@ -652,14 +539,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             col.innerHTML = `
                 <div class="day-column-header">
-                    <div class="d-flex align-items-center justify-content-center gap-1">
-                        <span class="fw-bold fs-6">${dayName}</span>
-                        ${isToday ? '<span class="badge bg-primary text-white rounded-pill px-2 py-0 small ms-1" style="font-size:0.65rem;">Aujourd\'hui</span>' : ''}
-                    </div>
-                    <div class="text-muted small">${dateNum} ${monthStr}</div>
-                    <div class="small fw-semibold text-secondary mt-1" style="font-size: 0.75rem;">
-                        ${dayCourses.length} cours
-                    </div>
+                    <div class="fw-semibold small">${dayName} ${dateNum} ${monthStr}</div>
+                    <div class="small text-muted">${dayCourses.length} cours</div>
                 </div>
                 <div class="day-events-list"></div>
             `;
@@ -667,12 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const eventsList = col.querySelector(".day-events-list");
 
             if (dayCourses.length === 0) {
-                eventsList.innerHTML = `
-                    <div class="text-center text-muted py-5 small opacity-75">
-                        <i class="bi bi-cup-hot d-block mb-1 text-secondary fs-5"></i>
-                        <span>Aucun cours</span>
-                    </div>
-                `;
+                eventsList.innerHTML = '<div class="text-center text-muted small py-4">Aucun cours</div>';
             } else {
                 dayCourses.forEach(c => {
                     const info = getTypeInfo(c.activity_type);
@@ -689,11 +565,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     card.innerHTML = `
                         <div class="d-flex align-items-center justify-content-between mb-1">
                             <span class="event-time">
-                                <i class="bi bi-clock me-1 text-primary"></i>
                                 ${formatTime(c.start)} - ${formatTime(c.end)}
                             </span>
                             <div class="d-flex align-items-center gap-1">
-                                <span class="badge badge-${info.key} px-2 py-1" style="font-size: 0.7rem;">
+                                <span class="badge badge-${info.key}">
                                     ${escapeHtml(c.activity_type)}
                                 </span>
                                 <input type="checkbox" class="form-check-input event-checkbox ms-1 m-0" data-id="${c.id}" ${isSelected ? "checked" : ""} title="Sélectionner pour export">
@@ -704,9 +579,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${escapeHtml(c.course_name)}
                         </div>
                         <div class="event-meta">
-                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${roomsStr}"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${roomsStr}</div>` : ""}
-                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${teachersStr}"><i class="bi bi-person-fill text-primary me-1"></i>${teachersStr}</div>` : ""}
-                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${groupsStr}"><i class="bi bi-people-fill text-secondary me-1"></i>${groupsStr}</div>` : ""}
+                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${roomsStr}">${roomsStr}</div>` : ""}
+                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${teachersStr}">${teachersStr}</div>` : ""}
+                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${groupsStr}">${groupsStr}</div>` : ""}
                         </div>
                     `;
 
@@ -1108,32 +983,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Display active filter verification badges
         if (feedFiltersBadges) {
-            feedFiltersBadges.innerHTML = `
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Inclusion Regex :</span>
-                    ${includeRegex ? `<code class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">${escapeHtml(includeRegex)}</code>` : `<span class="badge bg-light text-secondary border">Tous les cours</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Exclusion Regex :</span>
-                    ${excludeRegex ? `<code class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace">${escapeHtml(excludeRegex)}</code>` : `<span class="badge bg-light text-secondary border">Aucune</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Matières :</span>
-                    ${isCourseFiltered ? `<span class="badge bg-info-subtle text-info border border-info-subtle">${activeChips.length}/${allChips.length} matières sélectionnées</span>` : `<span class="badge bg-light text-secondary border">Toutes (${allChips.length})</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Cours annulés :</span>
-                    ${hideCancelled ? `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Masqués</span>` : `<span class="badge bg-light text-secondary border">Inclus</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Séances incluses :</span>
-                    <span class="badge bg-dark">${payloadCourses.length} cours</span>
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Mise à jour :</span>
-                    <span class="badge bg-success-subtle text-success border border-success-subtle">1 à 2x / jour (toutes les 12h)</span>
-                </div>
-            `;
+            const row = (label, value) => `
+                <div class="col-sm-6 d-flex justify-content-between gap-2 border-bottom py-1">
+                    <span class="text-muted">${label}</span>
+                    <span class="text-end text-truncate">${value}</span>
+                </div>`;
+            feedFiltersBadges.innerHTML = [
+                row("Inclure", includeRegex ? `<code>${escapeHtml(includeRegex)}</code>` : "Tous les cours"),
+                row("Exclure", excludeRegex ? `<code>${escapeHtml(excludeRegex)}</code>` : "Aucun"),
+                row("Matières", isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : `Toutes (${allChips.length})`),
+                row("Cours annulés", hideCancelled ? "Masqués" : "Inclus"),
+                row("Séances", `${payloadCourses.length}`),
+                row("Mise à jour", "Toutes les 12 h"),
+            ].join("");
         }
 
         try {

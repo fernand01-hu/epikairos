@@ -4,60 +4,78 @@
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261025">
 {% endblock %}
 
 {% block main_container_class %}container-fluid px-3 py-3{% endblock %}
 
 {% block content %}
 <!-- Main App Layout: Sidebar + Timetable -->
-<div class="zeus-app-body card-custom">
+<div class="zeus-app-body">
 
     <!-- Left Sidebar -->
     <aside class="zeus-sidebar">
-        <!-- Sidebar Header with collapse button -->
-        <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
-            <span class="fw-bold small text-muted text-uppercase tracking-wider">
-                <i class="bi bi-diagram-3 me-1 text-primary"></i> Sélection
-            </span>
-            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2 d-flex align-items-center gap-1" id="btnCloseSidebar" title="Masquer le menu">
-                <span class="small">Masquer</span>
+        <!-- Sidebar header: tabs + collapse button -->
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <ul class="nav nav-fill segmented flex-grow-1" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tabGroupsBtn" type="button" role="tab" aria-controls="groupsPanel" aria-selected="true">Groupes</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tabEventsBtn" type="button" role="tab" aria-controls="eventsPanel" aria-selected="false">Événements</button>
+                </li>
+            </ul>
+            <button type="button" class="btn btn-sm btn-link icon-btn" id="btnCloseSidebar" title="Masquer le menu" aria-label="Masquer le menu">
                 <i class="bi bi-chevron-left"></i>
             </button>
         </div>
 
-        <!-- Search box -->
-        <div class="zeus-search-box">
-            <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="ex: EPITA">
-            <button class="btn-search-icon" id="btnSearchTree" title="Rechercher">
-                <i class="bi bi-search"></i>
-            </button>
-            <button class="btn-clear-icon" id="btnClearSearch" title="Effacer">
-                <i class="bi bi-x-lg"></i>
-            </button>
-        </div>
+        <!-- Panel 1: school groups -->
+        <div class="zeus-panel" id="groupsPanel" role="tabpanel">
+            <div class="zeus-search-box">
+                <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="Rechercher un groupe">
+                <button class="btn-search-icon" id="btnSearchTree" title="Rechercher">
+                    <i class="bi bi-search"></i>
+                </button>
+                <button class="btn-clear-icon" id="btnClearSearch" title="Effacer">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
 
-        <!-- Group section header -->
-        <div class="zeus-group-header" id="btnToggleGroupSection">
-            <span class="fw-bold"><i class="bi bi-folder2-open me-1"></i> Groupes</span>
-            <i class="bi bi-chevron-up" id="groupChevron"></i>
-        </div>
+            <div class="zeus-group-header" id="btnToggleGroupSection">
+                <span>Groupes</span>
+                <i class="bi bi-chevron-up" id="groupChevron"></i>
+            </div>
 
-        <!-- Hierarchical Treeview -->
-        <div class="zeus-tree-container" id="groupTreeContainer">
-            <div class="text-center py-4 text-muted small" id="treeLoadingSpinner">
-                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                <div class="mt-1">Chargement des groupes...</div>
+            <div class="zeus-tree-container" id="groupTreeContainer">
+                <div class="text-center py-4 text-muted small" id="treeLoadingSpinner">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <div class="mt-1">Chargement des groupes...</div>
+                </div>
+            </div>
+
+            <div class="zeus-sidebar-actions">
+                <button type="button" class="btn-clear-selection" id="btnClearSelection">
+                    <i class="bi bi-x-lg"></i> Effacer la sélection
+                </button>
             </div>
         </div>
 
-        <!-- Actions and Footer -->
-        <div class="zeus-sidebar-actions">
-            <button type="button" class="btn-clear-selection" id="btnClearSelection">
-                <i class="bi bi-trash"></i> SUPPRIMER LA SELECTION
-            </button>
-            <div class="zeus-sidebar-footer">
-                Contact: <a href="mailto:fernand.huttois@epita.fr" class="text-decoration-none">fernand.huttois@epita.fr</a>
+        <!-- Panel 2: club & association calendars -->
+        <div class="zeus-panel d-none" id="eventsPanel" role="tabpanel">
+            <p class="small text-muted my-2">Calendriers des clubs et associations. Cochez-les pour les afficher dans l'emploi du temps.</p>
+
+            <div class="zeus-tree-container" id="communityCalendarList">
+                <div class="text-center py-4 text-muted small">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                </div>
+            </div>
+
+            <div class="zeus-sidebar-actions d-none" id="moderatorActions">
+                <button type="button" class="btn btn-sm btn-primary w-100 mb-2" id="btnNewEvent">Nouvel événement</button>
+                <button type="button" class="btn-clear-selection" id="btnNewCalendar">
+                    <i class="bi bi-plus-lg"></i> Nouveau calendrier
+                </button>
             </div>
         </div>
     </aside>
@@ -67,23 +85,23 @@
         <!-- Timetable Top Bar -->
         <div class="zeus-timetable-topbar">
             <div class="topbar-nav d-flex align-items-center gap-2">
-                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill d-flex align-items-center gap-1 px-2 py-1" id="btnToggleSidebar" title="Masquer / Afficher le menu de sélection">
+                <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 px-2 py-1" id="btnToggleSidebar" title="Masquer / Afficher le menu de sélection">
                     <i class="bi bi-layout-sidebar-inset" id="toggleSidebarIcon"></i>
-                    <span class="small fw-semibold d-none d-sm-inline" id="toggleSidebarLabel">Masquer le menu</span>
+                    <span class="small d-none d-sm-inline" id="toggleSidebarLabel">Masquer le menu</span>
                 </button>
                 <div class="vr mx-1 d-none d-sm-block"></div>
-                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center" id="btnPrevWeek" title="Semaine précédente" style="width: 32px; height: 32px;">
+                <button type="button" class="btn btn-sm btn-link icon-btn" id="btnPrevWeek" title="Semaine précédente" aria-label="Semaine précédente">
                     <i class="bi bi-chevron-left"></i>
                 </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center" id="btnNextWeek" title="Semaine suivante" style="width: 32px; height: 32px;">
+                <button type="button" class="btn btn-sm btn-link icon-btn" id="btnNextWeek" title="Semaine suivante" aria-label="Semaine suivante">
                     <i class="bi bi-chevron-right"></i>
                 </button>
-                <button type="button" class="btn btn-sm btn-primary rounded-pill fw-semibold px-3 ms-1" id="btnToday">
+                <button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnToday">
                     Aujourd'hui
                 </button>
             </div>
 
-            <div class="topbar-title fw-bold text-navy" id="weekTitleLabel">
+            <div class="topbar-title" id="weekTitleLabel">
                 Semaine 42
             </div>
 
@@ -92,7 +110,7 @@
                     <button type="button" class="btn btn-outline-primary active" id="btnViewWeek">Semaine</button>
                     <button type="button" class="btn btn-outline-primary" id="btnViewDay">Jour</button>
                 </div>
-                <input type="date" class="form-control form-control-sm rounded-pill" id="topbarDatePicker" value="{{ today_date }}" style="width: auto;">
+                <input type="date" class="form-control form-control-sm" id="topbarDatePicker" value="{{ today_date }}" style="width: auto;">
             </div>
         </div>
 
@@ -123,31 +141,28 @@
 <!-- Modal 1: Trouver une salle -->
 <div class="modal fade" id="findRoomModal" tabindex="-1" aria-labelledby="findRoomModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content rounded-4 border-0 shadow">
-            <div class="modal-header border-bottom bg-light">
-                <h5 class="modal-title fw-bold" id="findRoomModalLabel">
-                    <i class="bi bi-door-open text-primary me-2"></i>
-                    Recherche de Salles Libres
-                </h5>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="findRoomModalLabel">Salles libres</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body p-4">
                 <form id="quickRoomSearchForm">
                     <div class="row g-2 align-items-end mb-3">
                         <div class="col-sm-4">
-                            <label class="form-label small fw-semibold">Date</label>
-                            <input type="date" class="form-control form-control-sm rounded-pill" id="modalRoomDate" value="{{ today_date }}">
+                            <label class="form-label small">Date</label>
+                            <input type="date" class="form-control form-control-sm" id="modalRoomDate" value="{{ today_date }}">
                         </div>
                         <div class="col-sm-3">
-                            <label class="form-label small fw-semibold">Heure Début</label>
-                            <input type="time" class="form-control form-control-sm rounded-pill" id="modalRoomStart" value="14:00">
+                            <label class="form-label small">Heure Début</label>
+                            <input type="time" class="form-control form-control-sm" id="modalRoomStart" value="14:00">
                         </div>
                         <div class="col-sm-3">
-                            <label class="form-label small fw-semibold">Heure Fin</label>
-                            <input type="time" class="form-control form-control-sm rounded-pill" id="modalRoomEnd" value="16:00">
+                            <label class="form-label small">Heure Fin</label>
+                            <input type="time" class="form-control form-control-sm" id="modalRoomEnd" value="16:00">
                         </div>
                         <div class="col-sm-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold">Chercher</button>
+                            <button type="submit" class="btn btn-primary btn-sm w-100">Chercher</button>
                         </div>
                     </div>
                 </form>
@@ -165,16 +180,16 @@
 <!-- Modal 2: Détails du cours -->
 <div class="modal fade" id="courseDetailModal" tabindex="-1" aria-labelledby="courseDetailModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-content">
             <div class="modal-header border-bottom">
-                <h5 class="modal-title fw-bold" id="courseDetailTitle">Détail du cours</h5>
+                <h5 class="modal-title" id="courseDetailTitle">Détail du cours</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body p-4" id="courseDetailBody">
                 <!-- Populated dynamically -->
             </div>
             <div class="modal-footer border-top">
-                <button type="button" class="btn btn-secondary rounded-pill px-4 btn-sm" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>
     </div>
@@ -183,34 +198,32 @@
 <!-- Modal 3: Synchronisation Auriga -->
 <div class="modal fade" id="authSyncModal" tabindex="-1" aria-labelledby="authSyncModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content rounded-4 border-0 shadow">
+        <div class="modal-content">
             <div class="modal-header border-bottom">
-                <h5 class="modal-title fw-bold" id="authSyncModalLabel">
-                    <i class="bi bi-shield-lock text-primary me-2"></i> Synchroniser avec Auriga
-                </h5>
+                <h5 class="modal-title" id="authSyncModalLabel">Synchroniser avec Auriga</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body p-4">
                 <form id="modalLoginForm">
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Identifiant EPITA</label>
-                        <input type="text" class="form-control form-control-sm rounded-pill" id="modalUsername" placeholder="prenom.nom@epita.fr">
+                        <label class="form-label small">Identifiant EPITA</label>
+                        <input type="text" class="form-control form-control-sm" id="modalUsername" placeholder="prenom.nom@epita.fr">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold">Mot de passe</label>
-                        <input type="password" class="form-control form-control-sm rounded-pill" id="modalPassword" placeholder="••••••••">
+                        <label class="form-label small">Mot de passe</label>
+                        <input type="password" class="form-control form-control-sm" id="modalPassword" placeholder="••••••••">
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-6">
-                            <label class="form-label small fw-semibold">Date Début</label>
-                            <input type="date" class="form-control form-control-sm rounded-pill" id="modalSyncStart" value="{{ default_start }}">
+                            <label class="form-label small">Date Début</label>
+                            <input type="date" class="form-control form-control-sm" id="modalSyncStart" value="{{ default_start }}">
                         </div>
                         <div class="col-6">
-                            <label class="form-label small fw-semibold">Date Fin</label>
-                            <input type="date" class="form-control form-control-sm rounded-pill" id="modalSyncEnd" value="{{ default_end }}">
+                            <label class="form-label small">Date Fin</label>
+                            <input type="date" class="form-control form-control-sm" id="modalSyncEnd" value="{{ default_end }}">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill fw-semibold" id="btnModalSyncSubmit">
+                    <button type="submit" class="btn btn-primary btn-sm w-100" id="btnModalSyncSubmit">
                         Synchroniser mon emploi du temps
                     </button>
                 </form>
@@ -218,9 +231,95 @@
         </div>
     </div>
 </div>
+
+<!-- Modal 4: Club calendar (create / edit) -->
+<div class="modal fade" id="calendarModal" tabindex="-1" aria-labelledby="calendarModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="calendarForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="calendarModalTitle">Nouveau calendrier</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div id="calendarFormError" class="alert alert-danger d-none mb-3"></div>
+                    <div class="mb-3">
+                        <label for="calendarNameInput" class="form-label">Nom</label>
+                        <input type="text" class="form-control" id="calendarNameInput" maxlength="80" placeholder="BDE, Club Robotique..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="calendarDescriptionInput" class="form-label">Description <span class="text-muted">(optionnel)</span></label>
+                        <textarea class="form-control" id="calendarDescriptionInput" rows="2" maxlength="500"></textarea>
+                    </div>
+                    <div>
+                        <span class="form-label d-block">Couleur</span>
+                        <div class="color-swatches" id="calendarColorSwatches"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-danger me-auto d-none" id="btnDeleteCalendar">Supprimer</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 5: Club event (create / edit) -->
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="eventForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="eventModalTitle">Nouvel événement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div id="eventFormError" class="alert alert-danger d-none mb-3"></div>
+                    <div class="mb-3">
+                        <label for="eventCalendarSelect" class="form-label">Calendrier</label>
+                        <select class="form-select" id="eventCalendarSelect" required></select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventTitleInput" class="form-label">Titre</label>
+                        <input type="text" class="form-control" id="eventTitleInput" maxlength="120" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-sm-4">
+                            <label for="eventDateInput" class="form-label">Date</label>
+                            <input type="date" class="form-control" id="eventDateInput" required>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <label for="eventStartInput" class="form-label">Début</label>
+                            <input type="time" class="form-control" id="eventStartInput" required>
+                        </div>
+                        <div class="col-6 col-sm-4">
+                            <label for="eventEndInput" class="form-label">Fin</label>
+                            <input type="time" class="form-control" id="eventEndInput" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="eventLocationInput" class="form-label">Lieu <span class="text-muted">(optionnel)</span></label>
+                        <input type="text" class="form-control" id="eventLocationInput" maxlength="120">
+                    </div>
+                    <div>
+                        <label for="eventDescriptionInput" class="form-label">Description <span class="text-muted">(optionnel)</span></label>
+                        <textarea class="form-control" id="eventDescriptionInput" rows="3" maxlength="1000"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-outline-danger me-auto d-none" id="btnDeleteEvent">Supprimer</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261025b"></script>
 {% endblock %}

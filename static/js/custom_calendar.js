@@ -222,10 +222,7 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 downloadCustomIcsBtn.disabled = true;
                 noCoursesMessage.classList.remove("d-none");
-                noCoursesMessage.innerHTML = `
-                    <i class="bi bi-search fs-1 d-block mb-2 text-secondary"></i>
-                    Aucun cours ne correspond à ces critères.
-                `;
+                noCoursesMessage.innerHTML = '<div class="empty-title">Aucun cours ne correspond à ces critères</div>';
             }
 
             renderWeekCalendar();
@@ -235,7 +232,7 @@ document.addEventListener("DOMContentLoaded", () => {
             alert(`Erreur : ${err.message}`);
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="bi bi-search me-1"></i> Générer l\'agenda';
+            submitBtn.innerHTML = "Générer l'agenda";
         }
     }
 
@@ -303,14 +300,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             col.innerHTML = `
                 <div class="day-column-header">
-                    <div class="d-flex align-items-center justify-content-center gap-1">
-                        <span class="fw-bold fs-6">${dayName}</span>
-                        ${isToday ? '<span class="badge bg-primary text-white rounded-pill px-2 py-0 small ms-1" style="font-size:0.65rem;">Aujourd\'hui</span>' : ''}
-                    </div>
-                    <div class="text-muted small">${dateNum} ${monthStr}</div>
-                    <div class="small fw-semibold text-secondary mt-1" style="font-size: 0.75rem;">
-                        ${dayCourses.length} cours
-                    </div>
+                    <div class="fw-semibold small">${dayName} ${dateNum} ${monthStr}</div>
+                    <div class="small text-muted">${dayCourses.length} cours</div>
                 </div>
                 <div class="day-events-list"></div>
             `;
@@ -318,12 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const eventsList = col.querySelector(".day-events-list");
 
             if (dayCourses.length === 0) {
-                eventsList.innerHTML = `
-                    <div class="text-center text-muted py-5 small opacity-75">
-                        <i class="bi bi-cup-hot d-block mb-1 text-secondary fs-5"></i>
-                        <span>Aucun cours</span>
-                    </div>
-                `;
+                eventsList.innerHTML = '<div class="text-center text-muted small py-4">Aucun cours</div>';
             } else {
                 dayCourses.forEach(c => {
                     const info = getTypeInfo(c.activity_type);
@@ -337,10 +323,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     card.innerHTML = `
                         <div class="d-flex align-items-center justify-content-between mb-1">
                             <span class="event-time">
-                                <i class="bi bi-clock me-1 text-primary"></i>
                                 ${formatTime(c.start)} - ${formatTime(c.end)}
                             </span>
-                            <span class="badge badge-${info.key} px-2 py-1" style="font-size: 0.7rem;">
+                            <span class="badge badge-${info.key}">
                                 ${escapeHtml(c.activity_type)}
                             </span>
                         </div>
@@ -348,9 +333,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${escapeHtml(c.course_name)}
                         </div>
                         <div class="event-meta">
-                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${escapeHtml(roomsStr)}"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${escapeHtml(roomsStr)}</div>` : ""}
-                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${escapeHtml(teachersStr)}"><i class="bi bi-person-fill text-primary me-1"></i>${escapeHtml(teachersStr)}</div>` : ""}
-                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${escapeHtml(groupsStr)}"><i class="bi bi-people-fill text-secondary me-1"></i>${escapeHtml(groupsStr)}</div>` : ""}
+                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${escapeHtml(roomsStr)}">${escapeHtml(roomsStr)}</div>` : ""}
+                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${escapeHtml(teachersStr)}">${escapeHtml(teachersStr)}</div>` : ""}
+                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${escapeHtml(groupsStr)}">${escapeHtml(groupsStr)}</div>` : ""}
                         </div>
                     `;
 
@@ -482,59 +467,45 @@ document.addEventListener("DOMContentLoaded", () => {
         days.forEach(dayName => {
             const courses = weeklyGrid[dayName] || [];
             const dayCol = document.createElement("div");
-            dayCol.className = "week-day-col";
-
-            const header = document.createElement("div");
-            header.className = "week-day-header";
-            header.innerHTML = `
-                <div class="day-name">${dayName}</div>
-                <div class="small text-muted">${courses.length} cours type${courses.length > 1 ? "s" : ""}</div>
+            dayCol.className = "day-column";
+            dayCol.innerHTML = `
+                <div class="day-column-header">
+                    <div class="fw-semibold small">${dayName}</div>
+                    <div class="small text-muted">${courses.length} cours</div>
+                </div>
+                <div class="day-events-list"></div>
             `;
-            dayCol.appendChild(header);
-
-            const body = document.createElement("div");
-            body.className = "week-day-body";
+            const body = dayCol.querySelector(".day-events-list");
 
             if (courses.length === 0) {
-                const empty = document.createElement("div");
-                empty.className = "text-center text-muted small py-4 opacity-50";
-                empty.textContent = "Aucun cours";
-                body.appendChild(empty);
+                body.innerHTML = '<div class="text-center text-muted small py-4">Aucun cours</div>';
             } else {
                 courses.forEach(c => {
-                    const card = document.createElement("div");
                     const typeInfo = getTypeInfo(c.activity_type);
-                    card.className = `course-card ${typeInfo.key} mb-2`;
+                    const card = document.createElement("div");
+                    card.className = `calendar-card border-${typeInfo.key}`;
 
                     const roomDisplay = c.primary_room || "Salle non assignée";
                     const teacherDisplay = c.primary_teacher || "Enseignant";
-                    const groupDisplay = c.group_display || c.promo_name || "";
-                    const freqText = c.occurrences_count > 1 ? `${c.frequency} (${c.occurrences_count}x)` : "Ponctuel";
+                    const groupLabel = c.subgroup && c.subgroup !== "Promo" ? "Classe " + c.subgroup : (c.promo_name || "Promo");
+                    const freqText = c.occurrences_count > 1 ? `${c.frequency} · ${c.occurrences_count}×` : "Ponctuel";
 
                     card.innerHTML = `
                         <div class="d-flex align-items-center justify-content-between mb-1">
-                            <span class="badge ${typeInfo.key} fw-bold" style="font-size:0.7rem;">${typeInfo.label}</span>
-                            <span class="text-muted fw-semibold" style="font-size:0.75rem;">${c.start_time} - ${c.end_time}</span>
+                            <span class="event-time">${escapeHtml(c.start_time)} - ${escapeHtml(c.end_time)}</span>
+                            <span class="badge badge-${typeInfo.key}">${escapeHtml(typeInfo.label)}</span>
                         </div>
-                        <div class="course-name fw-bold" title="${c.course_name}">${c.course_name}</div>
-                        <div class="small text-truncate mt-1 text-muted" title="${roomDisplay}">
-                            <i class="bi bi-geo-alt-fill text-danger me-1"></i>${roomDisplay}
-                        </div>
-                        <div class="small text-truncate text-muted" title="${teacherDisplay}">
-                            <i class="bi bi-person-fill text-primary me-1"></i>${teacherDisplay}
-                        </div>
-                        <div class="d-flex align-items-center justify-content-between mt-2 pt-1 border-top" style="font-size:0.7rem;">
-                            <span class="badge bg-light text-dark border text-truncate" style="max-width: 110px;" title="${groupDisplay}">
-                                ${c.subgroup && c.subgroup !== 'Promo' ? 'Classe ' + c.subgroup : (c.promo_name || 'Promo')}
-                            </span>
-                            <span class="badge bg-primary-subtle text-primary border border-primary">${freqText}</span>
+                        <div class="event-title" title="${escapeHtml(c.course_name)}">${escapeHtml(c.course_name)}</div>
+                        <div class="event-meta">
+                            <div title="${escapeHtml(roomDisplay)}">${escapeHtml(roomDisplay)}</div>
+                            <div title="${escapeHtml(teacherDisplay)}">${escapeHtml(teacherDisplay)}</div>
+                            <div>${escapeHtml(groupLabel)} · ${escapeHtml(freqText)}</div>
                         </div>
                     `;
                     body.appendChild(card);
                 });
             }
 
-            dayCol.appendChild(body);
             recurringDaysGrid.appendChild(dayCol);
         });
     }
@@ -573,7 +544,7 @@ document.addEventListener("DOMContentLoaded", () => {
             alert(`Erreur : ${err.message}`);
         } finally {
             downloadCustomIcsBtn.disabled = false;
-            downloadCustomIcsBtn.innerHTML = '<i class="bi bi-download me-1"></i> Télécharger l\'agenda (.ics)';
+            downloadCustomIcsBtn.innerHTML = '<i class="bi bi-download me-1"></i> Télécharger .ics';
         }
     });
 

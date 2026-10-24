@@ -1,9 +1,9 @@
 /**
  * EpiKairos Service Worker
- * Version: 1.0.0
+ * Version: 1.1.0
  */
 
-const CACHE_NAME = 'epikairos-shell-v1';
+const CACHE_NAME = 'epikairos-shell-v2';
 const CORE_ASSETS = [
     '/',
     '/manifest.json',
@@ -53,8 +53,8 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Dynamic APIs and ICS exports: Network-first (no aggressive caching of user credentials/live feed)
-    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ics/') || url.pathname.startsWith('/export/')) {
+    // Dynamic APIs and ICS feeds: Network-first (no aggressive caching of user credentials/live feed)
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/feed/')) {
         event.respondWith(
             fetch(request).catch(() => {
                 return new Response(JSON.stringify({ error: 'Réseau indisponible (Mode hors-ligne)' }), {

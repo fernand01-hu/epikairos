@@ -192,12 +192,12 @@ class TestFlaskApp(unittest.TestCase):
         # Accueil Dashboard on /
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Base Collaborative", res.data)
+        self.assertIn(b"s\xc3\xa9ances index\xc3\xa9es", res.data)
 
         # Collaborative Dashboard on /dashboard
         res = self.client.get("/dashboard")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Base Collaborative", res.data)
+        self.assertIn(b"s\xc3\xa9ances index\xc3\xa9es", res.data)
 
         # Old Zeus page on /old-zeus
         res = self.client.get("/old-zeus")

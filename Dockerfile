@@ -24,6 +24,7 @@ ENV PORT=5000
 ENV HOST=0.0.0.0
 ENV FEEDS_DB_PATH=/app/data/feeds.db
 ENV SCHOOL_DB_PATH=/app/data/school.db
+ENV SECRET_DIR=/app/data
 
 RUN mkdir -p /app/data
 

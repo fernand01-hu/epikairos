@@ -21,7 +21,7 @@ except ImportError:
 
 
 DB_PATH = os.getenv("FEEDS_DB_PATH", "feeds.db")
-SECRET_FILE = ".server_secret"
+SECRET_FILE = os.path.join(os.getenv("SECRET_DIR", "."), ".server_secret")
 
 
 def _get_server_key() -> bytes:

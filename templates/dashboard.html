@@ -1,155 +1,59 @@
 {% extends "base.html" %}
 
-{% block title %}Accueil & Tableau de bord — EpiKairos{% endblock %}
+{% block title %}Accueil — EpiKairos{% endblock %}
 
 {% block content %}
-<div class="row g-4 mb-4">
-    <!-- Hero Banner -->
-    <div class="col-12">
-        <div class="hero-card p-4 p-md-5 rounded-4 shadow-sm border position-relative overflow-hidden">
-            <div class="row align-items-center">
-                <div class="col-lg-8">
-                    <div class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 rounded-pill mb-3 fw-semibold">
-                        <i class="bi bi-stars me-1"></i> Multi-outil d'emploi du temps EPITA
-                    </div>
-                    <h1 class="fw-bold display-6 mb-2">EpiKairos</h1>
-                    <p class="text-muted fs-6 mb-4">
-                        Générez vos fichiers <strong>.ics</strong>, synchronisez automatiquement <strong>Google Calendar</strong> avec des filtres Regex personnalisés, consultez les <strong>agendas de vos professeurs</strong> et trouvez des <strong>salles libres</strong> en un instant.
-                    </p>
-                    <div class="d-flex flex-wrap gap-2">
-                        <a href="/login" class="btn btn-primary fw-semibold px-4 rounded-pill shadow-sm">
-                            <i class="bi bi-box-arrow-in-right me-1"></i> Se connecter à Auriga
-                        </a>
-                        <a href="/rooms?now=1" class="btn btn-success fw-semibold px-4 rounded-pill shadow-sm">
-                            <i class="bi bi-lightning-charge-fill me-1"></i> Salle libre maintenant
-                        </a>
-                        <a href="/custom-calendar" class="btn btn-outline-secondary fw-semibold px-4 rounded-pill">
-                            <i class="bi bi-sliders me-1"></i> Agendas sur-mesure
-                        </a>
-                    </div>
-                </div>
-                <div class="col-lg-4 text-center mt-4 mt-lg-0">
-                    <div class="bg-white p-4 rounded-4 shadow-sm border d-inline-block text-start w-100" style="max-width: 320px;">
-                        <div class="text-uppercase small fw-bold text-muted mb-2">
-                            <i class="bi bi-database me-1 text-primary"></i> Base Collaborative
-                        </div>
-                        <div class="display-6 fw-bold text-navy" id="statCourses">{{ stats.total_courses }}</div>
-                        <div class="text-muted small mb-3">créneaux de cours indexés</div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-primary" role="progressbar" style="width: 100%"></div>
-                        </div>
-                        <div class="d-flex justify-content-between mt-2 small text-muted">
-                            <span>Salles: <strong>{{ stats.total_rooms }}</strong></span>
-                            <span>Profs: <strong>{{ stats.total_teachers }}</strong></span>
-                            <span>Promos: <strong>{{ stats.total_promotions or 4 }}</strong></span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<section class="py-4 py-md-5" style="max-width: 640px;">
+    <h1 class="fw-semibold mb-2" style="font-size: 2rem;">Votre emploi du temps EPITA, simplement.</h1>
+    <p class="text-muted mb-4">
+        Filtrez vos cours, exportez-les vers Google Calendar et trouvez une salle libre en quelques secondes.
+    </p>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="/login" class="btn btn-primary px-3">Se connecter à Auriga</a>
+        <a href="/rooms?now=1" class="btn btn-outline-secondary px-3">Salle libre maintenant</a>
+    </div>
+</section>
+
+<div class="stat-row mb-5">
+    <div>
+        <div class="stat-value" id="statCourses">{{ stats.total_courses }}</div>
+        <div class="stat-label">séances indexées</div>
+    </div>
+    <div>
+        <div class="stat-value">{{ stats.recurring_patterns or stats.total_patterns }}</div>
+        <div class="stat-label">cours récurrents</div>
+    </div>
+    <div>
+        <div class="stat-value">{{ stats.total_rooms }}</div>
+        <div class="stat-label">salles</div>
+    </div>
+    <div>
+        <div class="stat-value">{{ stats.total_teachers }}</div>
+        <div class="stat-label">enseignants</div>
     </div>
 </div>
 
-<!-- 4 Key Metrics Counters -->
-<div class="row g-3 mb-5">
-    <div class="col-6 col-md-3">
-        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-primary">
-            <div class="display-6 fw-bold text-primary mb-1">{{ stats.total_courses }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Séances Indexées</div>
-        </div>
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <a href="/personal" class="feature-link">
+            <h2>Mon planning</h2>
+            <p>Récupérez vos cours depuis Auriga, filtrez-les par regex et exportez-les en .ics ou par lien d'abonnement.</p>
+            <span class="feature-cta">Ouvrir <i class="bi bi-arrow-right"></i></span>
+        </a>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-success">
-            <div class="display-6 fw-bold text-success mb-1">{{ stats.recurring_patterns or stats.total_patterns }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Cours Types Récurrents</div>
-        </div>
+    <div class="col-md-4">
+        <a href="/rooms" class="feature-link">
+            <h2>Salles libres</h2>
+            <p>Choisissez un créneau et voyez toutes les salles disponibles, avec l'heure de leur prochain cours.</p>
+            <span class="feature-cta">Rechercher <i class="bi bi-arrow-right"></i></span>
+        </a>
     </div>
-    <div class="col-6 col-md-3">
-        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-warning">
-            <div class="display-6 fw-bold text-warning mb-1">{{ stats.total_rooms }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Salles Disponibles</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-3">
-        <div class="card card-custom p-3 text-center h-100 border-start-0 border-top-0 border-end-0 border-bottom border-4 border-info">
-            <div class="display-6 fw-bold text-info mb-1">{{ stats.total_promotions or 4 }}</div>
-            <div class="small fw-semibold text-muted text-uppercase">Promotions Structurées</div>
-        </div>
-    </div>
-</div>
-
-<!-- 3 Main Interactive Features -->
-<div class="row g-4 mb-5">
-    <!-- 1. Mon Emploi du Temps -->
-    <div class="col-lg-4">
-        <div class="card card-custom h-100 p-4 d-flex flex-column justify-content-between">
-            <div>
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="p-3 bg-primary-subtle text-primary rounded-4 fs-3">
-                        <i class="bi bi-calendar-week"></i>
-                    </div>
-                    <span class="badge bg-primary text-white rounded-pill px-3 py-1">Étape 1</span>
-                </div>
-                <h4 class="fw-bold mb-2">Mon Emploi du Temps</h4>
-                <p class="text-muted small mb-4">
-                    Connectez-vous à Auriga pour récupérer votre planning complet. Utilisez les <strong>filtres Regex</strong> pour garder ou masquer les matières de votre choix, naviguez semaine par semaine et exportez vers Google Calendar.
-                </p>
-            </div>
-            <div>
-                <a href="/personal" class="btn btn-outline-primary w-100 rounded-pill fw-semibold">
-                    Accéder à mon planning <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- 2. Salles Libres -->
-    <div class="col-lg-4">
-        <div class="card card-custom h-100 p-4 d-flex flex-column justify-content-between">
-            <div>
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="p-3 bg-success-subtle text-success rounded-4 fs-3">
-                        <i class="bi bi-door-open"></i>
-                    </div>
-                    <span class="badge bg-success text-white rounded-pill px-3 py-1">Nouveau</span>
-                </div>
-                <h4 class="fw-bold mb-2">Recherche de Salles Libres</h4>
-                <p class="text-muted small mb-4">
-                    Besoin d'un endroit calme pour réviser ou travailler en groupe ? Indiquez un créneau horaire dans la journée et découvrez immédiatement <strong>toutes les salles libres</strong> avec l'heure de leur prochain cours.
-                </p>
-            </div>
-            <div class="d-flex flex-column gap-2">
-                <a href="/rooms?now=1" class="btn btn-success w-100 rounded-pill fw-semibold shadow-sm">
-                    <i class="bi bi-lightning-charge-fill me-1"></i> Salle libre tout de suite
-                </a>
-                <a href="/rooms" class="btn btn-outline-secondary w-100 rounded-pill btn-sm">
-                    Choisir un autre créneau <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. Agendas Sur-Mesure -->
-    <div class="col-lg-4">
-        <div class="card card-custom h-100 p-4 d-flex flex-column justify-content-between">
-            <div>
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div class="p-3 bg-warning-subtle text-warning rounded-4 fs-3">
-                        <i class="bi bi-sliders"></i>
-                    </div>
-                    <span class="badge bg-warning text-dark rounded-pill px-3 py-1">Personnalisable</span>
-                </div>
-                <h4 class="fw-bold mb-2">Agendas Sur-Mesure</h4>
-                <p class="text-muted small mb-4">
-                    Composez un calendrier personnalisé en sélectionnant des <strong>enseignants</strong>, des <strong>salles</strong> ou des <strong>groupes</strong>. Prévisualisez le résultat et téléchargez un fichier .ics sur-mesure.
-                </p>
-            </div>
-            <div>
-                <a href="/custom-calendar" class="btn btn-outline-dark w-100 rounded-pill fw-semibold">
-                    Créer un agenda sur-mesure <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
+    <div class="col-md-4">
+        <a href="/custom-calendar" class="feature-link">
+            <h2>Agendas sur-mesure</h2>
+            <p>Composez un calendrier à partir d'enseignants, de salles ou de groupes, puis téléchargez-le.</p>
+            <span class="feature-cta">Composer <i class="bi bi-arrow-right"></i></span>
+        </a>
     </div>
 </div>
 {% endblock %}

@@ -45,11 +45,11 @@ def _get_flask_secret_key() -> str:
     Retrieves or generates a cryptographically secure, persistent secret key for Flask sessions.
     Prevents session cookie forgery by avoiding default hardcoded strings.
     """
-    env_secret = os.getenv("FLASK_SECRET_KEY")
+    env_secret = os.getenv("SESSION_SECRET_KEY") or os.getenv("FLASK_SECRET_KEY")
     if env_secret and env_secret != "auriga-epita-secret-key-change-in-prod":
         return env_secret
 
-    secret_file = os.path.join(os.path.dirname(__file__), ".flask_secret")
+    secret_file = os.path.join(os.getenv("SECRET_DIR", "."), ".flask_secret")
     if os.path.exists(secret_file):
         try:
             try:
@@ -145,7 +145,6 @@ def require_auriga_login():
     if (
         path.startswith("/static/")
         or path.startswith("/feed/")
-        or path.startswith("/ics/")
         or path in (
             "/login",
             "/logout",

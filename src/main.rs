@@ -1,4 +1,5 @@
 pub mod auriga;
+pub mod community;
 pub mod db;
 pub mod feed;
 pub mod middleware;
@@ -10,7 +11,7 @@ pub mod templates;
 use axum::{
     middleware::from_fn,
     middleware::from_fn_with_state,
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 use r2d2::Pool;
@@ -57,6 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let conn = db_pool.get()?;
         db::init_db(&conn)?;
+        community::init_db(&conn)?;
     }
     {
         let conn = feed_pool.get()?;
@@ -83,6 +85,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/sw.js", get(routes::web::service_worker_handler))
         .route("/offline", get(routes::web::offline_handler))
         .route("/health", get(routes::web::health_handler))
+        .route("/admin", get(routes::community::admin_page_handler))
         // API routes
         .route("/api/fetch-planning", post(routes::api::fetch_planning_handler))
         .route("/api/ingest-consent", post(routes::api::ingest_consent_handler))
@@ -113,6 +116,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/export-ics", post(routes::api::export_ics_handler))
         .route("/api/create-feed", post(routes::api::create_feed_handler))
         .route("/feed/:feed_id", get(routes::api::serve_feed_handler))
+        // Admin panel & community calendars
+        .route("/api/admin/users", get(routes::community::admin_list_users_handler))
+        .route("/api/admin/users/role", post(routes::community::admin_set_role_handler))
+        .route(
+            "/api/community/calendars",
+            get(routes::community::list_calendars_handler).post(routes::community::create_calendar_handler),
+        )
+        .route(
+            "/api/community/calendars/:id",
+            put(routes::community::update_calendar_handler).delete(routes::community::delete_calendar_handler),
+        )
+        .route(
+            "/api/community/calendars/:id/events",
+            post(routes::community::create_event_handler),
+        )
+        .route("/api/community/events", get(routes::community::list_events_handler))
+        .route(
+            "/api/community/events/:id",
+            put(routes::community::update_event_handler).delete(routes::community::delete_event_handler),
+        )
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
         // Request body limit layer (2 MB)

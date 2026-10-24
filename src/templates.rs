@@ -64,11 +64,14 @@ pub fn create_template_env() -> Environment<'static> {
     env
 }
 
-pub fn create_session_value(logged_in: bool, username: Option<&str>) -> Value {
+pub fn create_session_value(logged_in: bool, username: Option<&str>, role: Option<&str>) -> Value {
     let mut map = HashMap::new();
     map.insert("logged_in".to_string(), Value::from(logged_in));
     if let Some(u) = username {
         map.insert("username".to_string(), Value::from(u));
+    }
+    if let Some(r) = role {
+        map.insert("role".to_string(), Value::from(r));
     }
     Value::from_object(SessionObject { data: map })
 }

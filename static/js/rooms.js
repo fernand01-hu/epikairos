@@ -149,9 +149,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function calculateRemainingBadge(nextCourse, searchEndTime) {
         if (!nextCourse || !nextCourse.start) {
-            return `<span class="badge bg-success-subtle text-success border border-success small"><i class="bi bi-infinity me-1"></i> Libre jusqu'au soir</span>`;
+            return `<span class="room-until">Libre jusqu'au soir</span>`;
         }
-        return `<span class="badge bg-body-secondary text-body border small"><i class="bi bi-clock me-1 text-primary"></i> Libre jusqu'à ${nextCourse.start}</span>`;
+        return `<span class="room-until">Libre jusqu'à ${escapeHtml(nextCourse.start)}</span>`;
     }
 
     function renderCards(data, filterQuery = "") {
@@ -182,23 +182,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 const remainingBadge = calculateRemainingBadge(r.next_course, data.end_time);
 
                 const nextInfo = r.next_course
-                    ? `<div class="small text-muted mt-2 border-top pt-2">
-                         <i class="bi bi-calendar-event me-1 text-primary"></i> Prochain cours : <strong>${escapeHtml(r.next_course.title)}</strong> (${escapeHtml(r.next_course.start)} - ${escapeHtml(r.next_course.end)})
-                       </div>`
-                    : '<div class="small text-muted mt-2 border-top pt-2"><i class="bi bi-check2-all text-success me-1"></i> Aucun cours ultérieur répertorié aujourd\'hui</div>';
+                    ? `<div class="room-meta">Prochain cours : ${escapeHtml(r.next_course.title)} (${escapeHtml(r.next_course.start)} - ${escapeHtml(r.next_course.end)})</div>`
+                    : '<div class="room-meta">Aucun autre cours aujourd\'hui</div>';
 
                 col.innerHTML = `
-                    <div class="card card-custom p-3 h-100 border-start border-4 border-success shadow-sm">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="badge bg-success-subtle text-success border border-success fw-bold px-2 py-1">
-                                <i class="bi bi-check-circle me-1"></i> LIBRE
-                            </span>
+                    <div class="room-card is-free">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="room-name"><span class="room-dot"></span>${escapeHtml(r.room_name)}</span>
                             ${remainingBadge}
                         </div>
-                        <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">
-                            <i class="bi bi-door-open-fill text-success"></i>
-                            ${escapeHtml(r.room_name)}
-                        </h6>
                         ${nextInfo}
                     </div>
                 `;
@@ -211,7 +203,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             freeRoomsGrid.innerHTML = `
                 <div class="col-12 text-center py-4 text-muted small">
-                    <i class="bi bi-emoji-frown fs-4 d-block mb-1"></i>
                     ${filterQuery ? "Aucune salle libre ne correspond à votre filtre." : "Aucune salle libre répertoriée sur ce créneau."}
                 </div>
             `;
@@ -234,24 +225,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 const groupsStr = c.groups && c.groups.length > 0 ? c.groups.join(", ") : "-";
 
                 col.innerHTML = `
-                    <div class="card card-custom p-3 h-100 border-start border-4 border-danger shadow-sm opacity-90">
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <span class="badge bg-danger-subtle text-danger border border-danger fw-bold px-2 py-1">
-                                <i class="bi bi-x-circle me-1"></i> OCCUPÉE
-                            </span>
-                            <span class="badge bg-body-secondary text-secondary border small">
-                                Jusqu'à ${escapeHtml(c.end || "-")}
-                            </span>
+                    <div class="room-card is-busy">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <span class="room-name"><span class="room-dot"></span>${escapeHtml(r.room_name)}</span>
+                            <span class="room-until">Jusqu'à ${escapeHtml(c.end || "-")}</span>
                         </div>
-                        <h6 class="fw-bold mb-1 d-flex align-items-center gap-2">
-                            <i class="bi bi-door-closed-fill text-danger"></i>
-                            ${escapeHtml(r.room_name)}
-                        </h6>
-                        <div class="small fw-semibold text-navy mt-1">${escapeHtml(c.title || "Cours")}</div>
-                        <div class="small text-muted mt-2 border-top pt-2">
-                            <div><i class="bi bi-person me-1"></i> ${escapeHtml(teachersStr)}</div>
-                            <div><i class="bi bi-people me-1"></i> ${escapeHtml(groupsStr)}</div>
-                        </div>
+                        <div class="room-meta text-body">${escapeHtml(c.title || "Cours")}</div>
+                        <div class="room-meta">${escapeHtml(teachersStr)} · ${escapeHtml(groupsStr)}</div>
                     </div>
                 `;
                 occupiedRoomsGrid.appendChild(col);

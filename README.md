@@ -64,7 +64,7 @@ PORT=8080 python3 app.py
 
 ---
 
-### Méthode 2 : Avec Docker & Docker Compose
+### Méthode 3 : Avec Docker & Docker Compose
 
 Lancez le service en tâche de fond avec une seule commande :
 
@@ -77,23 +77,38 @@ Pour voir les logs :
 docker compose logs -f
 ```
 
+*Les bases SQLite et les clés secrètes (`.flask_secret`, `.server_secret`) sont stockées dans `./data`, elles survivent donc aux reconstructions du conteneur.*
+
 ---
 
-### Méthode 3 : En service d'arrière-plan Linux (systemd)
+### Méthode 4 : En service d'arrière-plan Linux (systemd)
 
-Un fichier d'unité [auriga-calendar.service](file:///home/fernand/playground/zeus-v2/auriga-calendar.service) est fourni :
+Un fichier d'unité `epikairos.service` est fourni. Il lance le binaire Rust compilé :
 
 ```bash
+# Compiler le binaire
+cargo build --release
+
 # Copier le fichier de service
-sudo cp auriga-calendar.service /etc/systemd/system/
+sudo cp epikairos.service /etc/systemd/system/
 
 # Activer et démarrer au boot
 sudo systemctl daemon-reload
-sudo systemctl enable --now auriga-calendar
+sudo systemctl enable --now epikairos
 
 # Vérifier le statut
-sudo systemctl status auriga-calendar
+sudo systemctl status epikairos
 ```
+
+Les variables d'environnement disponibles (port, chemins des bases, `SECRET_DIR`, `FEED_CACHE_DURATION`, `SERVER_DOMAIN`, `ALLOWED_HOSTS`, …) sont documentées dans `.env.example`.
+
+---
+
+## 🛡️ Administration & calendriers des clubs
+
+- **Admin** : les comptes listés dans `ADMIN_USERS` (par défaut `fernand.huttois`) voient le lien **Admin** et la page `/admin`. Elle est introuvable (404) pour tous les autres.
+- **Modérateurs** : depuis `/admin`, l'administrateur nomme des modérateurs parmi les utilisateurs déjà connectés, ou par identifiant.
+- **Événements** : dans Old Zeus, l'onglet **Événements** affiche les calendriers des clubs à tous les étudiants connectés. Les modérateurs y créent leurs calendriers et leurs événements, et ne peuvent modifier que les leurs. L'administrateur peut tout modifier.
 
 ---
 
@@ -134,6 +149,11 @@ sudo systemctl status auriga-calendar
 Tous les tests unitaires peuvent être exécutés avec :
 
 ```bash
+# Backend Rust
+cargo test
+
+# Fallback Python
 python3 test_exporter.py
 python3 test_app.py
+python3 test_database.py
 ```

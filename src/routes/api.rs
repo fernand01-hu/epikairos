@@ -21,7 +21,31 @@ use crate::feed::*;
 use crate::session::{sign_session, verify_session, UserSession};
 use crate::state::AppState;
 
-const FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
+const DEFAULT_FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
+
+/// Feed cache lifetime in seconds, overridable with `FEED_CACHE_DURATION` (same as the Python backend).
+fn feed_cache_duration() -> f64 {
+    static DURATION: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+    *DURATION.get_or_init(|| {
+        std::env::var("FEED_CACHE_DURATION")
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|v| *v > 0.0)
+            .unwrap_or(DEFAULT_FEED_CACHE_DURATION)
+    })
+}
+
+/// JSON 500 response so the frontend can always parse `{ success, error }`.
+fn internal_error() -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({
+            "success": false,
+            "error": "Erreur interne du serveur. Veuillez réessayer plus tard."
+        })),
+    )
+        .into_response()
+}
 
 /// Truncates a string slice to at most `max_bytes` while respecting UTF-8 char boundaries.
 pub fn truncate_str(s: &str, max_bytes: usize) -> &str {
@@ -343,6 +367,17 @@ pub async fn fetch_planning_handler(
         "Étudiant Auriga".to_string()
     };
 
+    // Remember the account so the admin can assign roles from the user list
+    if user_display != "Étudiant Auriga" {
+        let pool = state.db_pool.clone();
+        let login_name = user_display.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Ok(conn) = pool.get() {
+                let _ = crate::community::record_login(&conn, &login_name);
+            }
+        });
+    }
+
     // Set signed session cookie with 30-day lifetime and secure options
     let session = UserSession {
         logged_in: true,
@@ -426,7 +461,7 @@ pub async fn db_stats_handler(State(state): State<AppState>) -> Response {
 
     match res {
         Ok(Ok(stats)) => Json(stats).into_response(),
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -457,7 +492,7 @@ pub async fn db_options_handler(State(state): State<AppState>) -> Response {
 
     match res {
         Ok(Ok(val)) => Json(val).into_response(),
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -478,7 +513,7 @@ pub async fn db_promos_handler(State(state): State<AppState>) -> Response {
             "promotions": promos,
         }))
         .into_response(),
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -512,7 +547,7 @@ pub async fn db_recurring_courses_handler(
 
     match res {
         Ok(Ok(val)) => Json(val).into_response(),
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -529,7 +564,7 @@ pub async fn db_detect_patterns_handler(State(state): State<AppState>) -> Respon
 
     match res {
         Ok(Ok(val)) => Json(val).into_response(),
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -568,7 +603,7 @@ pub async fn db_custom_courses_handler(
             }))
             .into_response()
         }
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -595,7 +630,7 @@ pub async fn db_free_rooms_handler(
 
     match res {
         Ok(Ok(result)) => Json(result).into_response(),
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -636,7 +671,7 @@ pub async fn groups_schedule_handler(
             }))
             .into_response()
         }
-        _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => internal_error(),
     }
 }
 
@@ -685,7 +720,7 @@ pub async fn create_feed_handler(
     State(state): State<AppState>,
     cookies: Cookies,
     headers: HeaderMap,
-    Json(mut payload): Json<CreateFeedPayload>,
+    Json(payload): Json<CreateFeedPayload>,
 ) -> Response {
     let session_user = cookies
         .get("session")
@@ -712,7 +747,6 @@ pub async fn create_feed_handler(
         } else {
             username = auth_user.clone();
         }
-        payload.username = Some(username.clone());
     }
 
     let password = payload.password.unwrap_or_default().trim().to_string();
@@ -768,6 +802,9 @@ pub async fn create_feed_handler(
         None
     };
 
+    let has_credentials = !username.is_empty() && !password.is_empty();
+    let summary_username = if has_credentials { username.clone() } else { String::new() };
+
     let pool = state.feed_pool.clone();
     let c_name = safe_cal_name.to_string();
     let courses_clone = payload.courses.clone();
@@ -798,7 +835,7 @@ pub async fn create_feed_handler(
 
     let feed_id = match res {
         Ok(Ok(id)) => id,
-        _ => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        _ => return internal_error(),
     };
 
     let mut query_params = Vec::new();
@@ -829,8 +866,8 @@ pub async fn create_feed_handler(
         "allowed_courses_count": payload.allowed_courses.as_ref().map(|v| v.len()),
         "total_courses": payload.courses.len(),
         "sync_frequency": "1 à 2 fois par jour (toutes les 12h)",
-        "has_credentials": !payload.username.as_deref().unwrap_or("").is_empty(),
-        "username": payload.username.unwrap_or_default(),
+        "has_credentials": has_credentials,
+        "username": summary_username,
     });
 
     Json(serde_json::json!({
@@ -961,7 +998,7 @@ pub async fn serve_feed_handler(
     // If cache is fresh and no query overrides, return cached directly
     if !has_query_overrides
         && !feed_opt.last_cached_ics.is_empty()
-        && cache_age < FEED_CACHE_DURATION
+        && cache_age < feed_cache_duration()
     {
         return (
             [
@@ -972,7 +1009,7 @@ pub async fn serve_feed_handler(
                 ),
                 (
                     header::CACHE_CONTROL,
-                    &format!("public, max-age={}, must-revalidate", FEED_CACHE_DURATION as u64),
+                    &format!("public, max-age={}, must-revalidate", feed_cache_duration() as u64),
                 ),
             ],
             feed_opt.last_cached_ics,
@@ -984,7 +1021,7 @@ pub async fn serve_feed_handler(
 
     // Refresh from Auriga if credentials exist and expired
     if let Some(ref pw) = feed_opt.password {
-        if !feed_opt.username.is_empty() && (cache_age >= FEED_CACHE_DURATION || raw_courses.is_empty()) {
+        if !feed_opt.username.is_empty() && (cache_age >= feed_cache_duration() || raw_courses.is_empty()) {
             let mut client = AurigaClient::new(&feed_opt.username, pw);
             if client.login().await.is_ok() {
                 let (start_d, end_d) = get_default_school_year_range();
@@ -1038,7 +1075,7 @@ pub async fn serve_feed_handler(
                 ),
                 (
                     header::CACHE_CONTROL,
-                    &format!("public, max-age={}, must-revalidate", FEED_CACHE_DURATION as u64),
+                    &format!("public, max-age={}, must-revalidate", feed_cache_duration() as u64),
                 ),
             ],
             fresh_ics,
@@ -1056,7 +1093,7 @@ pub async fn serve_feed_handler(
                 ),
                 (
                     header::CACHE_CONTROL,
-                    &format!("public, max-age={}, must-revalidate", FEED_CACHE_DURATION as u64),
+                    &format!("public, max-age={}, must-revalidate", feed_cache_duration() as u64),
                 ),
             ],
             feed_opt.last_cached_ics,

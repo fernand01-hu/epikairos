@@ -59,7 +59,6 @@ pub async fn auth_middleware(
 
     let is_public = path.starts_with("/static/")
         || path.starts_with("/feed/")
-        || path.starts_with("/ics/")
         || path == "/login"
         || path == "/logout"
         || path == "/api/fetch-planning"

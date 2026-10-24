@@ -8,6 +8,13 @@ let selectedGroupPatterns = new Set(["S3S4 L3", "S3 Lyon L3", "2627 - S3 Lyon L3
 let currentCalendarDate = new Date();
 let currentViewMode = "week"; // "week" | "day"
 let activeCourses = [];
+let activeEvents = [];
+let communityCalendars = [];
+let canCreateCalendars = false;
+let selectedCalendarIds = null; // Set of ids, null until loaded
+
+const CALENDAR_STORAGE_KEY = "zeus_community_calendars";
+const CALENDAR_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#ec4899", "#64748b"];
 
 const HOUR_HEIGHT = 52; // Must match CSS --zeus-hour-height
 
@@ -19,6 +26,20 @@ function escapeHtml(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+/** YYYY-MM-DD in local time (toISOString() would shift dates to UTC). */
+function toLocalDateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function apiJson(url, options = {}) {
+    const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.success === false) {
+        throw new Error(data.error || `Erreur serveur (${res.status})`);
+    }
+    return data;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -68,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (savedCreds) {
         try {
             const parsed = JSON.parse(savedCreds);
-            if (parsed.username) {
+            if (parsed.username && userDisplayName) {
                 userDisplayName.textContent = parsed.username.split("@")[0];
             }
         } catch (e) {}
@@ -331,29 +352,29 @@ document.addEventListener("DOMContentLoaded", () => {
     // =========================================================================
     // 4. Fetch Schedule for Selected Groups
     // =========================================================================
-    async function fetchSchedule() {
-        const patterns = Array.from(selectedGroupPatterns);
-        if (patterns.length === 0) {
-            activeCourses = [];
-            renderTimetableGrid();
-            return;
-        }
-
+    function visibleWeekRange() {
         const monday = getMonday(currentCalendarDate);
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
+        return { start: toLocalDateStr(monday), end: toLocalDateStr(sunday) };
+    }
 
-        const startDateStr = monday.toISOString().slice(0, 10);
-        const endDateStr = sunday.toISOString().slice(0, 10);
+    async function fetchCourses() {
+        const patterns = Array.from(selectedGroupPatterns);
+        if (patterns.length === 0) {
+            activeCourses = [];
+            return;
+        }
 
+        const range = visibleWeekRange();
         try {
             const res = await fetch("/api/groups/schedule", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     patterns: patterns,
-                    start_date: startDateStr,
-                    end_date: endDateStr
+                    start_date: range.start,
+                    end_date: range.end
                 })
             });
 
@@ -364,7 +385,26 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (e) {
             console.error("Error fetching group schedule", e);
         }
+    }
 
+    async function fetchEvents() {
+        if (!selectedCalendarIds || selectedCalendarIds.size === 0) {
+            activeEvents = [];
+            return;
+        }
+        const range = visibleWeekRange();
+        const ids = Array.from(selectedCalendarIds).join(",");
+        try {
+            const data = await apiJson(`/api/community/events?start=${range.start}&end=${range.end}&calendars=${ids}`);
+            activeEvents = data.events || [];
+        } catch (e) {
+            console.error("Error fetching community events", e);
+            activeEvents = [];
+        }
+    }
+
+    async function fetchSchedule() {
+        await Promise.all([fetchCourses(), fetchEvents()]);
         renderTimetableGrid();
     }
 
@@ -382,13 +422,76 @@ document.addEventListener("DOMContentLoaded", () => {
         return "card-type-autre";
     }
 
+    /** Splits overlapping items of one day into side-by-side lanes. */
+    function assignLanes(items) {
+        items.sort((a, b) => a.start - b.start || b.end - a.end);
+        let cluster = [];
+        let clusterEnd = 0;
+        const closeCluster = () => {
+            const lanes = Math.max(1, ...cluster.map(it => it.lane + 1));
+            cluster.forEach(it => { it.lanes = lanes; });
+            cluster = [];
+        };
+        items.forEach(item => {
+            if (cluster.length && item.start >= clusterEnd) closeCluster();
+            const laneEnds = [];
+            cluster.forEach(it => { laneEnds[it.lane] = Math.max(laneEnds[it.lane] || 0, it.end); });
+            let lane = laneEnds.findIndex(end => end <= item.start);
+            if (lane === -1) lane = laneEnds.length;
+            item.lane = lane;
+            cluster.push(item);
+            clusterEnd = Math.max(clusterEnd, item.end);
+        });
+        if (cluster.length) closeCluster();
+    }
+
+    function buildCourseCard(c) {
+        const card = document.createElement("div");
+        card.className = `zeus-event-card ${getTypeCardClass(c.activity_type)}`;
+
+        const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "";
+        const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "";
+
+        card.innerHTML = `
+            <div class="zeus-event-title" title="${escapeHtml(c.course_name)}">${escapeHtml(c.course_name)}</div>
+            <div class="zeus-event-meta">
+                <span>${formatTime(c.start)} - ${formatTime(c.end)}</span><br>
+                ${roomsStr ? `<span>${roomsStr}</span><br>` : ""}
+                ${teachersStr ? `<span>${teachersStr}</span>` : ""}
+            </div>
+        `;
+        card.addEventListener("click", () => showCourseDetailModal(c));
+        return card;
+    }
+
+    function buildEventCard(ev) {
+        const card = document.createElement("div");
+        card.className = "zeus-event-card community-event";
+        card.style.setProperty("--t", ev.color);
+        card.innerHTML = `
+            <div class="zeus-event-title" title="${escapeHtml(ev.title)}">${escapeHtml(ev.title)}</div>
+            <div class="zeus-event-meta">
+                <span>${formatTime(ev.start)} - ${formatTime(ev.end)}</span><br>
+                <span>${escapeHtml(ev.calendar_name)}${ev.location ? " · " + escapeHtml(ev.location) : ""}</span>
+            </div>
+        `;
+        card.addEventListener("click", () => {
+            if (ev.can_edit) {
+                openEventModal(ev);
+            } else {
+                showEventDetailModal(ev);
+            }
+        });
+        return card;
+    }
+
     function renderTimetableGrid() {
         const monday = getMonday(currentCalendarDate);
         const weekNum = getIsoWeekNumber(monday);
 
         // Update Topbar Title
         weekTitleLabel.textContent = `Semaine ${weekNum}`;
-        topbarDatePicker.value = currentCalendarDate.toISOString().slice(0, 10);
+        topbarDatePicker.value = toLocalDateStr(currentCalendarDate);
 
         // Days configuration
         const frenchDayNames = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
@@ -423,7 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // 2. Day Column in Grid
             const dayCol = document.createElement("div");
             dayCol.className = "grid-day-column";
-            dayCol.dataset.date = dayDate.toISOString().slice(0, 10);
+            dayCol.dataset.date = toLocalDateStr(dayDate);
 
             // Create 24 hour slots
             for (let h = 0; h < 24; h++) {
@@ -443,44 +546,31 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             // Render Courses for this day
-            const dayCourses = activeCourses.filter(c => isSameDay(new Date(c.start), dayDate));
+            const dayItems = [
+                ...activeCourses
+                    .filter(c => isSameDay(new Date(c.start), dayDate))
+                    .map(c => ({ kind: "course", data: c, start: new Date(c.start), end: new Date(c.end) })),
+                ...activeEvents
+                    .filter(ev => isSameDay(new Date(ev.start), dayDate))
+                    .map(ev => ({ kind: "event", data: ev, start: new Date(ev.start), end: new Date(ev.end) })),
+            ];
+            assignLanes(dayItems);
 
-            dayCourses.forEach(c => {
-                const dStart = new Date(c.start);
-                const dEnd = new Date(c.end);
-
-                const startMin = dStart.getHours() * 60 + dStart.getMinutes();
-                const endMin = dEnd.getHours() * 60 + dEnd.getMinutes();
+            dayItems.forEach(item => {
+                const startMin = item.start.getHours() * 60 + item.start.getMinutes();
+                const endMin = item.end.getHours() * 60 + item.end.getMinutes();
                 const durationMin = Math.max(endMin - startMin, 30);
 
                 if (startMin < earliestCourseMinutes) {
                     earliestCourseMinutes = startMin;
                 }
 
-                const cardTop = (startMin / 60) * HOUR_HEIGHT;
-                const cardHeight = Math.max((durationMin / 60) * HOUR_HEIGHT - 2, 24);
-
-                const card = document.createElement("div");
-                card.className = `zeus-event-card ${getTypeCardClass(c.activity_type)}`;
-                card.style.top = `${cardTop}px`;
-                card.style.height = `${cardHeight}px`;
-
-                const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "";
-                const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "";
-
-                card.innerHTML = `
-                    <div class="zeus-event-title" title="${escapeHtml(c.course_name)}">${escapeHtml(c.course_name)}</div>
-                    <div class="zeus-event-meta">
-                        ${roomsStr ? `<span>📍 ${roomsStr}</span><br>` : ""}
-                        ${teachersStr ? `<span>👤 ${teachersStr}</span><br>` : ""}
-                        <span>🕐 ${formatTime(c.start)} - ${formatTime(c.end)}</span>
-                    </div>
-                `;
-
-                // Click to view details
-                card.addEventListener("click", () => {
-                    showCourseDetailModal(c);
-                });
+                const card = item.kind === "course" ? buildCourseCard(item.data) : buildEventCard(item.data);
+                card.style.top = `${(startMin / 60) * HOUR_HEIGHT}px`;
+                card.style.height = `${Math.max((durationMin / 60) * HOUR_HEIGHT - 2, 24)}px`;
+                // Side-by-side layout when items overlap
+                card.style.left = `calc(${(item.lane / item.lanes) * 100}% + 2px)`;
+                card.style.right = `calc(${((item.lanes - item.lane - 1) / item.lanes) * 100}% + 2px)`;
 
                 dayCol.appendChild(card);
             });
@@ -514,10 +604,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 <dd class="col-sm-8">${new Date(c.start).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
 
                 <dt class="col-sm-4 text-muted">Salle(s) :</dt>
-                <dd class="col-sm-8 fw-bold text-danger">📍 ${roomsStr}</dd>
+                <dd class="col-sm-8">${roomsStr}</dd>
 
                 <dt class="col-sm-4 text-muted">Enseignant(s) :</dt>
-                <dd class="col-sm-8 text-primary">👤 ${teachersStr}</dd>
+                <dd class="col-sm-8">${teachersStr}</dd>
 
                 <dt class="col-sm-4 text-muted">Groupe(s) :</dt>
                 <dd class="col-sm-8">👥 ${groupsStr}</dd>
@@ -770,7 +860,301 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    // =========================================================================
+    // 8. Sidebar tabs: Groupes / Événements
+    // =========================================================================
+    const tabGroupsBtn = document.getElementById("tabGroupsBtn");
+    const tabEventsBtn = document.getElementById("tabEventsBtn");
+    const groupsPanel = document.getElementById("groupsPanel");
+    const eventsPanel = document.getElementById("eventsPanel");
+
+    function showSidebarTab(tab) {
+        const isEvents = tab === "events";
+        groupsPanel.classList.toggle("d-none", isEvents);
+        eventsPanel.classList.toggle("d-none", !isEvents);
+        tabGroupsBtn.classList.toggle("active", !isEvents);
+        tabEventsBtn.classList.toggle("active", isEvents);
+        tabGroupsBtn.setAttribute("aria-selected", String(!isEvents));
+        tabEventsBtn.setAttribute("aria-selected", String(isEvents));
+        if (isEvents) setSidebarCollapsed(false);
+    }
+
+    tabGroupsBtn.addEventListener("click", () => showSidebarTab("groups"));
+    tabEventsBtn.addEventListener("click", () => showSidebarTab("events"));
+    if (window.location.hash === "#events") showSidebarTab("events");
+
+    // =========================================================================
+    // 9. Community calendars (clubs & associations)
+    // =========================================================================
+    const communityCalendarList = document.getElementById("communityCalendarList");
+    const moderatorActions = document.getElementById("moderatorActions");
+
+    const calendarModalEl = document.getElementById("calendarModal");
+    const calendarModal = new bootstrap.Modal(calendarModalEl);
+    const calendarForm = document.getElementById("calendarForm");
+    const calendarFormError = document.getElementById("calendarFormError");
+    const calendarNameInput = document.getElementById("calendarNameInput");
+    const calendarDescriptionInput = document.getElementById("calendarDescriptionInput");
+    const calendarColorSwatches = document.getElementById("calendarColorSwatches");
+    const btnDeleteCalendar = document.getElementById("btnDeleteCalendar");
+    let editingCalendar = null;
+
+    const eventModalEl = document.getElementById("eventModal");
+    const eventModal = new bootstrap.Modal(eventModalEl);
+    const eventForm = document.getElementById("eventForm");
+    const eventFormError = document.getElementById("eventFormError");
+    const eventCalendarSelect = document.getElementById("eventCalendarSelect");
+    const eventTitleInput = document.getElementById("eventTitleInput");
+    const eventDateInput = document.getElementById("eventDateInput");
+    const eventStartInput = document.getElementById("eventStartInput");
+    const eventEndInput = document.getElementById("eventEndInput");
+    const eventLocationInput = document.getElementById("eventLocationInput");
+    const eventDescriptionInput = document.getElementById("eventDescriptionInput");
+    const btnDeleteEvent = document.getElementById("btnDeleteEvent");
+    let editingEvent = null;
+
+    function saveSelectedCalendars() {
+        try {
+            localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(Array.from(selectedCalendarIds)));
+        } catch (e) {}
+    }
+
+    async function loadCommunityCalendars() {
+        try {
+            const data = await apiJson("/api/community/calendars");
+            communityCalendars = data.calendars || [];
+            canCreateCalendars = !!data.can_create;
+        } catch (err) {
+            communityCalendarList.innerHTML = `<div class="text-danger small p-2">${escapeHtml(err.message)}</div>`;
+            return;
+        }
+
+        const knownIds = new Set(communityCalendars.map(c => c.id));
+        let stored = null;
+        try {
+            stored = JSON.parse(localStorage.getItem(CALENDAR_STORAGE_KEY) || "null");
+        } catch (e) {}
+        // First visit: show every calendar so students discover club events
+        selectedCalendarIds = Array.isArray(stored)
+            ? new Set(stored.filter(id => knownIds.has(id)))
+            : new Set(knownIds);
+
+        moderatorActions.classList.toggle("d-none", !canCreateCalendars);
+        renderCalendarList();
+    }
+
+    function renderCalendarList() {
+        if (communityCalendars.length === 0) {
+            communityCalendarList.innerHTML = `<div class="small text-muted py-2">${canCreateCalendars ? "Aucun calendrier. Créez le premier ci-dessous." : "Aucun calendrier de club pour le moment."}</div>`;
+            return;
+        }
+        communityCalendarList.innerHTML = "";
+        communityCalendars.forEach(cal => {
+            const row = document.createElement("label");
+            row.className = "calendar-row";
+            row.innerHTML = `
+                <input type="checkbox" class="tree-checkbox" ${selectedCalendarIds.has(cal.id) ? "checked" : ""}>
+                <span class="calendar-dot"></span>
+                <span class="calendar-row-text">
+                    <span class="calendar-row-name">${escapeHtml(cal.name)}</span>
+                    <span class="calendar-row-meta">${cal.event_count} événement${cal.event_count > 1 ? "s" : ""} · ${escapeHtml(cal.owner)}</span>
+                </span>
+                ${cal.can_edit ? `<button type="button" class="btn btn-sm btn-link icon-btn calendar-edit-btn" title="Modifier" aria-label="Modifier ${escapeHtml(cal.name)}"><i class="bi bi-pencil"></i></button>` : ""}
+            `;
+            row.querySelector(".calendar-dot").style.setProperty("--dot", cal.color);
+            row.querySelector("input").addEventListener("change", (e) => {
+                if (e.target.checked) selectedCalendarIds.add(cal.id);
+                else selectedCalendarIds.delete(cal.id);
+                saveSelectedCalendars();
+                fetchSchedule();
+            });
+            const editBtn = row.querySelector(".calendar-edit-btn");
+            if (editBtn) {
+                editBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    openCalendarModal(cal);
+                });
+            }
+            communityCalendarList.appendChild(row);
+        });
+    }
+
+    // --- Calendar modal ------------------------------------------------------
+    function renderColorSwatches(selected) {
+        calendarColorSwatches.innerHTML = "";
+        CALENDAR_COLORS.forEach(color => {
+            const id = `swatch_${color.slice(1)}`;
+            const wrapper = document.createElement("span");
+            wrapper.innerHTML = `
+                <input type="radio" class="btn-check" name="calendarColor" id="${id}" value="${color}" ${color === selected ? "checked" : ""}>
+                <label class="color-swatch" for="${id}" title="${color}"></label>
+            `;
+            wrapper.querySelector("label").style.setProperty("--dot", color);
+            calendarColorSwatches.appendChild(wrapper);
+        });
+    }
+
+    function openCalendarModal(cal) {
+        editingCalendar = cal || null;
+        calendarFormError.classList.add("d-none");
+        document.getElementById("calendarModalTitle").textContent = cal ? "Modifier le calendrier" : "Nouveau calendrier";
+        calendarNameInput.value = cal ? cal.name : "";
+        calendarDescriptionInput.value = cal ? cal.description : "";
+        const usedColors = new Set(communityCalendars.map(c => c.color));
+        renderColorSwatches(cal ? cal.color : (CALENDAR_COLORS.find(c => !usedColors.has(c)) || CALENDAR_COLORS[0]));
+        btnDeleteCalendar.classList.toggle("d-none", !cal);
+        calendarModal.show();
+    }
+
+    document.getElementById("btnNewCalendar").addEventListener("click", () => openCalendarModal(null));
+
+    calendarForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const color = (calendarForm.querySelector("input[name=calendarColor]:checked") || {}).value || CALENDAR_COLORS[0];
+        const body = JSON.stringify({
+            name: calendarNameInput.value,
+            description: calendarDescriptionInput.value,
+            color,
+        });
+        try {
+            if (editingCalendar) {
+                await apiJson(`/api/community/calendars/${editingCalendar.id}`, { method: "PUT", body });
+            } else {
+                const data = await apiJson("/api/community/calendars", { method: "POST", body });
+                selectedCalendarIds.add(data.id);
+                saveSelectedCalendars();
+            }
+            calendarModal.hide();
+            await loadCommunityCalendars();
+            fetchSchedule();
+        } catch (err) {
+            calendarFormError.textContent = err.message;
+            calendarFormError.classList.remove("d-none");
+        }
+    });
+
+    btnDeleteCalendar.addEventListener("click", async () => {
+        if (!editingCalendar) return;
+        if (!confirm(`Supprimer « ${editingCalendar.name} » et ses ${editingCalendar.event_count} événement(s) ?`)) return;
+        try {
+            await apiJson(`/api/community/calendars/${editingCalendar.id}`, { method: "DELETE" });
+            calendarModal.hide();
+            await loadCommunityCalendars();
+            fetchSchedule();
+        } catch (err) {
+            calendarFormError.textContent = err.message;
+            calendarFormError.classList.remove("d-none");
+        }
+    });
+
+    // --- Event modal ---------------------------------------------------------
+    function openEventModal(ev) {
+        const editable = communityCalendars.filter(c => c.can_edit);
+        if (editable.length === 0) {
+            alert("Créez d'abord un calendrier pour y ajouter des événements.");
+            openCalendarModal(null);
+            return;
+        }
+        editingEvent = ev || null;
+        eventFormError.classList.add("d-none");
+        document.getElementById("eventModalTitle").textContent = ev ? "Modifier l'événement" : "Nouvel événement";
+
+        eventCalendarSelect.innerHTML = editable
+            .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+            .join("");
+
+        if (ev) {
+            eventCalendarSelect.value = String(ev.calendar_id);
+            eventTitleInput.value = ev.title;
+            eventDateInput.value = ev.start_local.slice(0, 10);
+            eventStartInput.value = ev.start_local.slice(11, 16);
+            eventEndInput.value = ev.end_local.slice(11, 16);
+            eventLocationInput.value = ev.location;
+            eventDescriptionInput.value = ev.description;
+        } else {
+            const today = new Date();
+            const inWeek = getMonday(currentCalendarDate) <= today && today < new Date(getMonday(currentCalendarDate).getTime() + 7 * 864e5);
+            eventTitleInput.value = "";
+            eventDateInput.value = toLocalDateStr(inWeek ? today : currentCalendarDate);
+            eventStartInput.value = "18:00";
+            eventEndInput.value = "20:00";
+            eventLocationInput.value = "";
+            eventDescriptionInput.value = "";
+        }
+        btnDeleteEvent.classList.toggle("d-none", !ev);
+        eventModal.show();
+    }
+
+    document.getElementById("btnNewEvent").addEventListener("click", () => openEventModal(null));
+
+    eventForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const calendarId = Number(eventCalendarSelect.value);
+        const date = eventDateInput.value;
+        const body = JSON.stringify({
+            calendar_id: calendarId,
+            title: eventTitleInput.value,
+            start: `${date}T${eventStartInput.value}`,
+            end: `${date}T${eventEndInput.value}`,
+            location: eventLocationInput.value,
+            description: eventDescriptionInput.value,
+        });
+        try {
+            if (editingEvent) {
+                await apiJson(`/api/community/events/${editingEvent.id}`, { method: "PUT", body });
+            } else {
+                await apiJson(`/api/community/calendars/${calendarId}/events`, { method: "POST", body });
+            }
+            eventModal.hide();
+            // Make sure the moderator sees what they just published
+            if (!selectedCalendarIds.has(calendarId)) {
+                selectedCalendarIds.add(calendarId);
+                saveSelectedCalendars();
+            }
+            currentCalendarDate = new Date(`${date}T12:00`);
+            await loadCommunityCalendars();
+            fetchSchedule();
+        } catch (err) {
+            eventFormError.textContent = err.message;
+            eventFormError.classList.remove("d-none");
+        }
+    });
+
+    btnDeleteEvent.addEventListener("click", async () => {
+        if (!editingEvent) return;
+        if (!confirm(`Supprimer « ${editingEvent.title} » ?`)) return;
+        try {
+            await apiJson(`/api/community/events/${editingEvent.id}`, { method: "DELETE" });
+            eventModal.hide();
+            await loadCommunityCalendars();
+            fetchSchedule();
+        } catch (err) {
+            eventFormError.textContent = err.message;
+            eventFormError.classList.remove("d-none");
+        }
+    });
+
+    function showEventDetailModal(ev) {
+        document.getElementById("courseDetailTitle").textContent = ev.title;
+        document.getElementById("courseDetailBody").innerHTML = `
+            <div class="mb-3 d-flex align-items-center gap-2">
+                <span class="calendar-dot" style="--dot: ${escapeHtml(ev.color)}"></span>
+                <span class="fw-semibold">${escapeHtml(ev.calendar_name)}</span>
+            </div>
+            <dl class="row mb-0 small">
+                <dt class="col-sm-4 text-muted">Date</dt>
+                <dd class="col-sm-8">${new Date(ev.start).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</dd>
+                <dt class="col-sm-4 text-muted">Horaires</dt>
+                <dd class="col-sm-8">${formatTime(ev.start)} - ${formatTime(ev.end)}</dd>
+                ${ev.location ? `<dt class="col-sm-4 text-muted">Lieu</dt><dd class="col-sm-8">${escapeHtml(ev.location)}</dd>` : ""}
+            </dl>
+            ${ev.description ? `<p class="small mt-3 mb-0" style="white-space: pre-line;">${escapeHtml(ev.description)}</p>` : ""}
+        `;
+        courseDetailModal.show();
+    }
+
     // Initial Load
+    loadCommunityCalendars().then(() => fetchSchedule());
     loadGroupTree();
 
 });

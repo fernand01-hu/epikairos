@@ -1,16 +1,17 @@
 version: '3.8'
 
 services:
-  auriga-calendar:
+  epikairos:
     build: .
-    container_name: auriga-calendar
+    container_name: epikairos
     restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
       - PORT=5000
       - HOST=0.0.0.0
-      - FLASK_SECRET_KEY=change-this-secret-key-in-production
-      - FEED_CACHE_DURATION=7200
+      - FEED_CACHE_DURATION=43200
+      # Secrets are generated on first start and stored in ./data (SECRET_DIR=/app/data).
+      # To pin them instead, set SESSION_SECRET_KEY and SERVER_SECRET_KEY here.
     volumes:
       - ./data:/app/data

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
@@ -12,7 +12,15 @@ use tokio::sync::Mutex;
 use crate::db::DbPool;
 use crate::feed::FeedDbPool;
 
-const FLASK_SECRET_FILE: &str = ".flask_secret";
+// File name kept from the Flask backend so existing installs keep their sessions
+const SESSION_SECRET_FILE: &str = ".flask_secret";
+
+/// Resolves a secret file inside `SECRET_DIR` (defaults to the working directory).
+/// Docker points this at the persistent data volume so keys survive rebuilds.
+pub fn secret_path(file_name: &str) -> PathBuf {
+    let dir = std::env::var("SECRET_DIR").unwrap_or_else(|_| ".".to_string());
+    Path::new(&dir).join(file_name)
+}
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,7 +33,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(db_pool: DbPool, feed_pool: FeedDbPool, jinja: Environment<'static>) -> Self {
-        let secret_key = get_or_create_flask_secret();
+        let secret_key = get_or_create_session_secret();
         Self {
             db_pool,
             feed_pool,
@@ -63,15 +71,17 @@ impl AppState {
     }
 }
 
-pub fn get_or_create_flask_secret() -> String {
-    if let Ok(env_key) = std::env::var("FLASK_SECRET_KEY") {
+pub fn get_or_create_session_secret() -> String {
+    let env_key = std::env::var("SESSION_SECRET_KEY").or_else(|_| std::env::var("FLASK_SECRET_KEY"));
+    if let Ok(env_key) = env_key {
         if !env_key.trim().is_empty() && env_key != "auriga-epita-secret-key-change-in-prod" {
             return env_key;
         }
     }
 
-    if Path::new(FLASK_SECRET_FILE).exists() {
-        if let Ok(mut f) = File::open(FLASK_SECRET_FILE) {
+    let secret_file = secret_path(SESSION_SECRET_FILE);
+    if secret_file.exists() {
+        if let Ok(mut f) = File::open(&secret_file) {
             let mut s = String::new();
             if f.read_to_string(&mut s).is_ok() && s.trim().len() >= 32 {
                 return s.trim().to_string();
@@ -88,7 +98,7 @@ pub fn get_or_create_flask_secret() -> String {
     #[cfg(unix)]
     opts.mode(0o600);
 
-    if let Ok(mut f) = opts.open(FLASK_SECRET_FILE) {
+    if let Ok(mut f) = opts.open(&secret_file) {
         let _ = f.write_all(hex_key.as_bytes());
     }
 
