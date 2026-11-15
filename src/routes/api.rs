@@ -145,11 +145,11 @@ pub fn resolve_safe_host(headers: &HeaderMap) -> String {
                 is_allowed = true;
             }
         }
+        // Nothing configured: trust the Host the client used to reach us. It only
+        // shapes the response to that same client's POST, so it can't be abused to
+        // hand someone else a link to another server.
         if allowed_hosts.is_none() && server_domain.is_none() {
-            is_allowed = matches!(
-                raw_host.to_ascii_lowercase().as_str(),
-                "localhost:5000" | "127.0.0.1:5000" | "localhost" | "127.0.0.1" | "0.0.0.0:5000"
-            );
+            is_allowed = true;
         }
 
         if is_allowed {
@@ -1191,10 +1191,13 @@ mod tests {
         let h = resolve_safe_host(&headers);
         assert_eq!(h, "localhost:5000");
 
-        // Malicious host with default env (neither ALLOWED_HOSTS nor SERVER_DOMAIN)
-        headers.insert("host", "evil-phishing.com".parse().unwrap());
-        let h_evil = resolve_safe_host(&headers);
-        assert_eq!(h_evil, "localhost:5000");
+        // Public IP with default env (neither ALLOWED_HOSTS nor SERVER_DOMAIN)
+        headers.insert("host", "176.174.155.8:5000".parse().unwrap());
+        assert_eq!(resolve_safe_host(&headers), "176.174.155.8:5000");
+
+        // Header injection attempts still fall back
+        headers.insert("host", "evil.com/path?x=1".parse().unwrap());
+        assert_eq!(resolve_safe_host(&headers), "localhost:5000");
     }
 
     #[test]
