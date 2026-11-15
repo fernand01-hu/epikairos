@@ -63,6 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let conn = feed_pool.get()?;
         feed::init_db(&conn)?;
+        match feed::migrate_legacy_passwords(&conn) {
+            Ok(0) => {}
+            Ok(n) => println!("[*] Migrated {} legacy feed password(s) to Fernet", n),
+            Err(e) => eprintln!("[!] Legacy feed password migration failed: {}", e),
+        }
     }
 
     // Jinja template environment

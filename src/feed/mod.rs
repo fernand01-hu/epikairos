@@ -79,7 +79,55 @@ pub fn decrypt_secret(encrypted_text: &str) -> String {
             }
         }
     }
-    String::new()
+    decrypt_legacy_xor(encrypted_text, &key).unwrap_or_default()
+}
+
+/// Fernet tokens always start with version byte 0x80, i.e. "gAAAAA" once base64-encoded.
+fn is_fernet_token(text: &str) -> bool {
+    text.starts_with("gAAAAA")
+}
+
+/// Decodes passwords written by the legacy Python backend when the `cryptography`
+/// package was missing: urlsafe-base64 of the plaintext XOR-ed with the server key.
+fn decrypt_legacy_xor(encrypted_text: &str, key: &[u8; 32]) -> Option<String> {
+    if is_fernet_token(encrypted_text) {
+        return None;
+    }
+    let cipher = URL_SAFE.decode(encrypted_text.as_bytes()).ok()?;
+    let raw: Vec<u8> = cipher
+        .iter()
+        .enumerate()
+        .map(|(i, b)| b ^ key[i % key.len()])
+        .collect();
+    String::from_utf8(raw).ok().filter(|s| !s.is_empty())
+}
+
+/// Re-encrypts legacy XOR-obfuscated passwords with Fernet. Run once at startup.
+pub fn migrate_legacy_passwords(conn: &rusqlite::Connection) -> rusqlite::Result<usize> {
+    init_db(conn)?;
+    let key = get_server_key();
+    let rows: Vec<(String, String)> = {
+        let mut stmt = conn.prepare(
+            "SELECT feed_id, encrypted_password FROM feeds
+             WHERE encrypted_password != '' AND encrypted_password NOT LIKE 'gAAAAA%'",
+        )?;
+        let mapped = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        mapped.filter_map(Result::ok).collect()
+    };
+    let mut migrated = 0;
+    for (feed_id, enc) in rows {
+        if let Some(plain) = decrypt_legacy_xor(&enc, &key) {
+            let token = encrypt_secret(&plain);
+            if !token.is_empty() {
+                conn.execute(
+                    "UPDATE feeds SET encrypted_password = ?1 WHERE feed_id = ?2",
+                    params![token, feed_id],
+                )?;
+                migrated += 1;
+            }
+        }
+    }
+    Ok(migrated)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -337,4 +385,24 @@ pub fn delete_feed(conn: &rusqlite::Connection, feed_id: &str) -> rusqlite::Resu
     init_db(conn)?;
     let count = conn.execute("DELETE FROM feeds WHERE feed_id = ?1", params![feed_id])?;
     Ok(count > 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_xor_password_round_trips() {
+        let key = [7u8; 32];
+        let plain = "s3cr\u{e9}t-password";
+        let cipher: Vec<u8> = plain
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .map(|(i, b)| b ^ key[i % 32])
+            .collect();
+        let encoded = URL_SAFE.encode(cipher);
+        assert_eq!(decrypt_legacy_xor(&encoded, &key).as_deref(), Some(plain));
+        assert_eq!(decrypt_legacy_xor("gAAAAABtoken", &key), None);
+    }
 }
