@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}EpiKairos{% endblock %}</title>
+    <meta name="description" content="{{ _("Votre emploi du temps EPITA, les salles libres et vos cours dans Google Calendar.") }}">
+
+    <!-- Link previews (Discord, WhatsApp, Slack, X...) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="EpiKairos">
+    <meta property="og:title" content="EpiKairos">
+    <meta property="og:description" content="{{ _("Votre emploi du temps EPITA, les salles libres et vos cours dans Google Calendar.") }}">
+    <meta property="og:image" content="{{ site_url }}/static/img/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ _("Le planning de la semaine et le plan des salles libres d'EpiKairos") }}">
+    {% if site_url %}<meta property="og:url" content="{{ site_url }}/">{% endif %}
+    <meta name="twitter:card" content="summary_large_image">
 
     <!-- Early Theme Detection (Zero-Flicker) -->
     <script src="/static/js/theme-early.js?v=20261122p"></script>

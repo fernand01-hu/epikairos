@@ -46,6 +46,14 @@ pub fn create_template_env() -> Environment<'static> {
             .unwrap_or_else(|| "fr".to_string());
         crate::i18n::tr(&lang, &text)
     });
+    // Absolute site address for link previews (og:image must be a full URL)
+    let site_url = std::env::var("SERVER_DOMAIN")
+        .ok()
+        .map(|d| d.trim().trim_end_matches('/').to_string())
+        .filter(|d| !d.is_empty())
+        .map(|d| if d.starts_with("http") { d } else { format!("https://{d}") })
+        .unwrap_or_default();
+    env.add_global("site_url", site_url);
     env.add_global("i18n_en", Value::from_safe_string(crate::i18n::english_json().to_string()));
 
     // Custom url_for helper

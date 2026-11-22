@@ -184,3 +184,15 @@ async fn login_page_offers_the_token_with_a_guide() {
     assert_eq!(img.status, StatusCode::OK);
     assert_eq!(img.header("content-type"), "image/png");
 }
+
+#[tokio::test]
+async fn pages_carry_a_link_preview() {
+    let app = TestApp::new();
+    let page = app.get("/login", None).await.body;
+    for tag in [r#"property="og:title" content="EpiKairos""#, r#"name="twitter:card" content="summary_large_image""#, "/static/img/og.png"] {
+        assert!(page.contains(tag), "{tag}");
+    }
+    assert!(page.contains(r#"name="description" content="Votre emploi du temps EPITA"#));
+    let img = app.get("/static/img/og.png", None).await;
+    assert_eq!(img.status, StatusCode::OK, "preview image is public");
+}

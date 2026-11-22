@@ -218,7 +218,8 @@ async fn crawlers_are_kept_out_of_the_whole_site() {
     let robots = app.get("/robots.txt", None).await;
     assert_eq!(robots.status, StatusCode::OK, "public, no login needed");
     assert!(robots.header("content-type").starts_with("text/plain"));
-    assert_eq!(robots.body, "User-agent: *\nDisallow: /\n");
+    assert!(robots.body.ends_with("User-agent: *\nDisallow: /\n"), "search engines stay out");
+    assert!(robots.body.contains("User-agent: Discordbot\n") && robots.body.contains("Allow: /\n"), "link previews allowed");
 
     for res in [app.get("/login", None).await, app.get("/personal", Some("alice.martin")).await, app.get("/health", None).await] {
         assert_eq!(res.header("x-robots-tag"), "noindex, nofollow, noarchive");

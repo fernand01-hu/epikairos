@@ -197,12 +197,23 @@ pub async fn rooms_handler(
     Ok(Html(rendered))
 }
 
-/// Tells every crawler to stay out of the whole site.
+/// Robots told to stay out, except the bots that build link previews in chat apps.
+pub const ROBOTS_TXT: &str = "\
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: Discordbot
+User-agent: Slackbot-LinkExpanding
+User-agent: LinkedInBot
+User-agent: WhatsApp
+User-agent: TelegramBot
+Allow: /
+
+User-agent: *
+Disallow: /
+";
+
 pub async fn robots_handler() -> impl IntoResponse {
-    (
-        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        "User-agent: *\nDisallow: /\n",
-    )
+    ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], ROBOTS_TXT)
 }
 
 pub async fn manifest_handler() -> impl IntoResponse {
