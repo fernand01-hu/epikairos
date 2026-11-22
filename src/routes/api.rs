@@ -188,6 +188,8 @@ pub struct FreeRoomsPayload {
 pub struct GroupSchedulePayload {
     #[serde(default)]
     pub patterns: Vec<String>,
+    #[serde(default)]
+    pub teachers: Vec<String>,
     pub start_date: Option<String>,
     pub end_date: Option<String>,
 }
@@ -449,6 +451,29 @@ pub async fn groups_tree_handler() -> impl IntoResponse {
 }
 
 // -----------------------------------------------------------------------------
+// GET /api/teachers
+// -----------------------------------------------------------------------------
+pub async fn teachers_handler(State(state): State<AppState>) -> Response {
+    let pool = state.db_pool.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        list_teachers(&conn).map_err(|e| e.to_string())
+    })
+    .await;
+
+    match res {
+        Ok(Ok(rows)) => {
+            let teachers: Vec<_> = rows
+                .into_iter()
+                .map(|(name, courses)| serde_json::json!({ "name": name, "courses": courses }))
+                .collect();
+            Json(serde_json::json!({ "success": true, "teachers": teachers })).into_response()
+        }
+        _ => internal_error(),
+    }
+}
+
+// -----------------------------------------------------------------------------
 // POST /api/groups/schedule
 // -----------------------------------------------------------------------------
 pub async fn groups_schedule_handler(
@@ -461,6 +486,7 @@ pub async fn groups_schedule_handler(
         query_courses_by_groups(
             &conn,
             &payload.patterns,
+            &payload.teachers,
             payload.start_date.as_deref(),
             payload.end_date.as_deref(),
         )

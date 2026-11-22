@@ -537,3 +537,22 @@
     height: 26px;
     flex-shrink: 0;
 }
+
+/* Teacher list (Planning sidebar) */
+.zeus-count {
+    color: var(--accent);
+    font-weight: 600;
+    margin-left: 4px;
+}
+
+.teacher-row .tree-label {
+    flex: 1;
+    min-width: 0;
+}
+
+.teacher-course-count {
+    font-size: 11px;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    margin-left: 6px;
+}

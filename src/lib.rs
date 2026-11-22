@@ -80,6 +80,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/database/rooms-day", get(routes::api::db_rooms_day_handler))
         .route("/api/groups/tree", get(routes::api::groups_tree_handler))
+        .route("/api/teachers", get(routes::api::teachers_handler))
         .route(
             "/api/groups/schedule",
             post(routes::api::groups_schedule_handler),

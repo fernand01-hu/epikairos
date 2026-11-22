@@ -1057,12 +1057,21 @@ pub fn get_epita_group_tree() -> GroupTreeNode {
     }
 }
 
+/// Courses of the selected groups (name contains a pattern) or taught by one of
+/// the selected teachers (exact name, any case). Nothing selected means no courses.
 pub fn query_courses_by_groups(
     conn: &Connection,
     patterns: &[String],
+    teachers: &[String],
     start_date: Option<&str>,
     end_date: Option<&str>,
 ) -> rusqlite::Result<Vec<Course>> {
+    let pat_slice = if patterns.len() > 100 { &patterns[..100] } else { patterns };
+    let teacher_slice = if teachers.len() > 100 { &teachers[..100] } else { teachers };
+    if pat_slice.is_empty() && teacher_slice.is_empty() {
+        return Ok(Vec::new());
+    }
+
     let mut conditions = vec!["c.is_cancelled = 0".to_string()];
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
@@ -1078,23 +1087,36 @@ pub fn query_courses_by_groups(
         params.push(d.to_string().into());
     }
 
-    let pat_slice = if patterns.len() > 100 { &patterns[..100] } else { patterns };
+    let mut selection = Vec::new();
     if !pat_slice.is_empty() {
-        let mut like_clauses = Vec::new();
+        let like_clauses = vec!["g.name LIKE ?"; pat_slice.len()].join(" OR ");
         for p in pat_slice {
-            like_clauses.push("g.name LIKE ?".to_string());
             params.push(format!("%{}%", p).into());
         }
-        let group_filter = like_clauses.join(" OR ");
-        conditions.push(format!(
+        selection.push(format!(
             "c.id IN (
                 SELECT cg.course_id FROM course_groups cg
                 JOIN groups g ON cg.group_id = g.id
                 WHERE {}
             )",
-            group_filter
+            like_clauses
         ));
     }
+    if !teacher_slice.is_empty() {
+        let placeholders = vec!["?"; teacher_slice.len()].join(", ");
+        for t in teacher_slice {
+            params.push(t.trim().to_string().into());
+        }
+        selection.push(format!(
+            "c.id IN (
+                SELECT ct.course_id FROM course_teachers ct
+                JOIN teachers t ON ct.teacher_id = t.id
+                WHERE t.name COLLATE NOCASE IN ({})
+            )",
+            placeholders
+        ));
+    }
+    conditions.push(format!("({})", selection.join(" OR ")));
 
     let sql = format!(
         "SELECT c.id, c.start, c.end, c.duration, c.course_name, c.course_code,
@@ -1236,4 +1258,22 @@ pub fn query_rooms_day(conn: &Connection, target_date: &str) -> rusqlite::Result
         .collect();
 
     Ok(json!({ "date": target_d, "rooms": rooms }))
+}
+
+/// Every teacher seen in a non-cancelled course, with how many courses they teach.
+pub fn list_teachers(conn: &Connection) -> rusqlite::Result<Vec<(String, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.name, COUNT(c.id) AS n
+         FROM teachers t
+         JOIN course_teachers ct ON ct.teacher_id = t.id
+         JOIN courses c ON c.id = ct.course_id AND c.is_cancelled = 0
+         WHERE TRIM(t.name) != ''
+         GROUP BY t.id
+         ORDER BY t.name COLLATE NOCASE",
+    )?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
+        .filter_map(Result::ok)
+        .collect();
+    Ok(rows)
 }

@@ -4,7 +4,7 @@
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122d">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122i">
 {% endblock %}
 
 {% block main_container_class %}container-fluid px-3 py-3{% endblock %}
@@ -18,7 +18,7 @@
         <!-- Panel 1: school groups -->
         <div class="zeus-panel" id="groupsPanel" role="tabpanel">
             <div class="zeus-search-box">
-                <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="Rechercher un groupe">
+                <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="Groupe ou professeur">
                 <button class="btn-search-icon" id="btnSearchTree" title="Rechercher">
                     <i class="bi bi-search"></i>
                 </button>
@@ -37,6 +37,15 @@
                     <div class="spinner-border spinner-border-sm" role="status"></div>
                     <div class="mt-1">Chargement des groupes...</div>
                 </div>
+            </div>
+
+            <div class="zeus-group-header" id="btnToggleTeacherSection">
+                <span>Professeurs <span class="zeus-count" id="teacherSelectedCount"></span></span>
+                <i class="bi bi-chevron-up" id="teacherChevron"></i>
+            </div>
+
+            <div class="zeus-tree-container" id="teacherListContainer">
+                <div class="small text-muted py-2">Chargement des professeurs...</div>
             </div>
 
             <div class="zeus-sidebar-actions">
@@ -288,5 +297,5 @@
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122h"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122i"></script>
 {% endblock %}

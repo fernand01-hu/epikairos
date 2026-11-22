@@ -5,6 +5,12 @@
 
 let groupTreeData = null;
 let selectedGroupPatterns = new Set(["S3S4 L3", "S3 Lyon L3", "2627 - S3 Lyon L3"]);
+const TEACHER_STORAGE_KEY = "zeus_selected_teachers";
+let selectedTeachers = new Set();
+try {
+    const stored = JSON.parse(localStorage.getItem(TEACHER_STORAGE_KEY) || "[]");
+    if (Array.isArray(stored)) selectedTeachers = new Set(stored.filter(t => typeof t === "string"));
+} catch (e) { /* private mode or bad JSON: start empty */ }
 let currentCalendarDate = new Date();
 let currentViewMode = "week"; // "week" | "day"
 let activeCourses = [];
@@ -55,6 +61,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnFindRoom = document.getElementById("btnFindRoom");
     const btnToggleGroupSection = document.getElementById("btnToggleGroupSection");
     const groupChevron = document.getElementById("groupChevron");
+    const teacherListContainer = document.getElementById("teacherListContainer");
+    const btnToggleTeacherSection = document.getElementById("btnToggleTeacherSection");
+    const teacherChevron = document.getElementById("teacherChevron");
+    const teacherSelectedCount = document.getElementById("teacherSelectedCount");
 
     // Elements - Sidebar Toggle
     const appBody = document.querySelector(".zeus-app-body");
@@ -291,9 +301,87 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // =========================================================================
+    // Teachers: every teacher found in the shared database, checkable like groups
+    // =========================================================================
+    function saveSelectedTeachers() {
+        try {
+            localStorage.setItem(TEACHER_STORAGE_KEY, JSON.stringify(Array.from(selectedTeachers)));
+        } catch (e) { /* storage unavailable: selection lasts for this visit */ }
+        teacherSelectedCount.textContent = selectedTeachers.size ? `(${selectedTeachers.size})` : "";
+    }
+
+    async function loadTeachers() {
+        try {
+            const data = await apiJson("/api/teachers");
+            renderTeachers(data.teachers || []);
+        } catch (err) {
+            teacherListContainer.innerHTML = `<div class="text-danger small p-2">Erreur: ${escapeHtml(err.message)}</div>`;
+        }
+    }
+
+    function renderTeachers(teachers) {
+        teacherListContainer.innerHTML = "";
+        if (teachers.length === 0) {
+            teacherListContainer.innerHTML = '<div class="small text-muted py-2">Aucun professeur pour le moment. La liste se remplit quand des étudiants se connectent.</div>';
+            return;
+        }
+        // Forget selections for teachers that no longer appear in any course
+        const known = new Set(teachers.map(t => t.name));
+        selectedTeachers.forEach(name => { if (!known.has(name)) selectedTeachers.delete(name); });
+        saveSelectedTeachers();
+
+        teachers.forEach((t, i) => {
+            const row = document.createElement("div");
+            row.className = "tree-node teacher-row";
+            row.dataset.label = t.name.toLowerCase();
+
+            const content = document.createElement("label");
+            content.className = "tree-node-content";
+            content.htmlFor = `teacher_cb_${i}`;
+
+            const spacer = document.createElement("span");
+            spacer.className = "tree-toggle";
+
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.className = "tree-checkbox teacher-checkbox";
+            cb.id = `teacher_cb_${i}`;
+            cb.checked = selectedTeachers.has(t.name);
+            cb.addEventListener("change", () => {
+                if (cb.checked) selectedTeachers.add(t.name);
+                else selectedTeachers.delete(t.name);
+                saveSelectedTeachers();
+                fetchSchedule();
+            });
+
+            const name = document.createElement("span");
+            name.className = "tree-label";
+            name.textContent = t.name;
+
+            const count = document.createElement("span");
+            count.className = "teacher-course-count";
+            count.textContent = t.courses;
+            count.title = `${t.courses} cours`;
+
+            content.append(spacer, cb, name, count);
+            row.appendChild(content);
+            teacherListContainer.appendChild(row);
+        });
+        performTreeSearch();
+    }
+
+    btnToggleTeacherSection.addEventListener("click", () => {
+        const isHidden = teacherListContainer.classList.toggle("d-none");
+        teacherChevron.className = isHidden ? "bi bi-chevron-down" : "bi bi-chevron-up";
+    });
+
     // Tree search functionality
     function performTreeSearch() {
         const query = treeSearchInput.value.trim().toLowerCase();
+        teacherListContainer.querySelectorAll(".teacher-row").forEach(row => {
+            row.classList.toggle("d-none", !!query && !row.dataset.label.includes(query));
+        });
         if (!query) {
             // Reset visibility
             groupTreeContainer.querySelectorAll(".tree-node").forEach(n => n.classList.remove("d-none"));
@@ -337,11 +425,15 @@ document.addEventListener("DOMContentLoaded", () => {
     btnClearSearch.addEventListener("click", () => {
         treeSearchInput.value = "";
         groupTreeContainer.querySelectorAll(".tree-node").forEach(n => n.classList.remove("d-none"));
+        teacherListContainer.querySelectorAll(".teacher-row").forEach(n => n.classList.remove("d-none"));
     });
 
     btnClearSelection.addEventListener("click", () => {
         groupTreeContainer.querySelectorAll(".tree-checkbox").forEach(cb => cb.checked = false);
+        teacherListContainer.querySelectorAll(".teacher-checkbox").forEach(cb => cb.checked = false);
         selectedGroupPatterns.clear();
+        selectedTeachers.clear();
+        saveSelectedTeachers();
         activeCourses = [];
         renderTimetableGrid();
     });
@@ -363,7 +455,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function fetchCourses() {
         const patterns = Array.from(selectedGroupPatterns);
-        if (patterns.length === 0) {
+        const teachers = Array.from(selectedTeachers);
+        if (patterns.length === 0 && teachers.length === 0) {
             activeCourses = [];
             return;
         }
@@ -375,6 +468,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     patterns: patterns,
+                    teachers: teachers,
                     start_date: range.start,
                     end_date: range.end
                 })
@@ -1161,5 +1255,6 @@ document.addEventListener("DOMContentLoaded", () => {
         fetchSchedule();
     }
     loadGroupTree();
+    loadTeachers();
 
 });

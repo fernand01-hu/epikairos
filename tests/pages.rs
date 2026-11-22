@@ -87,6 +87,7 @@ async fn planning_page_has_no_events_tab_or_collapse_arrow() {
     let body = app.get("/planning", Some(USER)).await.body;
     assert!(body.contains(r#"id="groupTreeContainer""#));
     assert!(body.contains(r#"id="btnToggleSidebar""#));
+    assert!(body.contains(r#"id="teacherListContainer""#), "Professeurs section");
     for gone in ["tabEventsBtn", "eventsPanel", "btnCloseSidebar", "toggleSidebarLabel"] {
         assert!(!body.contains(gone), "{gone} should be gone");
     }

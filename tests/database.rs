@@ -139,7 +139,7 @@ fn group_schedule_matches_patterns_and_dates_and_skips_cancelled() {
     )
     .unwrap();
 
-    let found = db::query_courses_by_groups(&conn, &["S3 Lyon L3".to_string()], Some("2026-11-01"), Some("2026-11-30")).unwrap();
+    let found = db::query_courses_by_groups(&conn, &["S3 Lyon L3".to_string()], &[], Some("2026-11-01"), Some("2026-11-30")).unwrap();
     let names: Vec<&str> = found.iter().map(|c| c.course_name.as_str()).collect();
     assert_eq!(names, ["L3 course"]);
 }
@@ -148,7 +148,7 @@ fn group_schedule_matches_patterns_and_dates_and_skips_cancelled() {
 fn group_patterns_are_bound_parameters_not_sql() {
     let mut conn = memory_db();
     db::ingest_courses(&mut conn, &[course("1", "2026-11-02T09:00:00", "2026-11-02T10:00:00", "A", "", "G1")], true).unwrap();
-    let found = db::query_courses_by_groups(&conn, &["' OR 1=1 --".to_string()], None, None).unwrap();
+    let found = db::query_courses_by_groups(&conn, &["' OR 1=1 --".to_string()], &["' OR 1=1 --".to_string()], None, None).unwrap();
     assert!(found.is_empty());
     let n: i64 = conn.query_row("SELECT COUNT(*) FROM courses", [], |r| r.get(0)).unwrap();
     assert_eq!(n, 1, "table intact");
@@ -182,4 +182,63 @@ async fn group_tree_and_schedule_endpoints() {
     assert_eq!(data["count"], 1);
     assert_eq!(data["courses"][0]["course_name"], "Graphes");
     assert_eq!(data["courses"][0]["rooms"][0], "Salle 309");
+}
+
+#[test]
+fn teacher_schedule_matches_exact_names_in_any_case() {
+    let mut conn = memory_db();
+    let mut a = course("1", "2026-11-02T09:00:00", "2026-11-02T10:00:00", "Graphes", "", "G1");
+    a.teachers = vec!["François BONI".into()];
+    let mut b = course("2", "2026-11-03T09:00:00", "2026-11-03T10:00:00", "Algèbre", "", "G2");
+    b.teachers = vec!["Zeina AL DAWOUD".into()];
+    let mut c = course("3", "2026-11-04T09:00:00", "2026-11-04T10:00:00", "Physique", "", "G3");
+    c.teachers = vec!["François BONIFACE".into()];
+    db::ingest_courses(&mut conn, &[a, b, c], true).unwrap();
+
+    let found = db::query_courses_by_groups(&conn, &[], &["françois boni".to_string()], None, None).unwrap();
+    let names: Vec<&str> = found.iter().map(|c| c.course_name.as_str()).collect();
+    assert_eq!(names, ["Graphes"], "exact name only, not BONIFACE");
+
+    // Groups and teachers add up
+    let both = db::query_courses_by_groups(&conn, &["G2".to_string()], &["François BONI".to_string()], None, None).unwrap();
+    assert_eq!(both.len(), 2);
+
+    // Nothing selected returns nothing
+    assert!(db::query_courses_by_groups(&conn, &[], &[], None, None).unwrap().is_empty());
+}
+
+#[test]
+fn teacher_list_counts_active_courses_only() {
+    let mut conn = memory_db();
+    let mut a = course("1", "2026-11-02T09:00:00", "2026-11-02T10:00:00", "A", "", "");
+    a.teachers = vec!["Zoe Prof".into()];
+    let mut b = course("2", "2026-11-03T09:00:00", "2026-11-03T10:00:00", "B", "", "");
+    b.teachers = vec!["zoe prof".into(), "Alan Turing".into()];
+    let mut x = cancelled(course("3", "2026-11-04T09:00:00", "2026-11-04T10:00:00", "X", "", ""));
+    x.teachers = vec!["Only Cancelled".into()];
+    db::ingest_courses(&mut conn, &[a, b, x], true).unwrap();
+
+    let list = db::list_teachers(&conn).unwrap();
+    assert_eq!(list, vec![("Alan Turing".to_string(), 1), ("Zoe Prof".to_string(), 2)]);
+}
+
+#[tokio::test]
+async fn teachers_endpoint_and_schedule_by_teacher() {
+    let app = TestApp::new();
+    assert_eq!(app.get("/api/teachers", None).await.status, StatusCode::UNAUTHORIZED);
+
+    let mut c = course("1", "2026-11-02T09:00:00Z", "2026-11-02T10:00:00Z", "Graphes", "Salle 305", "G1");
+    c.teachers = vec!["François BONI".into()];
+    app.ingest(&[c]);
+
+    let list = app.get("/api/teachers", Some("alice.martin")).await.json();
+    assert_eq!(list["teachers"][0]["name"], "François BONI");
+    assert_eq!(list["teachers"][0]["courses"], 1);
+
+    let res = app
+        .post("/api/groups/schedule", Some("alice.martin"), serde_json::json!({ "teachers": ["François BONI"] }))
+        .await
+        .json();
+    assert_eq!(res["count"], 1);
+    assert_eq!(res["courses"][0]["teachers"][0], "François BONI");
 }
