@@ -1132,7 +1132,7 @@ i.bi[class*="text-"] {
 .fp-room.is-busy polygon { fill: var(--fp-busy); stroke: var(--fp-busy-stroke); }
 .fp-room.is-unknown polygon { fill: var(--fp-unknown); stroke: var(--border-strong); }
 .fp-room.is-unknown text { fill: var(--text-3) !important; }
-.fp-room.is-office polygon { fill: var(--surface-2); stroke: var(--border-strong); }
+.fp-room.is-office polygon { fill: var(--fp-unknown); stroke: var(--border-strong); }
 
 .fp-room[role="button"] { cursor: pointer; outline: none; }
 .fp-room[role="button"]:hover polygon,
