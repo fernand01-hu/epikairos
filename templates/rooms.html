@@ -52,6 +52,12 @@
         <span class="small text-muted" id="searchIntervalLabel"></span>
     </div>
     <div class="d-flex align-items-center gap-2">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Affichage">
+            <input type="radio" class="btn-check" name="roomsView" id="viewPlanBtn" value="plan" autocomplete="off" checked>
+            <label class="btn btn-outline-secondary" for="viewPlanBtn">Plan</label>
+            <input type="radio" class="btn-check" name="roomsView" id="viewListBtn" value="list" autocomplete="off">
+            <label class="btn btn-outline-secondary" for="viewListBtn">Liste</label>
+        </div>
         <input type="text" id="roomFilterInput" class="form-control form-control-sm" placeholder="Filtrer les salles" style="max-width: 220px;">
         <button type="button" class="btn btn-sm btn-outline-secondary icon-btn" id="refreshBtn" title="Actualiser" aria-label="Actualiser">
             <i class="bi bi-arrow-clockwise"></i>
@@ -62,6 +68,35 @@
 <div id="roomsLoading" class="text-center py-5 d-none">
     <div class="spinner-border spinner-border-sm text-muted" role="status">
         <span class="visually-hidden">Recherche des salles...</span>
+    </div>
+</div>
+
+<div id="floorPlanSection" class="mb-4 d-none">
+    <div class="row g-3">
+        <div class="col-lg-9">
+            <div class="card p-2 p-sm-3 floorplan-card">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-1 mb-2">
+                    <span class="section-label">3e étage</span>
+                    <div class="fp-legend small text-muted">
+                        <span><i class="fp-swatch is-free"></i>Libre</span>
+                        <span><i class="fp-swatch is-busy"></i>Occupée</span>
+                        <span><i class="fp-swatch is-unknown"></i>Pas de données</span>
+                    </div>
+                </div>
+                <div class="floorplan-scroll">
+                    <div id="floorPlanContainer"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div class="card p-3 fp-details" id="floorPlanDetails" aria-live="polite">
+                <div class="small text-muted">Cliquez sur une salle pour voir son occupation.</div>
+            </div>
+            <div class="card p-3 mt-3 d-none" id="offPlanCard">
+                <span class="section-label mb-2 d-block">Autres étages</span>
+                <div id="offPlanList" class="d-flex flex-wrap gap-1"></div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -90,5 +125,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261024"></script>
+<script src="{{ url_for('static', filename='js/floorplan.js') }}?v=20261122"></script>
+<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261122"></script>
 {% endblock %}

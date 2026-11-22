@@ -1067,3 +1067,126 @@ i.bi[class*="text-"] {
     outline: 2px solid var(--accent);
     outline-offset: 3px;
 }
+
+/* ==========================================================================
+   Floor plan (Salles libres → Plan)
+   ========================================================================== */
+
+:root {
+    --fp-free: rgba(22, 163, 74, 0.16);
+    --fp-free-stroke: #16a34a;
+    --fp-busy: rgba(220, 38, 38, 0.13);
+    --fp-busy-stroke: #dc2626;
+}
+
+[data-bs-theme="dark"] {
+    --fp-free: rgba(34, 197, 94, 0.2);
+    --fp-free-stroke: #22c55e;
+    --fp-busy: rgba(248, 113, 113, 0.18);
+    --fp-busy-stroke: #f87171;
+}
+
+.floorplan-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#floorPlanContainer {
+    min-width: 640px;
+}
+
+.floorplan-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.fp-outline {
+    fill: var(--surface-2);
+    stroke: var(--border-strong);
+    stroke-width: 4;
+    stroke-linejoin: round;
+}
+
+.fp-room polygon {
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    transition: fill 0.15s, stroke-width 0.15s, opacity 0.15s;
+}
+
+.fp-room text {
+    pointer-events: none;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    fill: var(--text);
+}
+
+.fp-num { font-size: 26px; font-weight: 700; }
+.fp-num-sm { font-size: 15px; font-weight: 600; fill: var(--text-3) !important; }
+.fp-sub { font-size: 14px; fill: var(--text-2) !important; }
+.fp-until { font-weight: 600; fill: var(--fp-busy-stroke) !important; }
+
+.fp-room.is-free polygon { fill: var(--fp-free); stroke: var(--fp-free-stroke); }
+.fp-room.is-busy polygon { fill: var(--fp-busy); stroke: var(--fp-busy-stroke); }
+.fp-room.is-unknown polygon { fill: var(--surface); stroke: var(--border-strong); stroke-dasharray: 6 5; }
+.fp-room.is-office polygon { fill: var(--surface-2); stroke: var(--border-strong); }
+
+.fp-room[role="button"] { cursor: pointer; outline: none; }
+.fp-room[role="button"]:hover polygon,
+.fp-room[role="button"]:focus-visible polygon { stroke-width: 5; }
+.fp-room.is-selected polygon { stroke: var(--accent) !important; stroke-width: 6; stroke-dasharray: none; }
+.fp-room.is-dimmed { opacity: 0.25; }
+
+.fp-legend { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+.fp-legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+
+.fp-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1.5px solid;
+}
+.fp-swatch.is-free { background: var(--fp-free); border-color: var(--fp-free-stroke); }
+.fp-swatch.is-busy { background: var(--fp-busy); border-color: var(--fp-busy-stroke); }
+.fp-swatch.is-unknown { background: var(--surface); border: 1.5px dashed var(--border-strong); }
+
+.fp-details { min-height: 120px; }
+
+.fp-detail-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.fp-detail-status {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    margin: 0.35rem 0 0.6rem;
+}
+.fp-detail-status.is-free { color: var(--ok); }
+.fp-detail-status.is-busy { color: var(--danger); }
+
+.fp-detail-row {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.8125rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--border);
+}
+.fp-detail-row .text-muted { font-size: 0.75rem; }
+
+.room-dot.is-busy { background-color: var(--danger); }
+.room-dot.is-unknown { background-color: var(--text-3); }
+
+.fp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+}

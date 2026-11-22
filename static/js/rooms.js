@@ -28,7 +28,37 @@ document.addEventListener("DOMContentLoaded", () => {
     const occupiedRoomsSection = document.getElementById("occupiedRoomsSection");
     const occupiedRoomsGrid = document.getElementById("occupiedRoomsGrid");
 
+    const floorPlanSection = document.getElementById("floorPlanSection");
+    const floorPlanContainer = document.getElementById("floorPlanContainer");
+    const floorPlanDetails = document.getElementById("floorPlanDetails");
+    const offPlanCard = document.getElementById("offPlanCard");
+    const offPlanList = document.getElementById("offPlanList");
+    const roomsResultsContainer = document.getElementById("roomsResultsContainer");
+
     let lastData = null;
+    let selectedRoom = null;
+
+    function readStoredView() {
+        if (location.hash === "#plan") return "plan";
+        if (location.hash === "#liste") return "list";
+        try { return localStorage.getItem("roomsView") || "plan"; } catch (e) { return "plan"; }
+    }
+    let currentView = readStoredView();
+    const viewRadio = document.querySelector(`input[name="roomsView"][value="${currentView}"]`);
+    if (viewRadio) viewRadio.checked = true;
+
+    document.querySelectorAll('input[name="roomsView"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+            currentView = radio.value;
+            try { localStorage.setItem("roomsView", currentView); } catch (e) { /* private mode */ }
+            history.replaceState(null, "", currentView === "plan" ? "#plan" : "#liste");
+            if (lastData) renderView(lastData, currentFilter());
+        });
+    });
+
+    function currentFilter() {
+        return roomFilterInput ? roomFilterInput.value.trim().toLowerCase() : "";
+    }
 
     function escapeHtml(str) {
         if (!str) return "";
@@ -91,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (roomFilterInput) {
         roomFilterInput.addEventListener("input", () => {
             if (lastData) {
-                renderCards(lastData, roomFilterInput.value.trim().toLowerCase());
+                renderView(lastData, currentFilter());
             }
         });
     }
@@ -116,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
         freeRoomsSection.classList.add("d-none");
         occupiedRoomsSection.classList.add("d-none");
         resultsSummaryBar.classList.add("d-none");
+        floorPlanSection.classList.add("d-none");
 
         try {
             const res = await fetch("/api/database/free-rooms", {
@@ -247,7 +278,92 @@ document.addEventListener("DOMContentLoaded", () => {
         occupiedRoomsBadge.textContent = `${data.occupied_count} salles occupées`;
         searchIntervalLabel.textContent = `Créneau : ${data.date} de ${data.start_time} à ${data.end_time}`;
 
-        renderCards(data, filterQuery);
+        renderView(data, filterQuery);
+    }
+
+    function renderView(data, filterQuery = "") {
+        const showPlan = currentView === "plan" && window.FloorPlan;
+        floorPlanSection.classList.toggle("d-none", !showPlan);
+        roomsResultsContainer.classList.toggle("d-none", showPlan);
+        if (showPlan) {
+            renderPlan(data, filterQuery);
+        } else {
+            renderCards(data, filterQuery);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Floor plan view
+    // -------------------------------------------------------------------------
+    function findEntry(data, number) {
+        const match = r => window.FloorPlan.roomNumber(r.room_name) === number;
+        const free = (data.free_rooms || []).find(match);
+        if (free) return { status: "free", room: free };
+        const busy = (data.occupied_rooms || []).find(match);
+        if (busy) return { status: "busy", room: busy };
+        return null;
+    }
+
+    function renderPlan(data, filterQuery) {
+        window.FloorPlan.render(floorPlanContainer, data, {
+            filter: filterQuery,
+            selected: selectedRoom,
+            onSelect: (def) => {
+                selectedRoom = def.id;
+                renderPlan(data, currentFilter());
+                const g = floorPlanContainer.querySelector(`[data-room="${def.id}"]`);
+                if (g) g.focus({ preventScroll: true });
+            },
+        });
+        renderDetails(data);
+        renderOffPlan(data, filterQuery);
+    }
+
+    function renderDetails(data) {
+        if (!selectedRoom) {
+            floorPlanDetails.innerHTML = '<div class="small text-muted">Cliquez sur une salle pour voir son occupation.</div>';
+            return;
+        }
+        const entry = findEntry(data, selectedRoom);
+        if (!entry) {
+            floorPlanDetails.innerHTML = `
+                <div class="fp-detail-title"><span class="room-dot is-unknown"></span>Salle ${escapeHtml(selectedRoom)}</div>
+                <div class="small text-muted mt-1">Aucun cours de cette salle n'est connu d'EpiKairos. Elle apparaîtra dès qu'un étudiant aura synchronisé un planning qui l'utilise.</div>`;
+            return;
+        }
+        const r = entry.room;
+        if (entry.status === "free") {
+            const until = r.next_course && r.next_course.start ? `jusqu'à ${escapeHtml(r.next_course.start)}` : "jusqu'au soir";
+            const next = r.next_course
+                ? `<div class="fp-detail-row"><span class="text-muted">Prochain cours</span><span>${escapeHtml(r.next_course.title)}</span><span class="text-muted">${escapeHtml(r.next_course.start)} – ${escapeHtml(r.next_course.end)}</span></div>`
+                : '<div class="small text-muted mt-2">Aucun autre cours ce jour-là.</div>';
+            floorPlanDetails.innerHTML = `
+                <div class="fp-detail-title"><span class="room-dot"></span>${escapeHtml(r.room_name)}</div>
+                <div class="fp-detail-status is-free">Libre ${until}</div>
+                ${next}`;
+        } else {
+            const c = r.current_course || {};
+            const teachers = c.teachers && c.teachers.length ? c.teachers.join(", ") : "—";
+            const groups = c.groups && c.groups.length ? c.groups.join(", ") : "—";
+            floorPlanDetails.innerHTML = `
+                <div class="fp-detail-title"><span class="room-dot is-busy"></span>${escapeHtml(r.room_name)}</div>
+                <div class="fp-detail-status is-busy">Occupée ${c.start ? `de ${escapeHtml(c.start)} ` : ""}jusqu'à ${escapeHtml(c.end || "—")}</div>
+                <div class="fp-detail-row"><span class="text-muted">Cours</span><span>${escapeHtml(c.title || "Cours")}</span></div>
+                <div class="fp-detail-row"><span class="text-muted">Enseignants</span><span>${escapeHtml(teachers)}</span></div>
+                <div class="fp-detail-row"><span class="text-muted">Groupes</span><span>${escapeHtml(groups)}</span></div>`;
+        }
+    }
+
+    function renderOffPlan(data, filterQuery) {
+        const rooms = window.FloorPlan.offPlanRooms(data)
+            .filter(e => !filterQuery || (e.room.room_name || "").toLowerCase().includes(filterQuery));
+        offPlanCard.classList.toggle("d-none", rooms.length === 0);
+        offPlanList.innerHTML = rooms.map(e => {
+            const hint = e.status === "free"
+                ? (e.room.next_course ? `Libre jusqu'à ${e.room.next_course.start}` : "Libre jusqu'au soir")
+                : `Occupée jusqu'à ${(e.room.current_course || {}).end || "—"}`;
+            return `<span class="fp-chip is-${e.status}" title="${escapeHtml(hint)}"><span class="room-dot${e.status === "busy" ? " is-busy" : ""}"></span>${escapeHtml(e.room.room_name)}</span>`;
+        }).join("");
     }
 
     // Check if ?now=1 was passed or page opened with is_now
