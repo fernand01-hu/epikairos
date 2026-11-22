@@ -163,3 +163,17 @@ async fn password_fields_can_be_revealed_and_theme_has_an_auto_mode() {
         assert!(body.contains(&format!(r#"data-target="{field}""#)), "{page}");
     }
 }
+
+#[tokio::test]
+async fn login_page_offers_the_token_with_a_guide() {
+    let app = TestApp::new();
+    let body = app.get("/login", None).await.body;
+    assert!(body.contains("trust-notice") && body.contains("bi-exclamation-triangle-fill"));
+    assert!(body.contains(r#"id="useTokenLink""#));
+    assert!(body.contains("Comment obtenir le jeton ?"));
+    assert!(body.contains("myplanning"));
+    assert!(!body.contains("5 minutes"));
+    let img = app.get("/static/img/token-guide.png", None).await;
+    assert_eq!(img.status, StatusCode::OK);
+    assert_eq!(img.header("content-type"), "image/png");
+}
