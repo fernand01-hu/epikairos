@@ -71,7 +71,11 @@ fn normalize_course_maps_auriga_fields() {
         "activityType": { "code": "CME", "caption": { "fr": "Cours magistral" }, "isExam": false },
         "interventionStatus": { "code": "ANNULE" },
         "interventionInstructors": [{ "person": { "currentFirstName": "Matthieu", "currentLastName": "RONDEAU" } }],
-        "interventionResources": [{ "resource": { "name": " Salle 301 " } }]
+        "interventionResources": [{ "resource": { "code": "KB-301", "caption": { "fr": " Salle 301 " } } }],
+        "interventionPopulations": [
+            { "population": { "code": "S3-L3", "caption": { "fr": "2627 - S3 Lyon L3" } } },
+            { "population": { "code": "S3-L2" } }
+        ]
     });
     let c = normalize_course(&raw);
     assert_eq!(c.id, "22555");
@@ -81,7 +85,21 @@ fn normalize_course_maps_auriga_fields() {
     assert!(c.is_cancelled);
     assert_eq!(c.teachers, ["Matthieu RONDEAU"]);
     assert_eq!(c.rooms, ["Salle 301"]);
+    assert_eq!(c.groups, ["2627 - S3 Lyon L3", "S3-L2"], "caption, else code");
     assert_eq!(c.start, "2026-10-07T09:00:00Z");
+    assert!(c.searchable_text.contains("Salle 301") && c.searchable_text.contains("S3 Lyon L3"));
+}
+
+#[test]
+fn normalize_course_reads_older_room_and_group_shapes() {
+    let raw = json!({
+        "id": 1,
+        "interventionResources": [{ "resource": { "name": "Amphi 310" } }, { "resource": {} }],
+        "interventionPromotions": [{ "promotion": { "name": "SUP Lyon" } }]
+    });
+    let c = normalize_course(&raw);
+    assert_eq!(c.rooms, ["Amphi 310"]);
+    assert_eq!(c.groups, ["SUP Lyon"]);
 }
 
 #[test]

@@ -39,6 +39,30 @@ fn ingest_inserts_then_updates_by_id() {
 }
 
 #[test]
+fn reimport_without_rooms_keeps_the_stored_rooms_and_groups() {
+    let mut conn = memory_db();
+    let full = course("7", "2026-01-15T08:00:00Z", "2026-01-15T09:00:00Z", "Algo", "Salle 301", "SUP L1");
+    db::ingest_courses(&mut conn, &[full.clone()], true).unwrap();
+
+    let mut bare = full.clone();
+    bare.rooms.clear();
+    bare.groups.clear();
+    bare.teachers.clear();
+    db::ingest_courses(&mut conn, &[bare], true).unwrap();
+
+    let ids = vec!["7".to_string()];
+    assert_eq!(db::fetch_course_rooms_batched(&conn, &ids).unwrap()["7"], ["Salle 301"]);
+    assert_eq!(db::fetch_course_groups_batched(&conn, &ids).unwrap()["7"], ["SUP L1"]);
+    assert_eq!(db::fetch_course_teachers_batched(&conn, &ids).unwrap()["7"], ["Ada Lovelace"]);
+
+    // A new non-empty list still replaces the old one
+    let mut moved = full;
+    moved.rooms = vec!["Salle 302".into()];
+    db::ingest_courses(&mut conn, &[moved], true).unwrap();
+    assert_eq!(db::fetch_course_rooms_batched(&conn, &ids).unwrap()["7"], ["Salle 302"]);
+}
+
+#[test]
 fn ingest_without_consent_stores_nothing() {
     let mut conn = memory_db();
     let c = course("1", "2026-01-15T08:00:00Z", "2026-01-15T09:00:00Z", "Algo", "Salle 301", "");

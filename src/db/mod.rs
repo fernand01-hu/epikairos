@@ -536,7 +536,10 @@ pub fn ingest_courses(
         }
 
         // Teachers
-        tx.execute("DELETE FROM course_teachers WHERE course_id = ?1", params![actual_id])?;
+        // An empty list from Auriga keeps what was stored before instead of erasing it.
+        if !c.teachers.is_empty() {
+            tx.execute("DELETE FROM course_teachers WHERE course_id = ?1", params![actual_id])?;
+        }
         for teacher_raw in &c.teachers {
             let t_name = sanitize_teacher_name(teacher_raw);
             if t_name.is_empty() {
@@ -556,7 +559,10 @@ pub fn ingest_courses(
         }
 
         // Rooms
-        tx.execute("DELETE FROM course_rooms WHERE course_id = ?1", params![actual_id])?;
+        // An empty list from Auriga keeps what was stored before instead of erasing it.
+        if !c.rooms.is_empty() {
+            tx.execute("DELETE FROM course_rooms WHERE course_id = ?1", params![actual_id])?;
+        }
         for room_raw in &c.rooms {
             let r_name = sanitize_room_name(room_raw);
             if r_name.is_empty() {
@@ -576,7 +582,10 @@ pub fn ingest_courses(
         }
 
         // Groups
-        tx.execute("DELETE FROM course_groups WHERE course_id = ?1", params![actual_id])?;
+        // An empty list from Auriga keeps what was stored before instead of erasing it.
+        if !c.groups.is_empty() {
+            tx.execute("DELETE FROM course_groups WHERE course_id = ?1", params![actual_id])?;
+        }
         for group_raw in &c.groups {
             let g_name = group_raw.trim();
             if g_name.is_empty() {

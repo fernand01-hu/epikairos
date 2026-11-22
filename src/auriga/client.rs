@@ -343,6 +343,29 @@ impl AurigaClient {
     }
 }
 
+/// Labels of `item[array_key][*][object_key]`: its French caption, else its code,
+/// else the first of `extra_keys` that is set. Blank labels are skipped.
+fn list_of(item: &serde_json::Value, array_key: &str, object_key: &str, extra_keys: &[&str]) -> Vec<String> {
+    let Some(entries) = item.get(array_key).and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let obj = entry.get(object_key)?;
+            let caption = obj.get("caption").and_then(|c| c.get("fr").or_else(|| c.get("en")));
+            std::iter::once(caption)
+                .chain(std::iter::once(obj.get("code")))
+                .chain(extra_keys.iter().map(|k| obj.get(*k)))
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(str::trim)
+                .find(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+        .collect()
+}
+
 pub fn normalize_course(item: &serde_json::Value) -> Course {
     let id = item.get("id").and_then(|v| v.as_i64()).map(|n| n.to_string()).unwrap_or_else(|| "0".to_string());
     let start = item.get("startDateTime").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -388,32 +411,14 @@ pub fn normalize_course(item: &serde_json::Value) -> Course {
         }
     }
 
-    let mut rooms = Vec::new();
-    if Some(true) == item.get("interventionResources").map(|v| v.is_array()) {
-        if let Some(arr) = item.get("interventionResources").and_then(|v| v.as_array()) {
-            for res in arr {
-                if let Some(r_name) = res.get("resource").and_then(|r| r.get("name")).and_then(|v| v.as_str()) {
-                    let clean = r_name.trim();
-                    if !clean.is_empty() {
-                        rooms.push(clean.to_string());
-                    }
-                }
-            }
-        }
-    }
+    // Rooms: interventionResources[].resource -> caption.fr, else code, else name
+    let rooms = list_of(item, "interventionResources", "resource", &["name"]);
 
-    let mut groups = Vec::new();
-    if Some(true) == item.get("interventionPromotions").map(|v| v.is_array()) {
-        if let Some(arr) = item.get("interventionPromotions").and_then(|v| v.as_array()) {
-            for promo in arr {
-                if let Some(p_name) = promo.get("promotion").and_then(|p| p.get("name")).and_then(|v| v.as_str()) {
-                    let clean = p_name.trim();
-                    if !clean.is_empty() {
-                        groups.push(clean.to_string());
-                    }
-                }
-            }
-        }
+    // Groups: interventionPopulations[].population -> caption.fr, else code
+    // (older payloads used interventionPromotions[].promotion.name)
+    let mut groups = list_of(item, "interventionPopulations", "population", &[]);
+    if groups.is_empty() {
+        groups = list_of(item, "interventionPromotions", "promotion", &["name"]);
     }
 
     let duration = if !start.is_empty() && !end.is_empty() {
