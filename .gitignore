@@ -30,3 +30,4 @@ __pycache__/
 
 # Wrangler local cache
 .wrangler/
+.uptimerobot_key

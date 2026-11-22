@@ -316,6 +316,7 @@ pub async fn health_handler(State(state): State<AppState>, cookies: Cookies, hea
         .is_some_and(|a| a.contains("text/html"));
     if wants_html {
         let session_val = session_context(&state, &cookies).await;
+        let strip = crate::uptime::status().await;
         let paris: DateTime<chrono_tz::Tz> = Utc::now().with_timezone(&Paris);
         let rendered = state.jinja.get_template("health.html").and_then(|t| {
             t.render(minijinja::context! {
@@ -326,6 +327,7 @@ pub async fn health_handler(State(state): State<AppState>, cookies: Cookies, hea
                 uptime_hours => (uptime % 86400) / 3600,
                 uptime_minutes => (uptime % 3600) / 60,
                 checked_at => paris.format("%d/%m/%Y %H:%M:%S").to_string(),
+                uptime => strip,
                 session => session_val,
             })
         });

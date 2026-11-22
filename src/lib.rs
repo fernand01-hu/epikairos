@@ -10,6 +10,7 @@ pub mod routes;
 pub mod session;
 pub mod state;
 pub mod templates;
+pub mod uptime;
 
 use axum::{
     middleware::{from_fn, from_fn_with_state},

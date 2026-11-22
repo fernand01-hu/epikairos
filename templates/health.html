@@ -19,6 +19,19 @@
             <span>{% if uptime_days %}{{ uptime_days }} {{ _("j") }} {% endif %}{{ uptime_hours }} {{ _("h") }} {{ uptime_minutes }} {{ _("min") }}</span></li>
     </ul>
 
+    {% if uptime %}
+    <div class="uptime-strip">
+        <div class="uptime-head">
+            <span>{{ _("Disponibilité") }}</span>
+            {% if uptime.total is not none %}<strong>{{ "%.2f"|format(uptime.total) }} % <span class="text-muted">{{ _("sur 30 jours") }}</span></strong>{% endif %}
+        </div>
+        <div class="uptime-bars" role="img" aria-label="{{ _("Disponibilité") }} {{ _("sur 30 jours") }}">
+            {% for d in uptime.days %}<i class="uptime-bar is-{{ d.class }}" title="{{ d.label }} : {{ ('%.2f %%'|format(d.ratio)) if d.ratio is not none else _('pas de données') }}"></i>{% endfor %}
+        </div>
+        <div class="text-muted small mt-1 text-start">{{ _("Données UptimeRobot") }}</div>
+    </div>
+    {% endif %}
+
     <p class="text-muted small mt-3 mb-0">{{ _("Vérifié le {date}") | replace("{date}", checked_at) }}</p>
     <p class="text-muted small">{{ _("Les outils de surveillance reçoivent cette page en JSON.") }}</p>
 </div>
