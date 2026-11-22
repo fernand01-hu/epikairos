@@ -1077,6 +1077,7 @@ i.bi[class*="text-"] {
     --fp-free-stroke: #16a34a;
     --fp-busy: rgba(220, 38, 38, 0.13);
     --fp-busy-stroke: #dc2626;
+    --fp-unknown: #d4d4d8;
 }
 
 [data-bs-theme="dark"] {
@@ -1084,6 +1085,7 @@ i.bi[class*="text-"] {
     --fp-free-stroke: #22c55e;
     --fp-busy: rgba(248, 113, 113, 0.18);
     --fp-busy-stroke: #f87171;
+    --fp-unknown: #3f3f46;
 }
 
 .floorplan-scroll {
@@ -1128,7 +1130,8 @@ i.bi[class*="text-"] {
 
 .fp-room.is-free polygon { fill: var(--fp-free); stroke: var(--fp-free-stroke); }
 .fp-room.is-busy polygon { fill: var(--fp-busy); stroke: var(--fp-busy-stroke); }
-.fp-room.is-unknown polygon { fill: var(--surface); stroke: var(--border-strong); stroke-dasharray: 6 5; }
+.fp-room.is-unknown polygon { fill: var(--fp-unknown); stroke: var(--border-strong); }
+.fp-room.is-unknown text { fill: var(--text-3) !important; }
 .fp-room.is-office polygon { fill: var(--surface-2); stroke: var(--border-strong); }
 
 .fp-room[role="button"] { cursor: pointer; outline: none; }
@@ -1149,7 +1152,7 @@ i.bi[class*="text-"] {
 }
 .fp-swatch.is-free { background: var(--fp-free); border-color: var(--fp-free-stroke); }
 .fp-swatch.is-busy { background: var(--fp-busy); border-color: var(--fp-busy-stroke); }
-.fp-swatch.is-unknown { background: var(--surface); border: 1.5px dashed var(--border-strong); }
+.fp-swatch.is-unknown { background: var(--fp-unknown); border-color: var(--border-strong); }
 
 .fp-details { min-height: 120px; }
 

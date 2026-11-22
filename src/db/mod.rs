@@ -369,8 +369,19 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
 
+    // Classrooms on the floor plan that no synced planning has used yet: list
+    // them so the free-rooms search shows them as free instead of unknown.
+    for name in KNOWN_CLASSROOMS {
+        conn.execute(
+            "INSERT INTO rooms (name) VALUES (?1) ON CONFLICT(name) DO NOTHING;",
+            params![name],
+        )?;
+    }
+
     Ok(())
 }
+
+const KNOWN_CLASSROOMS: &[&str] = &["Salle 317", "Salle 327", "Salle 329", "Salle 332"];
 
 pub fn ingest_courses(
     conn: &mut Connection,
