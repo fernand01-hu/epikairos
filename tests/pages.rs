@@ -150,3 +150,16 @@ async fn service_worker_leaves_other_origins_alone() {
     assert!(res.body.contains("url.origin !== self.location.origin"));
     assert!(!res.body.contains("cdn.jsdelivr.net"), "CDN files must not be precached by the worker");
 }
+
+#[tokio::test]
+async fn password_fields_can_be_revealed_and_theme_has_an_auto_mode() {
+    let app = TestApp::new();
+    let login = app.get("/login", None).await.body;
+    assert!(login.contains(r#"data-target="passwordInput""#), "eye button on the login page");
+    assert!(login.contains("bi-circle-half"), "theme button starts in automatic mode");
+    assert!(login.contains("prefers-color-scheme: dark"));
+    for (page, field) in [("/personal", "modalPasswordInput"), ("/planning", "modalPassword")] {
+        let body = app.get(page, Some("alice.martin")).await.body;
+        assert!(body.contains(&format!(r#"data-target="{field}""#)), "{page}");
+    }
+}

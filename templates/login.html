@@ -48,7 +48,10 @@
                         </div>
                         <div>
                             <label for="passwordInput" class="form-label">Mot de passe</label>
-                            <input type="password" class="form-control" id="passwordInput" autocomplete="current-password">
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="passwordInput" autocomplete="current-password">
+                                <button class="btn btn-outline-secondary password-toggle" type="button" data-target="passwordInput" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe"><i class="bi bi-eye"></i></button>
+                            </div>
                         </div>
                     </div>
 

@@ -9,9 +9,10 @@
     <script>
         (function() {
             try {
+                // 'light' or 'dark' is a fixed choice; anything else follows the device.
                 const savedTheme = localStorage.getItem('theme');
                 const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const theme = savedTheme ? savedTheme : (systemDark ? 'dark' : 'light');
+                const theme = (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : (systemDark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-bs-theme', theme);
             } catch (e) {}
             // Older versions stored the Auriga password here: keep only the login name.
@@ -41,7 +42,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261122j">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261122k">
     {% block head %}{% endblock %}
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -66,8 +67,8 @@
                     {% endif %}
                 </ul>
                 <div class="d-flex align-items-center gap-2 pb-2 pb-lg-0">
-                    <button id="themeToggleBtn" type="button" class="btn btn-link icon-btn" title="Basculer thème clair / sombre" aria-label="Basculer thème clair / sombre">
-                        <i class="bi bi-moon" id="themeIcon"></i>
+                    <button id="themeToggleBtn" type="button" class="btn btn-link icon-btn" title="Thème : automatique" aria-label="Thème : automatique">
+                        <i class="bi bi-circle-half" id="themeIcon"></i>
                     </button>
                     <a href="https://github.com/fernand01-hu/zeus-v2" target="_blank" rel="noopener" class="btn btn-link icon-btn" title="Code source GitHub" aria-label="Code source GitHub">
                         <i class="bi bi-github"></i>
@@ -119,35 +120,74 @@
             });
         }
 
-        // Dark Mode Toggle Controller
+        // Theme: Auto (follows the device) -> Light -> Dark -> Auto
         (function() {
             const toggleBtn = document.getElementById('themeToggleBtn');
             const icon = document.getElementById('themeIcon');
+            const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+            const MODES = {
+                auto: { icon: 'bi bi-circle-half', label: 'Thème : automatique' },
+                light: { icon: 'bi bi-sun', label: 'Thème : clair' },
+                dark: { icon: 'bi bi-moon', label: 'Thème : sombre' },
+            };
+            const NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
 
-            function syncIcon(theme) {
-                if (!icon) return;
-                if (theme === 'dark') {
-                    icon.className = 'bi bi-sun';
-                } else {
-                    icon.className = 'bi bi-moon';
+            function readMode() {
+                try {
+                    const saved = localStorage.getItem('theme');
+                    return saved === 'light' || saved === 'dark' ? saved : 'auto';
+                } catch (e) {
+                    return 'auto';
                 }
             }
 
-            const currentTheme = document.documentElement.getAttribute('data-bs-theme') || 'light';
-            syncIcon(currentTheme);
+            function apply(mode) {
+                const theme = mode === 'auto' ? (media && media.matches ? 'dark' : 'light') : mode;
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                if (icon) icon.className = MODES[mode].icon;
+                if (toggleBtn) {
+                    toggleBtn.title = MODES[mode].label;
+                    toggleBtn.setAttribute('aria-label', MODES[mode].label);
+                }
+                window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: theme, mode: mode } }));
+            }
+
+            let mode = readMode();
+            apply(mode);
 
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', () => {
-                    const activeTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-                    document.documentElement.setAttribute('data-bs-theme', activeTheme);
+                    mode = NEXT[mode];
                     try {
-                        localStorage.setItem('theme', activeTheme);
+                        if (mode === 'auto') localStorage.removeItem('theme');
+                        else localStorage.setItem('theme', mode);
                     } catch (e) {}
-                    syncIcon(activeTheme);
-                    window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: activeTheme } }));
+                    apply(mode);
                 });
             }
+
+            // In auto mode, follow the device live (e.g. iPhone switching to dark at sunset)
+            if (media) {
+                const onChange = () => { if (mode === 'auto') apply('auto'); };
+                if (media.addEventListener) media.addEventListener('change', onChange);
+                else if (media.addListener) media.addListener(onChange);
+            }
         })();
+
+        // Show / hide password fields
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.password-toggle');
+            if (!btn) return;
+            const input = document.getElementById(btn.dataset.target);
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            const label = show ? 'Masquer le mot de passe' : 'Afficher le mot de passe';
+            btn.setAttribute('aria-pressed', String(show));
+            btn.setAttribute('aria-label', label);
+            btn.title = label;
+            btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
     </script>
     {% block scripts %}{% endblock %}
 </body>

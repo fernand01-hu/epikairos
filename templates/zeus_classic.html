@@ -4,7 +4,7 @@
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122j">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122k">
 {% endblock %}
 
 {% block main_container_class %}container-fluid px-3 py-3{% endblock %}
@@ -187,7 +187,10 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label small">Mot de passe</label>
-                        <input type="password" class="form-control form-control-sm" id="modalPassword" placeholder="••••••••">
+                        <div class="input-group input-group-sm">
+                            <input type="password" class="form-control" id="modalPassword" placeholder="••••••••" autocomplete="current-password">
+                            <button class="btn btn-outline-secondary password-toggle" type="button" data-target="modalPassword" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe"><i class="bi bi-eye"></i></button>
+                        </div>
                     </div>
                     <div class="row g-2 mb-3">
                         <div class="col-6">

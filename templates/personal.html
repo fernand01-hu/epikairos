@@ -123,7 +123,10 @@
                             <input type="text" class="form-control form-control-sm" id="modalUsernameInput" placeholder="prenom.nom@epita.fr">
                         </div>
                         <div class="col-sm-6">
-                            <input type="password" class="form-control form-control-sm" id="modalPasswordInput" placeholder="Mot de passe">
+                            <div class="input-group input-group-sm">
+                                <input type="password" class="form-control" id="modalPasswordInput" placeholder="Mot de passe" autocomplete="current-password">
+                                <button class="btn btn-outline-secondary password-toggle" type="button" data-target="modalPasswordInput" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe"><i class="bi bi-eye"></i></button>
+                            </div>
                         </div>
                     </div>
                     <div class="text-end">

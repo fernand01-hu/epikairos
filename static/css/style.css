@@ -1159,3 +1159,14 @@ a {
     z-index: 2;
     pointer-events: none;
 }
+
+/* Checkboxes: in dark mode the accent (fill of a checked box) is near-white,
+   so the checkmark has to be dark to stay visible. */
+[data-bs-theme="dark"] .form-check-input:checked[type="checkbox"] {
+    --bs-form-check-bg-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%2318181b' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+}
+
+/* Show / hide password button */
+.password-toggle {
+    color: var(--text-2);
+}

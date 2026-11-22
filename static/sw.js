@@ -3,7 +3,7 @@
  * Version: 1.1.0
  */
 
-const CACHE_NAME = 'epikairos-shell-v6';
+const CACHE_NAME = 'epikairos-shell-v7';
 const CORE_ASSETS = [
     '/manifest.json',
     '/static/css/style.css',
