@@ -173,14 +173,6 @@ i.bi[class*="text-"] {
     letter-spacing: -0.01em;
 }
 
-.app-nav .brand-mark {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 3px;
-    background-color: var(--accent);
-}
-
 .app-nav .nav-link {
     color: var(--text-2);
     font-size: 0.875rem;
