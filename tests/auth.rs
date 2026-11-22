@@ -185,3 +185,16 @@ fn jwt(claims: serde_json::Value) -> String {
         URL_SAFE_NO_PAD.encode(claims.to_string())
     )
 }
+
+#[tokio::test]
+async fn crawlers_are_kept_out_of_the_whole_site() {
+    let app = TestApp::new();
+    let robots = app.get("/robots.txt", None).await;
+    assert_eq!(robots.status, StatusCode::OK, "public, no login needed");
+    assert!(robots.header("content-type").starts_with("text/plain"));
+    assert_eq!(robots.body, "User-agent: *\nDisallow: /\n");
+
+    for res in [app.get("/login", None).await, app.get("/personal", Some("alice.martin")).await, app.get("/health", None).await] {
+        assert_eq!(res.header("x-robots-tag"), "noindex, nofollow, noarchive");
+    }
+}

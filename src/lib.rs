@@ -67,6 +67,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/my-calendar", get(routes::web::personal_handler))
         .route("/custom-calendar", get(routes::web::custom_calendar_handler))
         .route("/rooms", get(routes::web::rooms_handler))
+        .route("/robots.txt", get(routes::web::robots_handler))
         .route("/manifest.json", get(routes::web::manifest_handler))
         .route("/sw.js", get(routes::web::service_worker_handler))
         .route("/offline", get(routes::web::offline_handler))

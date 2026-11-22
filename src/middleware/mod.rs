@@ -29,6 +29,11 @@ pub async fn security_headers_middleware(req: Request<Body>, next: Next) -> Resp
         header::HeaderName::from_static("referrer-policy"),
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
+    // Keep every page and feed out of search engines, even for crawlers that skip robots.txt
+    headers.insert(
+        header::HeaderName::from_static("x-robots-tag"),
+        HeaderValue::from_static("noindex, nofollow, noarchive"),
+    );
     headers.insert(
         header::HeaderName::from_static("permissions-policy"),
         HeaderValue::from_static("geolocation=(), microphone=(), camera=()"),
@@ -63,6 +68,7 @@ pub async fn auth_middleware(
         || path == "/logout"
         || path == "/api/fetch-planning"
         || path == "/manifest.json"
+        || path == "/robots.txt"
         || path == "/sw.js"
         || path == "/offline"
         || path == "/health";

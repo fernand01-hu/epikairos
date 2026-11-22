@@ -190,6 +190,14 @@ pub async fn rooms_handler(
     Ok(Html(rendered))
 }
 
+/// Tells every crawler to stay out of the whole site.
+pub async fn robots_handler() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "User-agent: *\nDisallow: /\n",
+    )
+}
+
 pub async fn manifest_handler() -> impl IntoResponse {
     let content = tokio::fs::read_to_string("static/manifest.json")
         .await
