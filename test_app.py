@@ -217,7 +217,8 @@ class TestFlaskApp(unittest.TestCase):
         # Rooms page
         res = self.client.get("/rooms")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Salles Libres", res.data)
+        self.assertIn(b"Salles libres", res.data)
+        self.assertIn(b'id="floorPlanContainer"', res.data)
 
     def test_database_apis(self):
         self.login_client()
@@ -340,8 +341,8 @@ class TestFlaskApp(unittest.TestCase):
         self.login_client()
         res = self.client.get("/rooms?now=1")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b'data-is-now="1"', res.data)
-        self.assertIn(b"Maintenant", res.data)
+        # The page always shows the live status; ?now=1 is still accepted
+        self.assertIn(b'id="dayBtn"', res.data)
 
     def test_dark_mode_and_pwa_markup(self):
         self.login_client()
