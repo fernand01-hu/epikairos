@@ -63,17 +63,17 @@
                     <div class="tab-pane fade" id="tab-token" role="tabpanel">
                         <label for="tokenInput" class="form-label">Jeton Auriga (Bearer)</label>
                         <textarea class="form-control font-monospace small" id="tokenInput" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."></textarea>
-                        <div class="form-text">Le jeton n'est valable que quelques minutes et ne contient pas votre mot de passe.</div>
+                        <div class="form-text">Le jeton n'est valable qu'<strong>une minute</strong> après le chargement de la page Auriga, et ne contient pas votre mot de passe.</div>
 
                         <details class="token-guide mt-3">
                             <summary>Comment obtenir le jeton ?</summary>
                             <ol class="token-steps">
                                 <li>Sur <strong>auriga.epita.fr</strong>, connecté, ouvrez les outils de développement (<strong>F12</strong>) puis l'onglet <strong>Réseau</strong> (Network).</li>
-                                <li>Appuyez sur <strong>F5</strong> pour recharger la page.</li>
+                                <li>Appuyez sur <strong>F5</strong> pour recharger la page. La minute commence à ce moment-là : préparez l'onglet EpiKairos avant.</li>
                                 <li>Dans le filtre, tapez <code>myplanning</code> puis cliquez sur la ligne qui apparaît.</li>
                                 <li>Ouvrez l'onglet <strong>Headers</strong> (En-têtes), section Request Headers.</li>
                                 <li>Clic droit sur <strong>Authorization</strong> puis <strong>Copier la valeur</strong>. Ne sélectionnez pas le texte à la souris : Firefox le raccourcit avec « … ».</li>
-                                <li>Collez-le ci-dessus et validez tout de suite.</li>
+                                <li>Collez-le ci-dessus et validez dans la minute qui suit le F5. Trop tard ? Refaites F5 dans Auriga et recopiez.</li>
                             </ol>
                             <a href="{{ url_for('static', filename='img/token-guide.png') }}" target="_blank" rel="noopener" title="Agrandir l'image">
                                 <img src="{{ url_for('static', filename='img/token-guide.png') }}" class="token-guide-img" alt="Outils de développement de Firefox, avec les étapes 1 à 5 marquées en rouge" loading="lazy">
@@ -193,7 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (parts.length === 3) {
                     const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
                     if (payload.exp && Date.now() / 1000 > payload.exp) {
-                        showAlert("Ce jeton a expiré : il n'est valable que quelques minutes. Rechargez Auriga (F5), copiez le nouveau jeton et collez-le tout de suite.");
+                        showAlert("Ce jeton a expiré : il n'est valable qu'une minute. Rechargez Auriga (F5), copiez le nouveau jeton et collez-le tout de suite.");
                         return;
                     }
                 }

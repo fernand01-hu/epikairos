@@ -149,7 +149,7 @@ impl AurigaClient {
         if let Some(claims) = decode_jwt_claims(&clean) {
             if let Some(exp) = claims.get("exp").and_then(|e| e.as_i64()) {
                 if Utc::now().timestamp() > exp {
-                    return Err("Ce jeton d'accès Auriga a expiré : il n'est valable que quelques minutes. Rechargez Auriga (F5), copiez le nouveau jeton et collez-le tout de suite.".to_string());
+                    return Err("Ce jeton d'accès Auriga a expiré : il n'est valable qu'une minute. Rechargez Auriga (F5), copiez le nouveau jeton et collez-le tout de suite.".to_string());
                 }
             }
         }
@@ -330,7 +330,7 @@ impl AurigaClient {
             .map_err(|e| format!("Erreur réseau Auriga API: {}", e))?;
 
         if res.status().as_u16() == 401 {
-            return Err("Accès refusé (401) par Auriga : le jeton est expiré ou invalide. Il n'est valable que quelques minutes : rechargez Auriga (F5), recopiez le jeton et collez-le tout de suite.".to_string());
+            return Err("Accès refusé (401) par Auriga : le jeton est expiré ou invalide. Il n'est valable qu'une minute : rechargez Auriga (F5), recopiez le jeton et collez-le tout de suite.".to_string());
         }
 
         if !res.status().is_success() {
