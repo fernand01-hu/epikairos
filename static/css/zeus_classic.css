@@ -292,17 +292,6 @@
     font-weight: 600;
 }
 
-.topbar-datepicker {
-    background-color: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-xs);
-    height: 30px;
-    padding: 0 8px;
-    font-size: 12px;
-    color: var(--text);
-    outline: none;
-}
-
 /* Days header */
 .zeus-grid-header {
     height: 36px;

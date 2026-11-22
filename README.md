@@ -68,3 +68,7 @@ cargo test
 
 - `tests/` : tests d'intégration qui lancent l'application complète en mémoire (pages, authentification, API, abonnements, salles, administration, sécurité).
 - `src/` : tests unitaires des fonctions internes.
+
+## Problèmes connus
+
+Voir [KNOWN_ISSUES.md](KNOWN_ISSUES.md) : sécurité restante (HTTPS en priorité), données et déploiement.

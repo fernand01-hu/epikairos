@@ -148,20 +148,6 @@ i.bi[class*="text-"] {
     border-radius: var(--radius) !important;
 }
 
-.page-header {
-    margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-    font-size: 1.5rem;
-    margin-bottom: 0.25rem;
-}
-
-.page-header p {
-    color: var(--text-2);
-    margin: 0;
-}
-
 .section-label {
     font-size: 0.75rem;
     font-weight: 600;
@@ -638,85 +624,6 @@ i.bi[class*="text-"] {
     color: var(--text-3);
 }
 
-/* ==========================================================================
-   Weekly calendar grid
-   ========================================================================== */
-
-.week-calendar-container {
-    display: grid;
-    grid-template-columns: repeat(6, minmax(175px, 1fr));
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding: 0.25rem 0;
-    width: 100%;
-    box-sizing: border-box;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-}
-
-@media (min-width: 1200px) {
-    .week-calendar-container {
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        overflow-x: visible;
-    }
-    .week-calendar-container.has-sunday {
-        grid-template-columns: repeat(7, minmax(0, 1fr));
-    }
-}
-
-@media (min-width: 992px) and (max-width: 1199.98px) {
-    .week-calendar-container {
-        grid-template-columns: repeat(6, minmax(140px, 1fr));
-    }
-    .week-calendar-container.has-sunday {
-        grid-template-columns: repeat(7, minmax(140px, 1fr));
-    }
-}
-
-.day-column {
-    background-color: var(--surface-2);
-    border-radius: var(--radius-sm);
-    display: flex;
-    flex-direction: column;
-    min-height: 360px;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    box-sizing: border-box;
-}
-
-.day-column-header {
-    padding: 0.65rem 0.5rem 0.5rem;
-    text-align: center;
-    min-width: 0;
-    overflow: hidden;
-    color: var(--text);
-}
-
-.day-column-header .fs-6 {
-    font-size: 0.875rem !important;
-    font-weight: 600 !important;
-}
-
-.day-column.is-today .day-column-header {
-    color: var(--accent);
-}
-
-.day-column.is-today {
-    box-shadow: inset 0 2px 0 var(--accent);
-}
-
-.day-events-list {
-    padding: 0 0.4rem 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    flex-grow: 1;
-    min-width: 0;
-    max-width: 100%;
-    box-sizing: border-box;
-}
-
 .calendar-card {
     background-color: var(--surface);
     border-radius: var(--radius-xs);
@@ -832,91 +739,6 @@ i.bi[class*="text-"] {
     font-size: 0.875rem;
 }
 
-.course-row-cancelled {
-    opacity: 0.55;
-    text-decoration: line-through;
-}
-
-/* ==========================================================================
-   Dashboard
-   ========================================================================== */
-
-.stat-row {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background-color: var(--surface);
-    overflow: hidden;
-}
-
-.stat-row > div {
-    padding: 1rem 1.25rem;
-    border-left: 1px solid var(--border);
-}
-
-.stat-row > div:first-child {
-    border-left: none;
-}
-
-.stat-value {
-    font-size: 1.5rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-}
-
-.stat-label {
-    font-size: 0.8125rem;
-    color: var(--text-2);
-}
-
-@media (max-width: 575.98px) {
-    .stat-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .stat-row > div:nth-child(3) {
-        border-left: none;
-    }
-    .stat-row > div:nth-child(n + 3) {
-        border-top: 1px solid var(--border);
-    }
-}
-
-.feature-link {
-    display: block;
-    height: 100%;
-    padding: 1.25rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background-color: var(--surface);
-    color: var(--text);
-    text-decoration: none;
-    transition: border-color 0.12s ease;
-}
-
-.feature-link:hover {
-    border-color: var(--border-strong);
-    color: var(--text);
-}
-
-.feature-link h2 {
-    font-size: 1rem;
-    margin-bottom: 0.35rem;
-}
-
-.feature-link p {
-    font-size: 0.875rem;
-    color: var(--text-2);
-    margin-bottom: 0.75rem;
-}
-
-.feature-link .feature-cta {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--accent);
-}
-
 /* ==========================================================================
    Empty states
    ========================================================================== */
@@ -940,55 +762,12 @@ i.bi[class*="text-"] {
     margin-bottom: 0.25rem;
 }
 
-/* ==========================================================================
-   Room results
-   ========================================================================== */
-
-.room-card {
-    height: 100%;
-    padding: 0.75rem 0.9rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background-color: var(--surface);
-}
-
-.room-card.is-busy {
-    background-color: transparent;
-}
-
-.room-name {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-    font-size: 0.875rem;
-}
-
 .room-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
     flex-shrink: 0;
     background-color: var(--ok);
-}
-
-.room-card.is-busy .room-dot {
-    background-color: var(--danger);
-}
-
-.room-until {
-    font-size: 0.75rem;
-    color: var(--text-2);
-    white-space: nowrap;
-}
-
-.room-meta {
-    font-size: 0.75rem;
-    color: var(--text-2);
-    margin-top: 0.35rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* Week navigation */
@@ -1183,15 +962,6 @@ i.bi[class*="text-"] {
 .fp-detail-status.is-busy { color: var(--danger); }
 .fp-detail-status.is-soon { color: var(--fp-soon-stroke); }
 
-.fp-detail-row {
-    display: flex;
-    flex-direction: column;
-    font-size: 0.8125rem;
-    padding: 0.4rem 0;
-    border-top: 1px solid var(--border);
-}
-.fp-detail-row .text-muted { font-size: 0.75rem; }
-
 .room-dot.is-busy { background-color: var(--danger); }
 .room-dot.is-soon { background-color: var(--fp-soon-stroke); }
 .room-dot.is-unknown { background-color: var(--text-3); }
@@ -1206,7 +976,6 @@ i.bi[class*="text-"] {
     border-radius: 999px;
     background: var(--surface);
 }
-
 
 /* ==========================================================================
    Flat & square: no rounded corners, no shadows, anywhere.

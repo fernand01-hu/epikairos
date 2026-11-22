@@ -187,6 +187,7 @@ pub fn init_db(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] // one column per argument, called from one place
 pub fn create_feed(
     conn: &rusqlite::Connection,
     username: &str,
@@ -218,7 +219,7 @@ pub fn create_feed(
 
     let courses_str = match allowed_courses {
         None => String::new(),
-        Some(slice) if slice.is_empty() => "__EMPTY__".to_string(),
+        Some([]) => "__EMPTY__".to_string(),
         Some(slice) => slice.join("\t"),
     };
 
@@ -384,26 +385,6 @@ pub fn update_feed_courses(
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn legacy_xor_password_round_trips() {
-        let key = [7u8; 32];
-        let plain = "s3cr\u{e9}t-password";
-        let cipher: Vec<u8> = plain
-            .as_bytes()
-            .iter()
-            .enumerate()
-            .map(|(i, b)| b ^ key[i % 32])
-            .collect();
-        let encoded = URL_SAFE.encode(cipher);
-        assert_eq!(decrypt_legacy_xor(&encoded, &key).as_deref(), Some(plain));
-        assert_eq!(decrypt_legacy_xor("gAAAAABtoken", &key), None);
-    }
-}
-
 /// Atomically reserves the right to refresh a feed from Auriga. Returns true for
 /// exactly one caller per `interval` seconds, whether or not the refresh then
 /// succeeds, so a public feed link can never trigger a stream of Auriga logins
@@ -433,4 +414,24 @@ pub fn count_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite:
         params![username.trim()],
         |r| r.get(0),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_xor_password_round_trips() {
+        let key = [7u8; 32];
+        let plain = "s3cr\u{e9}t-password";
+        let cipher: Vec<u8> = plain
+            .as_bytes()
+            .iter()
+            .enumerate()
+            .map(|(i, b)| b ^ key[i % 32])
+            .collect();
+        let encoded = URL_SAFE.encode(cipher);
+        assert_eq!(decrypt_legacy_xor(&encoded, &key).as_deref(), Some(plain));
+        assert_eq!(decrypt_legacy_xor("gAAAAABtoken", &key), None);
+    }
 }

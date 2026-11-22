@@ -130,7 +130,7 @@ mod tests {
         let feed_manager = SqliteConnectionManager::memory();
         let feed_pool = r2d2::Pool::builder().max_size(1).build(feed_manager).unwrap();
         let jinja = minijinja::Environment::new();
-        AppState::new(db_pool, feed_pool, jinja)
+        AppState::with_secret(db_pool, feed_pool, jinja, "unit-test-secret".to_string())
     }
 
     #[tokio::test]

@@ -1,9 +1,9 @@
 [package]
 name = "epikairos"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Fernand Huttois <fernand.huttois@epita.fr>"]
-description = "EpiKairos - High-performance EPITA Auriga Calendar Platform in Rust"
+description = "EpiKairos: EPITA timetable, free rooms and calendar subscriptions from Auriga"
 
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }

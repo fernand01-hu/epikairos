@@ -26,7 +26,7 @@ fn init_db_is_idempotent() {
 fn ingest_inserts_then_updates_by_id() {
     let mut conn = memory_db();
     let c = course("42", "2026-01-15T08:00:00Z", "2026-01-15T09:00:00Z", "Algo", "Salle 301", "SUP L1");
-    let first = db::ingest_courses(&mut conn, &[c.clone()], true).unwrap();
+    let first = db::ingest_courses(&mut conn, std::slice::from_ref(&c), true).unwrap();
     assert_eq!((first["inserted"].as_i64(), first["updated"].as_i64()), (Some(1), Some(0)));
 
     let mut renamed = c;
@@ -42,7 +42,7 @@ fn ingest_inserts_then_updates_by_id() {
 fn reimport_without_rooms_keeps_the_stored_rooms_and_groups() {
     let mut conn = memory_db();
     let full = course("7", "2026-01-15T08:00:00Z", "2026-01-15T09:00:00Z", "Algo", "Salle 301", "SUP L1");
-    db::ingest_courses(&mut conn, &[full.clone()], true).unwrap();
+    db::ingest_courses(&mut conn, std::slice::from_ref(&full), true).unwrap();
 
     let mut bare = full.clone();
     bare.rooms.clear();

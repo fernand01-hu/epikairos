@@ -39,7 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const deselectAllTypesBtn = document.getElementById("deselectAllTypesBtn");
 
     // Action Bar Elements
-    const masterCheckbox = document.getElementById("masterCheckbox");
     const selectAllBtn = document.getElementById("selectAllBtn");
     const deselectAllBtn = document.getElementById("deselectAllBtn");
     const selectedCountBadge = document.getElementById("selectedCountBadge");
@@ -49,7 +48,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Calendar & View Switcher Elements
     const weekDaysGrid = document.getElementById("weekDaysGrid");
     const noWeekCoursesMessage = document.getElementById("noWeekCoursesMessage");
-    const weekNavControls = document.getElementById("weekNavControls");
     const prevWeekBtn = document.getElementById("prevWeekBtn");
     const nextWeekBtn = document.getElementById("nextWeekBtn");
     const todayWeekBtn = document.getElementById("todayWeekBtn");
@@ -177,15 +175,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            const stats = JSON.parse(localStorage.getItem("zeus_stats") || "{}");
-            const typesStr = Object.entries(stats.types || {})
-                .map(([type, count]) => `${type}: ${count}`)
-                .join(", ");
-            const statsEl = document.getElementById("statsSummary");
-            if (statsEl) {
-                statsEl.innerHTML = `<strong>${allCourses.length}</strong> cours enregistrés (${typesStr || "Tous"})`;
-            }
-
             renderTypeFilterButtons(allCourses);
             applyFilters();
         } catch (e) {
@@ -273,15 +262,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 } else {
                     currentCalendarDate = new Date();
-                }
-
-                const stats = data.stats || {};
-                const typesStr = Object.entries(stats.types || {})
-                    .map(([type, count]) => `${type}: ${count}`)
-                    .join(", ");
-                const statsEl = document.getElementById("statsSummary");
-                if (statsEl) {
-                    statsEl.innerHTML = `<strong>${stats.total}</strong> cours trouvés (${typesStr}) | <strong>${stats.cancelled}</strong> annulés`;
                 }
 
                 renderTypeFilterButtons(allCourses);
@@ -639,35 +619,15 @@ document.addEventListener("DOMContentLoaded", () => {
         if (selectedCountBadge) {
             selectedCountBadge.textContent = `${visibleSelectedCount} / ${visibleCourses.length} cours sélectionnés`;
         }
-        if (masterCheckbox) {
-            masterCheckbox.checked = visibleCourses.length > 0 && visibleSelectedCount === visibleCourses.length;
-        }
     }
 
     // =========================================================================
     // 6. Batch Selection Controls
     // =========================================================================
-    if (masterCheckbox) {
-        masterCheckbox.addEventListener("change", (e) => {
-            const shouldCheck = e.target.checked;
-            visibleCourses.forEach(c => {
-                if (shouldCheck) {
-                    selectedCourseIds.add(c.id);
-                } else {
-                    selectedCourseIds.delete(c.id);
-                }
-            });
-            renderWeekCalendar();
-            document.querySelectorAll(".row-select-cb").forEach(cb => cb.checked = shouldCheck);
-            updateSelectedCounter();
-        });
-    }
-
     if (selectAllBtn) {
         selectAllBtn.addEventListener("click", () => {
             visibleCourses.forEach(c => selectedCourseIds.add(c.id));
             renderWeekCalendar();
-            document.querySelectorAll(".row-select-cb").forEach(cb => cb.checked = true);
             updateSelectedCounter();
         });
     }
@@ -676,7 +636,6 @@ document.addEventListener("DOMContentLoaded", () => {
         deselectAllBtn.addEventListener("click", () => {
             visibleCourses.forEach(c => selectedCourseIds.delete(c.id));
             renderWeekCalendar();
-            document.querySelectorAll(".row-select-cb").forEach(cb => cb.checked = false);
             updateSelectedCounter();
         });
     }

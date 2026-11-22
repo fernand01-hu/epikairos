@@ -482,7 +482,7 @@ pub fn fold_line(line: &str, max_octets: usize) -> String {
     let mut remaining = line;
     let mut limit = max_octets;
 
-    while remaining.as_bytes().len() > limit {
+    while remaining.len() > limit {
         let mut cut = limit;
         while cut > 0 && !remaining.is_char_boundary(cut) {
             cut -= 1;
@@ -515,13 +515,13 @@ pub fn format_ics_datetime(iso_str: &str) -> String {
 
 pub fn generate_ics_from_courses(courses: &[Course], calendar_name: &str) -> String {
     let now_utc = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
-    let mut lines = Vec::new();
-
-    lines.push("BEGIN:VCALENDAR".to_string());
-    lines.push("VERSION:2.0".to_string());
-    lines.push("PRODID:-//EpiKairos//EPITA Calendar Rust//FR".to_string());
-    lines.push("CALSCALE:GREGORIAN".to_string());
-    lines.push("METHOD:PUBLISH".to_string());
+    let mut lines = vec![
+        "BEGIN:VCALENDAR".to_string(),
+        "VERSION:2.0".to_string(),
+        "PRODID:-//EpiKairos//EPITA Calendar Rust//FR".to_string(),
+        "CALSCALE:GREGORIAN".to_string(),
+        "METHOD:PUBLISH".to_string(),
+    ];
     let clean_cal_name = calendar_name.replace(['\r', '\n'], " ");
     lines.push(fold_line(&format!("X-WR-CALNAME:{}", escape_ics_text(&clean_cal_name)), 75));
     lines.push("X-WR-TIMEZONE:Europe/Paris".to_string());
