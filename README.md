@@ -7,7 +7,7 @@ Site web pour consulter son emploi du temps EPITA à partir d'Auriga, voir les s
 - Mon planning : vos cours de la semaine, filtrables par matière, avec export `.ics` et liens d'abonnement.
 - Planning : l'emploi du temps d'un groupe ou d'un professeur.
 - Salles libres : le plan du 3e étage avec l'état de chaque salle.
-- Admin : visible seulement par les comptes de `ADMIN_USERS`.
+- Admin : la liste des comptes qui se sont connectés, visible seulement par les comptes de `ADMIN_USERS`.
 
 À chaque connexion, les cours récupérés depuis Auriga sont ajoutés à une base commune. C'est elle qui alimente Planning et Salles libres.
 
@@ -22,7 +22,6 @@ Deux façons de se connecter :
 
 - Chaque compte peut avoir jusqu'à 3 liens, gérés depuis Mon planning : copier, mettre à jour avec les filtres actuels, supprimer.
 - Aucun mot de passe n'est enregistré pour ces liens. Un lien se met à jour quand vous vous connectez, et aussi quand un camarade de votre groupe se connecte : ses cours arrivent dans la base commune et passent dans votre lien. Les cours que vous êtes seul à suivre se mettent à jour à vos propres connexions.
-- Les liens créés avant ce changement avec un mot de passe le gardent, chiffré, et se mettent à jour toutes les 12 h jusqu'à ce qu'ils soient supprimés.
 
 ## Lancer le serveur
 
@@ -54,9 +53,9 @@ Derrière un proxy HTTPS (Cloudflare Tunnel, Caddy), mettre `SESSION_COOKIE_SECU
 Deux bases SQLite :
 
 - `school.db` : la base commune (cours, salles, professeurs, groupes, comptes).
-- `feeds.db` : les liens d'abonnement, avec leurs filtres et une copie des cours. Pas de mot de passe, sauf pour les anciens liens (chiffré).
+- `feeds.db` : les liens d'abonnement, avec leurs filtres et une copie des cours. Aucun mot de passe.
 
-Deux fichiers de clés sont créés au premier lancement : `.flask_secret` pour les sessions et `.server_secret` pour le chiffrement des mots de passe des anciens liens. Il faut les garder.
+Le fichier `.flask_secret`, créé au premier lancement, signe les cookies de session. Il faut le garder, sinon tout le monde est déconnecté.
 
 ## Tests
 

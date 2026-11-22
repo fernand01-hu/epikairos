@@ -1,126 +1,63 @@
-//! Admin panel, moderator roles and club calendars permissions.
+//! Admin page: the list of accounts that logged in, for ADMIN_USERS only.
 
 mod common;
 
 use axum::http::StatusCode;
 use common::*;
-use serde_json::json;
 
-const ALICE: &str = "alice.martin";
-const BOB: &str = "bob.durand";
-
-async fn promote(app: &TestApp, user: &str) {
-    let res = app.post("/api/admin/users/role", Some(ADMIN), json!({ "username": user, "role": "moderator" })).await;
-    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
-}
-
-async fn new_calendar(app: &TestApp, owner: &str, name: &str) -> i64 {
-    let res = app.post("/api/community/calendars", Some(owner), json!({ "name": name, "color": "#10b981" })).await;
-    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
-    res.json()["id"].as_i64().unwrap()
-}
-
-fn event(title: &str) -> serde_json::Value {
-    json!({ "title": title, "start": "2026-10-22T18:00", "end": "2026-10-22T20:00", "location": "Salle 301" })
+fn record(app: &TestApp, user: &str) {
+    let conn = app.state.db_pool.get().unwrap();
+    epikairos::accounts::record_login(&conn, user).unwrap();
 }
 
 #[tokio::test]
-async fn only_the_admin_reaches_admin_apis() {
+async fn only_the_admin_sees_the_user_list() {
     let app = TestApp::new();
-    assert_eq!(app.get("/api/admin/users", Some(ALICE)).await.status, StatusCode::FORBIDDEN);
-    let res = app.post("/api/admin/users/role", Some(ALICE), json!({ "username": ALICE, "role": "moderator" })).await;
-    assert_eq!(res.status, StatusCode::FORBIDDEN);
-    assert_eq!(app.get("/api/admin/users", Some(ADMIN)).await.status, StatusCode::OK);
+    record(&app, "alice.martin");
+    assert_eq!(app.get("/api/admin/users", Some("alice.martin")).await.status, StatusCode::FORBIDDEN);
+    assert_eq!(app.get("/api/admin/users", None).await.status, StatusCode::UNAUTHORIZED);
+
+    let data = app.get("/api/admin/users", Some(ADMIN)).await.json();
+    let users = data["users"].as_array().unwrap();
+    assert_eq!(users.len(), 1);
+    assert_eq!(users[0]["username"], "alice.martin");
+    assert_eq!(users[0]["admin"], false);
+    assert!(users[0]["last_seen"].as_f64().unwrap() > 0.0);
 }
 
 #[tokio::test]
-async fn role_changes_are_validated() {
+async fn user_search_and_admin_flag() {
     let app = TestApp::new();
-    let set = |user: &'static str, role: &'static str| app.post("/api/admin/users/role", Some(ADMIN), json!({ "username": user, "role": role }));
-    assert_eq!(set(ADMIN, "user").await.status, StatusCode::BAD_REQUEST, "admin role is fixed");
-    assert_eq!(set("<script>", "moderator").await.status, StatusCode::BAD_REQUEST);
-    assert_eq!(set(ALICE, "superuser").await.status, StatusCode::BAD_REQUEST);
-    assert_eq!(set("Alice.Martin@epita.fr", "moderator").await.status, StatusCode::OK);
+    for u in ["alice.martin", "Bob.Durand@epita.fr", "fernand.huttois"] {
+        record(&app, u);
+    }
+    let found = app.get("/api/admin/users?q=bob", Some(ADMIN)).await.json();
+    let names: Vec<&str> = found["users"].as_array().unwrap().iter().map(|u| u["username"].as_str().unwrap()).collect();
+    assert_eq!(names, ["bob.durand"], "names are normalized");
 
-    let users = app.get("/api/admin/users", Some(ADMIN)).await.json();
-    let alice = users["users"].as_array().unwrap().iter().find(|u| u["username"] == ALICE).expect("normalized name");
-    assert_eq!(alice["role"], "moderator");
+    let me = app.get("/api/admin/users?q=fernand", Some(ADMIN)).await.json();
+    assert_eq!(me["users"][0]["admin"], true);
 }
 
 #[tokio::test]
-async fn students_cannot_create_calendars() {
+async fn invalid_names_are_not_recorded() {
     let app = TestApp::new();
-    let res = app.post("/api/community/calendars", Some(ALICE), json!({ "name": "X", "color": "#3b82f6" })).await;
-    assert_eq!(res.status, StatusCode::FORBIDDEN);
+    record(&app, "<script>alert(1)</script>");
+    let data = app.get("/api/admin/users", Some(ADMIN)).await.json();
+    assert!(data["users"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
-async fn moderators_manage_only_their_own_calendars() {
+async fn club_calendars_and_moderators_are_gone() {
     let app = TestApp::new();
-    promote(&app, ALICE).await;
-    promote(&app, BOB).await;
-    let alice_cal = new_calendar(&app, ALICE, "Club Robotique").await;
-    let bob_cal = new_calendar(&app, BOB, "BDE").await;
-
-    let res = app.post(&format!("/api/community/calendars/{alice_cal}/events"), Some(ALICE), event("Atelier")).await;
-    assert_eq!(res.status, StatusCode::OK);
-    let ev = res.json()["id"].as_i64().unwrap();
-
-    // Bob cannot touch Alice's calendar or event
-    let edit = json!({ "name": "mine", "color": "#3b82f6" });
-    assert_eq!(app.put(&format!("/api/community/calendars/{alice_cal}"), Some(BOB), edit).await.status, StatusCode::FORBIDDEN);
-    assert_eq!(app.post(&format!("/api/community/calendars/{alice_cal}/events"), Some(BOB), event("x")).await.status, StatusCode::FORBIDDEN);
-    assert_eq!(app.put(&format!("/api/community/events/{ev}"), Some(BOB), event("hack")).await.status, StatusCode::FORBIDDEN);
-    assert_eq!(app.delete(&format!("/api/community/calendars/{alice_cal}"), Some(BOB)).await.status, StatusCode::FORBIDDEN);
-
-    // Alice cannot move her event into Bob's calendar
-    let mut moved = event("x");
-    moved["calendar_id"] = json!(bob_cal);
-    assert_eq!(app.put(&format!("/api/community/events/{ev}"), Some(ALICE), moved).await.status, StatusCode::FORBIDDEN);
-
-    // The admin can edit anything
-    assert_eq!(app.put(&format!("/api/community/events/{ev}"), Some(ADMIN), event("Atelier v2")).await.status, StatusCode::OK);
-}
-
-#[tokio::test]
-async fn demoted_moderators_lose_edit_rights_immediately() {
-    let app = TestApp::new();
-    promote(&app, ALICE).await;
-    let cal = new_calendar(&app, ALICE, "Club").await;
-    let res = app.post("/api/admin/users/role", Some(ADMIN), json!({ "username": ALICE, "role": "user" })).await;
-    assert_eq!(res.status, StatusCode::OK);
-    let edit = json!({ "name": "x", "color": "#3b82f6" });
-    assert_eq!(app.put(&format!("/api/community/calendars/{cal}"), Some(ALICE), edit).await.status, StatusCode::FORBIDDEN);
-}
-
-#[tokio::test]
-async fn everyone_can_read_events_with_edit_flags() {
-    let app = TestApp::new();
-    promote(&app, ALICE).await;
-    let cal = new_calendar(&app, ALICE, "Club").await;
-    app.post(&format!("/api/community/calendars/{cal}/events"), Some(ALICE), event("Atelier")).await;
-
-    let url = format!("/api/community/events?start=2026-10-19&end=2026-10-25&calendars={cal}");
-    let as_bob = app.get(&url, Some(BOB)).await.json();
-    assert_eq!(as_bob["events"][0]["title"], "Atelier");
-    assert_eq!(as_bob["events"][0]["can_edit"], false);
-    let as_alice = app.get(&url, Some(ALICE)).await.json();
-    assert_eq!(as_alice["events"][0]["can_edit"], true);
-}
-
-#[tokio::test]
-async fn calendar_and_event_input_is_validated() {
-    let app = TestApp::new();
-    promote(&app, ALICE).await;
-    let bad_color = app.post("/api/community/calendars", Some(ALICE), json!({ "name": "X", "color": "red" })).await;
-    assert_eq!(bad_color.status, StatusCode::BAD_REQUEST);
-
-    let cal = new_calendar(&app, ALICE, "Club").await;
-    let multi_day = json!({ "title": "X", "start": "2026-10-22T18:00", "end": "2026-10-23T02:00" });
-    assert_eq!(app.post(&format!("/api/community/calendars/{cal}/events"), Some(ALICE), multi_day).await.status, StatusCode::BAD_REQUEST);
-    let reversed = json!({ "title": "X", "start": "2026-10-22T18:00", "end": "2026-10-22T17:00" });
-    assert_eq!(app.post(&format!("/api/community/calendars/{cal}/events"), Some(ALICE), reversed).await.status, StatusCode::BAD_REQUEST);
-
-    let too_wide = format!("/api/community/events?start=2026-01-01&end=2026-12-31&calendars={cal}");
-    assert_eq!(app.get(&too_wide, Some(BOB)).await.status, StatusCode::BAD_REQUEST);
+    for path in ["/api/community/calendars", "/api/community/events"] {
+        assert_eq!(app.get(path, Some(ADMIN)).await.status, StatusCode::NOT_FOUND, "{path}");
+    }
+    let res = app.post("/api/admin/users/role", Some(ADMIN), serde_json::json!({ "username": "x", "role": "moderator" })).await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    let page = app.get("/admin", Some(ADMIN)).await.body;
+    assert!(page.contains(r#"id="userTableBody""#));
+    for gone in ["moderator", "Modérateur", "calendarTableBody"] {
+        assert!(!page.contains(gone), "{gone}");
+    }
 }

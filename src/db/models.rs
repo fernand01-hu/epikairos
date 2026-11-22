@@ -50,19 +50,6 @@ pub struct Promotion {
     pub semesters: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseStats {
-    pub total_courses: i64,
-    pub total_teachers: i64,
-    pub total_rooms: i64,
-    pub total_groups: i64,
-    pub total_promotions: i64,
-    pub total_patterns: i64,
-    pub recurring_patterns: i64,
-    pub min_date: Option<String>,
-    pub max_date: Option<String>,
-    pub types_breakdown: serde_json::Value,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FreeRoomItem {

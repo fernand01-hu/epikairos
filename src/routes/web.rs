@@ -9,7 +9,7 @@ use serde::Deserialize;
 use tower_cookies::{Cookie, Cookies};
 
 use crate::auriga::get_default_school_year_range;
-use crate::community::lookup_role;
+use crate::accounts::is_admin;
 use crate::session::verify_session;
 use crate::state::AppState;
 use crate::templates::create_session_value;
@@ -41,10 +41,10 @@ fn get_session_info(cookies: &Cookies, secret: &str) -> (bool, Option<String>) {
 pub async fn session_context(state: &AppState, cookies: &Cookies) -> minijinja::Value {
     let (logged_in, username) = get_session_info(cookies, &state.secret_key);
     let role = match (&username, logged_in) {
-        (Some(user), true) => Some(lookup_role(&state.db_pool, user).await),
+        (Some(user), true) => Some(if is_admin(user) { "admin" } else { "user" }),
         _ => None,
     };
-    create_session_value(logged_in, username.as_deref(), role.map(|r| r.as_str()))
+    create_session_value(logged_in, username.as_deref(), role)
 }
 
 /// The old landing page was removed: `/` and `/dashboard` go straight to the planning.

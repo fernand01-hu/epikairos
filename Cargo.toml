@@ -23,7 +23,6 @@ regex = "1.10"
 rand = "0.8"
 sha2 = "0.10"
 base64 = "0.22"
-fernet = { version = "0.2.2", default-features = false, features = ["rustcrypto"] }
 hmac = "0.12"
 
 [dev-dependencies]

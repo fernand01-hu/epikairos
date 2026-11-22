@@ -1,3 +1,3 @@
 pub mod api;
-pub mod community;
+pub mod admin;
 pub mod web;

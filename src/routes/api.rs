@@ -9,7 +9,6 @@ use chrono_tz::Europe::Paris;
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tower_cookies::{Cookie, Cookies};
 
 use crate::auriga::{
@@ -21,24 +20,7 @@ use crate::feed::*;
 use crate::session::{sign_session, verify_session, UserSession};
 use crate::state::AppState;
 
-const DEFAULT_FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
-/// Minimum delay between Auriga attempts for a feed that has no courses yet.
-const FEED_RETRY_INTERVAL: f64 = 600.0;
-/// Subscription links one account may own.
-pub const MAX_FEEDS_PER_USER: i64 = 3;
 const FEED_LIMIT_REACHED: &str = "feed-limit-reached";
-
-/// Feed cache lifetime in seconds, overridable with `FEED_CACHE_DURATION`.
-fn feed_cache_duration() -> f64 {
-    static DURATION: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
-    *DURATION.get_or_init(|| {
-        std::env::var("FEED_CACHE_DURATION")
-            .ok()
-            .and_then(|v| v.trim().parse::<f64>().ok())
-            .filter(|v| *v > 0.0)
-            .unwrap_or(DEFAULT_FEED_CACHE_DURATION)
-    })
-}
 
 /// JSON 500 response so the frontend can always parse `{ success, error }`.
 fn internal_error() -> Response {
@@ -415,8 +397,7 @@ pub async fn fetch_planning_handler(
         let fresh = normalized.clone();
         tokio::task::spawn_blocking(move || {
             if let Ok(conn) = pool.get() {
-                let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
-                if let Ok(n) = update_feeds_for_user(&conn, &login_name, &fresh, now) {
+                if let Ok(n) = update_feeds_for_user(&conn, &login_name, &fresh) {
                     if n > 0 {
                         println!("[*] Refreshed {} subscription link(s) from a login", n);
                     }
@@ -431,7 +412,7 @@ pub async fn fetch_planning_handler(
         let login_name = user_display.clone();
         tokio::task::spawn_blocking(move || {
             if let Ok(conn) = pool.get() {
-                let _ = crate::community::record_login(&conn, &login_name);
+                let _ = crate::accounts::record_login(&conn, &login_name);
             }
         });
     }
@@ -711,7 +692,6 @@ pub async fn create_feed_handler(
         .calendar_name
         .unwrap_or_else(|| "EpiKairos - EPITA Emploi du temps".to_string());
     let safe_cal_name = truncate_str(&cal_name, 120);
-    let initial_ics = Some(generate_ics_from_courses(&payload.courses, safe_cal_name));
 
     let pool = state.feed_pool.clone();
     let c_name = safe_cal_name.to_string();
@@ -727,20 +707,16 @@ pub async fn create_feed_handler(
         if count_feeds_for(&conn, &username).map_err(|e| e.to_string())? >= MAX_FEEDS_PER_USER {
             return Err(FEED_LIMIT_REACHED.to_string());
         }
-        // New links never store a password: they stay current through the student's
-        // and their classmates' logins. Older links keep theirs until deleted.
         create_feed(
             &conn,
             &username,
-            "",
             inc_r.as_deref(),
             exc_r.as_deref(),
             types.as_deref(),
             allowed_c.as_deref(),
             hide_canc,
             &c_name,
-            initial_ics.as_deref(),
-            Some(&courses_clone),
+            &courses_clone,
         )
         .map_err(|e| e.to_string())
     })
@@ -799,7 +775,6 @@ pub async fn list_feeds_handler(State(state): State<AppState>, cookies: Cookies,
                 "last_used_at": f.last_used_at,
                 "hide_cancelled": f.hide_cancelled,
                 "subjects": f.subjects,
-                "auto_refresh": f.auto_refresh,
                 "subscription_url": subscription_url,
                 "webcal_url": webcal_url,
             })
@@ -927,15 +902,6 @@ pub async fn serve_feed_handler(
         }
     };
 
-    let has_query_overrides = params.include.is_some()
-        || params.include_regex.is_some()
-        || params.exclude.is_some()
-        || params.exclude_regex.is_some()
-        || params.hide_cancelled.is_some()
-        || params.course.is_some()
-        || params.courses.is_some()
-        || params.allowed_courses.is_some();
-
     let include_regex = params
         .include
         .or(params.include_regex)
@@ -996,165 +962,55 @@ pub async fn serve_feed_handler(
         feed_opt.allowed_courses.clone()
     };
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs_f64())
-        .unwrap_or(0.0);
-
-    let cache_age = now - feed_opt.last_cached_at;
-
-    // If cache is fresh and no query overrides, return cached directly. Links without a
-    // password are rebuilt every time, so classmates' latest logins show up.
-    if !has_query_overrides
-        && feed_opt.password.is_some()
-        && !feed_opt.last_cached_ics.is_empty()
-        && cache_age < feed_cache_duration()
-    {
-        return (
-            [
-                (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
-                (
-                    header::CONTENT_DISPOSITION,
-                    "inline; filename=\"planning.ics\"",
-                ),
-                (
-                    header::CACHE_CONTROL,
-                    &format!("public, max-age={}, must-revalidate", feed_cache_duration() as u64),
-                ),
-            ],
-            feed_opt.last_cached_ics,
-        )
-            .into_response();
-    }
-
-    let mut raw_courses = feed_opt.cached_courses.clone();
-
-    // Refresh from Auriga when credentials exist and this request wins the refresh slot
-    let mut may_refresh = false;
-    if feed_opt.password.is_some() && !feed_opt.username.is_empty() {
-        let no_courses = raw_courses.is_empty();
-        let interval = if no_courses { FEED_RETRY_INTERVAL } else { feed_cache_duration() };
-        let pool = state.feed_pool.clone();
-        let fid = feed_id.to_string();
-        may_refresh = tokio::task::spawn_blocking(move || {
-            pool.get()
-                .ok()
-                .and_then(|conn| claim_feed_refresh(&conn, &fid, interval, now, no_courses).ok())
-                .unwrap_or(false)
-        })
-        .await
-        .unwrap_or(false);
-    }
-    let mut refreshed_from_auriga = false;
-    if let (true, Some(pw)) = (may_refresh, feed_opt.password.as_ref()) {
-        {
-            let mut client = AurigaClient::new(&feed_opt.username, pw);
-            if client.login().await.is_ok() {
-                let (start_d, end_d) = get_default_school_year_range();
-                if let Ok(raw_interventions) = client.get_planning(&start_d, &end_d).await {
-                    let normalized: Vec<Course> = raw_interventions.iter().map(normalize_course).collect();
-                    if !normalized.is_empty() {
-                        refreshed_from_auriga = true;
-                        raw_courses = normalized.clone();
-                        let f_pool = state.feed_pool.clone();
-                        let f_id_clone = feed_id.to_string();
-                        tokio::task::spawn_blocking(move || {
-                            if let Ok(conn) = f_pool.get() {
-                                let _ = update_feed_courses(&conn, &f_id_clone, &normalized);
-                            }
-                        });
-                    }
-                }
-            }
+    // The link's own courses, overlaid with the latest version of the class's
+    // courses that classmates' logins brought into the shared database
+    let pool = state.db_pool.clone();
+    let personal = feed_opt.cached_courses.clone();
+    let courses = tokio::task::spawn_blocking(move || -> Vec<Course> {
+        if personal.is_empty() {
+            return personal;
         }
-    }
-
-    // Bring in what classmates' logins added to the shared database for this class
-    if !refreshed_from_auriga && !raw_courses.is_empty() {
-        let pool = state.db_pool.clone();
-        let personal = raw_courses.clone();
-        let merged = tokio::task::spawn_blocking(move || -> Option<Vec<Course>> {
-            let conn = pool.get().ok()?;
-            let ids: Vec<String> = personal.iter().map(|c| c.id.clone()).collect();
-            let known = fetch_course_groups_batched(&conn, &ids).ok()?;
-            let groups = student_groups(&personal, &known);
-            let since = (Utc::now().with_timezone(&Paris) - chrono::Duration::days(7))
-                .format("%Y-%m-%d")
-                .to_string();
-            let shared = courses_of_groups(&conn, &groups, &since).ok()?;
-            Some(merge_shared_courses(personal, shared))
-        })
-        .await
-        .ok()
-        .flatten();
-        if let Some(m) = merged {
-            raw_courses = m;
+        let Ok(conn) = pool.get() else { return personal };
+        let ids: Vec<String> = personal.iter().map(|c| c.id.clone()).collect();
+        let known = fetch_course_groups_batched(&conn, &ids).unwrap_or_default();
+        let groups = student_groups(&personal, &known);
+        let since = (Utc::now().with_timezone(&Paris) - chrono::Duration::days(7))
+            .format("%Y-%m-%d")
+            .to_string();
+        match courses_of_groups(&conn, &groups, &since) {
+            Ok(shared) => merge_shared_courses(personal, shared),
+            Err(_) => personal,
         }
-    }
+    })
+    .await
+    .unwrap_or_default();
 
-    if !raw_courses.is_empty() {
-        let filtered = filter_courses(
-            &raw_courses,
-            include_regex.as_deref(),
-            exclude_regex.as_deref(),
-            feed_opt.allowed_types.as_deref(),
-            req_courses.as_deref(),
-            hide_cancelled,
-        )
-        .unwrap_or_else(|_| raw_courses.clone());
+    let filtered = filter_courses(
+        &courses,
+        include_regex.as_deref(),
+        exclude_regex.as_deref(),
+        feed_opt.allowed_types.as_deref(),
+        req_courses.as_deref(),
+        hide_cancelled,
+    )
+    .unwrap_or(courses);
+    let ics = generate_ics_from_courses(&filtered, &feed_opt.calendar_name);
 
-        let fresh_ics = generate_ics_from_courses(&filtered, &feed_opt.calendar_name);
-
-        if !has_query_overrides {
-            let f_pool = state.feed_pool.clone();
-            let f_id_clone = feed_id.to_string();
-            let ics_clone = fresh_ics.clone();
-            tokio::task::spawn_blocking(move || {
-                if let Ok(conn) = f_pool.get() {
-                    let _ = update_feed_cache(&conn, &f_id_clone, &ics_clone);
-                }
-            });
+    let pool = state.feed_pool.clone();
+    let fid = feed_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        if let Ok(conn) = pool.get() {
+            let _ = mark_feed_used(&conn, &fid);
         }
-
-        return (
-            [
-                (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
-                (
-                    header::CONTENT_DISPOSITION,
-                    "inline; filename=\"planning.ics\"",
-                ),
-                (
-                    header::CACHE_CONTROL,
-                    &format!("public, max-age={}, must-revalidate", feed_cache_duration() as u64),
-                ),
-            ],
-            fresh_ics,
-        )
-            .into_response();
-    }
-
-    if !feed_opt.last_cached_ics.is_empty() {
-        return (
-            [
-                (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
-                (
-                    header::CONTENT_DISPOSITION,
-                    "inline; filename=\"planning.ics\"",
-                ),
-                (
-                    header::CACHE_CONTROL,
-                    &format!("public, max-age={}, must-revalidate", feed_cache_duration() as u64),
-                ),
-            ],
-            feed_opt.last_cached_ics,
-        )
-            .into_response();
-    }
+    });
 
     (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        [(header::CONTENT_TYPE, "text/plain")],
-        "Erreur lors de la mise à jour du planning ou aucun cours disponible.",
+        [
+            (header::CONTENT_TYPE, "text/calendar; charset=utf-8"),
+            (header::CONTENT_DISPOSITION, "inline; filename=\"planning.ics\""),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        ics,
     )
         .into_response()
 }

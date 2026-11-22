@@ -1,7 +1,7 @@
 //! EpiKairos: EPITA Auriga calendar web app (library crate, used by the binary and the tests).
 
 pub mod auriga;
-pub mod community;
+pub mod accounts;
 pub mod db;
 pub mod feed;
 pub mod middleware;
@@ -40,14 +40,12 @@ pub fn init_databases(state: &AppState) -> Result<(), Box<dyn std::error::Error>
     {
         let conn = state.db_pool.get()?;
         db::init_db(&conn)?;
-        community::init_db(&conn)?;
+        accounts::init_db(&conn)?;
     }
     let conn = state.feed_pool.get()?;
-    feed::init_db(&conn)?;
-    match feed::migrate_legacy_passwords(&conn) {
-        Ok(0) => {}
-        Ok(n) => println!("[*] Migrated {} legacy feed password(s) to Fernet", n),
-        Err(e) => eprintln!("[!] Legacy feed password migration failed: {}", e),
+    let removed = feed::init_db(&conn)?;
+    if removed > 0 {
+        println!("[*] Deleted {} old subscription link(s) that stored a password", removed);
     }
     Ok(())
 }
@@ -75,7 +73,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/sw.js", get(routes::web::service_worker_handler))
         .route("/offline", get(routes::web::offline_handler))
         .route("/health", get(routes::web::health_handler))
-        .route("/admin", get(routes::community::admin_page_handler))
+        .route("/admin", get(routes::admin::admin_page_handler))
         // API routes
         .route("/api/fetch-planning", post(routes::api::fetch_planning_handler))
         .route(
@@ -97,26 +95,8 @@ pub fn build_router(state: AppState) -> Router {
             put(routes::api::update_feed_handler).delete(routes::api::delete_feed_handler),
         )
         .route("/feed/:feed_id", get(routes::api::serve_feed_handler))
-        // Admin panel & community calendars
-        .route("/api/admin/users", get(routes::community::admin_list_users_handler))
-        .route("/api/admin/users/role", post(routes::community::admin_set_role_handler))
-        .route(
-            "/api/community/calendars",
-            get(routes::community::list_calendars_handler).post(routes::community::create_calendar_handler),
-        )
-        .route(
-            "/api/community/calendars/:id",
-            put(routes::community::update_calendar_handler).delete(routes::community::delete_calendar_handler),
-        )
-        .route(
-            "/api/community/calendars/:id/events",
-            post(routes::community::create_event_handler),
-        )
-        .route("/api/community/events", get(routes::community::list_events_handler))
-        .route(
-            "/api/community/events/:id",
-            put(routes::community::update_event_handler).delete(routes::community::delete_event_handler),
-        )
+        // Admin page
+        .route("/api/admin/users", get(routes::admin::admin_list_users_handler))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
         // Request body limit layer (2 MB)

@@ -8,8 +8,7 @@ services:
     environment:
       - PORT=5000
       - HOST=0.0.0.0
-      - FEED_CACHE_DURATION=43200
-      # Secrets are generated on first start and stored in ./data (SECRET_DIR=/app/data).
-      # To pin them instead, set SESSION_SECRET_KEY and SERVER_SECRET_KEY here.
+      # The session key is generated on first start and stored in ./data (SECRET_DIR=/app/data).
+      # To pin it instead, set SESSION_SECRET_KEY here.
     volumes:
       - ./data:/app/data

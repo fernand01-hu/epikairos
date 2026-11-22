@@ -1,4 +1,4 @@
-//! Calendar export (.ics), subscription feeds and stored-password encryption.
+//! Calendar export (.ics) and subscription links.
 
 mod common;
 
@@ -206,7 +206,7 @@ fn feed_ids_are_long_and_unique() {
     feed::init_db(&conn).unwrap();
     let mut ids = std::collections::HashSet::new();
     for i in 0..50 {
-        let id = feed::create_feed(&conn, &format!("user{i}"), "", None, None, None, None, false, "Cal", None, None).unwrap();
+        let id = feed::create_feed(&conn, &format!("user{i}"), None, None, None, None, false, "Cal", &[]).unwrap();
         assert!(id.len() >= 20 && id.chars().all(|c| c.is_ascii_alphanumeric()), "{id}");
         assert!(ids.insert(id));
     }
@@ -214,85 +214,12 @@ fn feed_ids_are_long_and_unique() {
 
 // --- stored passwords ----------------------------------------------------------
 
-#[test]
-fn passwords_are_encrypted_and_round_trip() {
-    setup_env();
-    let token = feed::encrypt_secret("hunter2-é");
-    assert!(token.starts_with("gAAAAA"), "Fernet token expected");
-    assert!(!token.contains("hunter2"));
-    assert_eq!(feed::decrypt_secret(&token), "hunter2-é");
-    assert_eq!(feed::decrypt_secret("gAAAAAgarbage"), "");
-    assert_eq!(feed::encrypt_secret(""), "");
-}
-
-#[test]
-fn feed_rows_never_hold_plaintext_passwords() {
-    setup_env();
-    let conn = rusqlite::Connection::open_in_memory().unwrap();
-    feed::init_db(&conn).unwrap();
-    let id = feed::create_feed(&conn, USER, "s3cret-pass", None, None, None, None, false, "Cal", None, None).unwrap();
-    let stored: String = conn.query_row("SELECT encrypted_password FROM feeds WHERE feed_id = ?1", [&id], |r| r.get(0)).unwrap();
-    assert!(!stored.contains("s3cret-pass"));
-    assert_eq!(feed::get_feed(&conn, &id).unwrap().unwrap().password.as_deref(), Some("s3cret-pass"));
-}
-
-#[test]
-fn legacy_xor_passwords_are_migrated_to_fernet() {
-    use base64::{engine::general_purpose::URL_SAFE, Engine};
-    setup_env();
-    let conn = rusqlite::Connection::open_in_memory().unwrap();
-    feed::init_db(&conn).unwrap();
-
-    // Old Python format: urlsafe-base64(plaintext XOR server key)
-    let key = feed::get_server_key();
-    let legacy: Vec<u8> = "old-pass".bytes().enumerate().map(|(i, b)| b ^ key[i % 32]).collect();
-    conn.execute(
-        "INSERT INTO feeds (feed_id, username, encrypted_password, created_at) VALUES ('legacy1', ?1, ?2, 0)",
-        rusqlite::params![USER, URL_SAFE.encode(legacy)],
-    )
-    .unwrap();
-
-    assert_eq!(feed::migrate_legacy_passwords(&conn).unwrap(), 1);
-    let stored: String = conn.query_row("SELECT encrypted_password FROM feeds WHERE feed_id = 'legacy1'", [], |r| r.get(0)).unwrap();
-    assert!(stored.starts_with("gAAAAA"));
-    assert_eq!(feed::get_feed(&conn, "legacy1").unwrap().unwrap().password.as_deref(), Some("old-pass"));
-    assert_eq!(feed::migrate_legacy_passwords(&conn).unwrap(), 0, "second run is a no-op");
-}
-
 // --- abuse protections ------------------------------------------------------------
-
-#[test]
-fn feed_refresh_slot_is_granted_once_per_interval() {
-    setup_env();
-    let conn = rusqlite::Connection::open_in_memory().unwrap();
-    feed::init_db(&conn).unwrap();
-    let id = feed::create_feed(&conn, USER, "pw", None, None, None, None, false, "Cal", Some("BEGIN:VCALENDAR"), None).unwrap();
-    let created: f64 = conn.query_row("SELECT last_cached_at FROM feeds WHERE feed_id = ?1", [&id], |r| r.get(0)).unwrap();
-    let hour = 3600.0;
-
-    // Fresh cache: no refresh, however many requests arrive
-    assert!(!feed::claim_feed_refresh(&conn, &id, 12.0 * hour, created + hour, false).unwrap());
-
-    // Stale cache: exactly one caller wins, the next ones are refused
-    let later = created + 13.0 * hour;
-    assert!(feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later, false).unwrap());
-    for _ in 0..50 {
-        assert!(!feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later + 1.0, false).unwrap());
-    }
-
-    // A failed refresh does not update the cache, but the slot still stays taken
-    assert!(!feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later + 11.0 * hour, false).unwrap());
-    assert!(feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later + 12.5 * hour, false).unwrap());
-
-    // Feeds without courses retry on the short interval only
-    assert!(!feed::claim_feed_refresh(&conn, &id, 600.0, later + 12.5 * hour + 60.0, true).unwrap());
-    assert!(feed::claim_feed_refresh(&conn, &id, 600.0, later + 12.5 * hour + 601.0, true).unwrap());
-}
 
 #[tokio::test]
 async fn an_account_cannot_create_unlimited_feeds() {
     let app = TestApp::new();
-    for i in 0..epikairos::routes::api::MAX_FEEDS_PER_USER {
+    for i in 0..epikairos::feed::MAX_FEEDS_PER_USER {
         let res = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await;
         assert_eq!(res.status, StatusCode::OK, "feed {i}");
     }
@@ -307,20 +234,19 @@ async fn a_login_refreshes_the_users_links_without_a_password() {
     // Link created without credentials: only the courses loaded at that time
     let created = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await.json();
     let feed_url = created["feed_url"].as_str().unwrap().split('?').next().unwrap().to_string();
-    let feed_id = created["feed_id"].as_str().unwrap().to_string();
     assert!(!app.get(&feed_url, None).await.body.contains("Nouveau cours"));
 
     // Someone else's link must not change
     let other_id = {
         let conn = app.state.feed_pool.get().unwrap();
-        feed::create_feed(&conn, "bob.durand", "", None, None, None, None, false, "Cal", Some("BEGIN:VCALENDAR"), None).unwrap()
+        feed::create_feed(&conn, "bob.durand", None, None, None, None, false, "Cal", &[]).unwrap()
     };
 
     // Next login of the same student (session name, Auriga may send the @domain form)
     let fresh = vec![course("9", "2026-02-01T08:00:00Z", "2026-02-01T09:00:00Z", "Nouveau cours", "Salle 305", "")];
     let updated = {
         let conn = app.state.feed_pool.get().unwrap();
-        feed::update_feeds_for_user(&conn, "Alice.Martin@epita.fr", &fresh, 1_900_000_000.0).unwrap()
+        feed::update_feeds_for_user(&conn, "Alice.Martin@epita.fr", &fresh).unwrap()
     };
     assert_eq!(updated, 1);
 
@@ -328,11 +254,10 @@ async fn a_login_refreshes_the_users_links_without_a_password() {
     assert!(body.contains("SUMMARY:Nouveau cours") && body.contains("LOCATION:Salle 305"), "{body}");
     assert!(!body.contains("Algorithmique"), "old courses replaced");
 
+    // Bob's link still has his own (empty) course list
     let conn = app.state.feed_pool.get().unwrap();
-    let attempted: f64 = conn.query_row("SELECT refresh_attempted_at FROM feeds WHERE feed_id = ?1", [&feed_id], |r| r.get(0)).unwrap();
-    assert_eq!(attempted, 1_900_000_000.0, "no Auriga login right after fresh data");
-    let other: String = conn.query_row("SELECT last_cached_ics FROM feeds WHERE feed_id = ?1", [&other_id], |r| r.get(0)).unwrap();
-    assert_eq!(other, "BEGIN:VCALENDAR");
+    let other: String = conn.query_row("SELECT cached_courses_json FROM feeds WHERE feed_id = ?1", [&other_id], |r| r.get(0)).unwrap();
+    assert_eq!(other, "[]");
 }
 
 // --- links kept current by classmates' logins -------------------------------------
@@ -403,14 +328,37 @@ async fn as_user(app: &TestApp, method: &str, path: &str, user: &str, body: Opti
 }
 
 #[tokio::test]
-async fn new_links_never_store_a_password() {
+async fn links_never_hold_a_password() {
     let app = TestApp::new();
     let res = create_feed(&app, serde_json::json!({ "username": USER, "password": "hunter2", "courses": sample_courses() }), "localhost:5000").await;
     assert_eq!(res.status, StatusCode::OK);
-    let id = res.json()["feed_id"].as_str().unwrap().to_string();
     let conn = app.state.feed_pool.get().unwrap();
-    let stored: String = conn.query_row("SELECT encrypted_password FROM feeds WHERE feed_id = ?1", [&id], |r| r.get(0)).unwrap();
-    assert_eq!(stored, "");
+    let cols: Vec<String> = conn.prepare("PRAGMA table_info(feeds)").unwrap()
+        .query_map([], |r| r.get::<_, String>(1)).unwrap().filter_map(Result::ok).collect();
+    assert!(!cols.iter().any(|c| c.contains("password")), "{cols:?}");
+    let dump: String = conn.query_row("SELECT group_concat(feed_id || username || COALESCE(cached_courses_json, ''), '') FROM feeds", [], |r| r.get(0)).unwrap();
+    assert!(!dump.contains("hunter2"));
+}
+
+#[test]
+fn old_password_links_are_deleted_and_the_table_rebuilt() {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    conn.execute_batch(
+        "CREATE TABLE feeds (feed_id TEXT PRIMARY KEY, username TEXT NOT NULL, encrypted_password TEXT NOT NULL,
+             include_regex TEXT, exclude_regex TEXT, allowed_types TEXT, hide_cancelled INTEGER DEFAULT 0,
+             calendar_name TEXT, last_cached_ics TEXT, last_cached_at REAL DEFAULT 0, created_at REAL NOT NULL,
+             allowed_courses TEXT, cached_courses_json TEXT, refresh_attempted_at REAL DEFAULT 0);
+         INSERT INTO feeds (feed_id, username, encrypted_password, created_at, last_cached_at, cached_courses_json, hide_cancelled)
+             VALUES ('withpw', 'alice', 'gAAAAAsecret', 1, 5, '[]', 0), ('nopw', 'alice', '', 2, 7, '[]', 1);",
+    )
+    .unwrap();
+    assert_eq!(feed::init_db(&conn).unwrap(), 1, "one password link deleted");
+    assert_eq!(feed::init_db(&conn).unwrap(), 0, "idempotent");
+    let kept = feed::get_feed(&conn, "nopw").unwrap().expect("password-less link kept");
+    assert!(kept.hide_cancelled);
+    assert!(feed::get_feed(&conn, "withpw").unwrap().is_none());
+    let used: f64 = conn.query_row("SELECT last_used_at FROM feeds WHERE feed_id = 'nopw'", [], |r| r.get(0)).unwrap();
+    assert_eq!(used, 7.0, "last fetch time carried over");
 }
 
 #[tokio::test]
@@ -419,20 +367,19 @@ async fn panel_lists_only_my_links_with_their_addresses() {
     create_feed(&app, serde_json::json!({ "courses": sample_courses(), "hide_cancelled": true, "allowed_courses": ["Algorithmique"] }), "localhost:5000").await;
     {
         let conn = app.state.feed_pool.get().unwrap();
-        feed::create_feed(&conn, "bob.durand", "", None, None, None, None, false, "Cal", None, None).unwrap();
-        // An older link of mine made with a password and the "@epita.fr" form
-        feed::create_feed(&conn, "Alice.Martin@epita.fr", "pw", None, None, None, None, false, "Cal", None, None).unwrap();
+        feed::create_feed(&conn, "bob.durand", None, None, None, None, false, "Cal", &[]).unwrap();
+        // An older link of mine saved with the "@epita.fr" form
+        feed::create_feed(&conn, "Alice.Martin@epita.fr", None, None, None, None, false, "Cal", &[]).unwrap();
     }
     let data = app.get("/api/feeds", Some(USER)).await.json();
     let feeds = data["feeds"].as_array().unwrap();
     assert_eq!(feeds.len(), 2, "bob's link is not listed");
     assert_eq!(data["max"], 3);
-    let newest = feeds.iter().find(|f| f["auto_refresh"] == false).unwrap();
+    let newest = feeds.iter().find(|f| f["subjects"] == 1).unwrap();
     assert_eq!(newest["subjects"], 1);
     assert_eq!(newest["hide_cancelled"], true);
     assert!(newest["subscription_url"].as_str().unwrap().contains("/feed/"));
     assert!(newest["webcal_url"].as_str().unwrap().starts_with("webcal://"));
-    assert!(feeds.iter().any(|f| f["auto_refresh"] == true), "older password link flagged");
     assert_eq!(app.get("/api/feeds", None).await.status, StatusCode::UNAUTHORIZED);
 }
 

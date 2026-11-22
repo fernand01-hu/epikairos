@@ -233,6 +233,68 @@ fn fix_utc_time_columns(conn: &Connection) -> rusqlite::Result<usize> {
     Ok(fixed)
 }
 
+fn columns_of(conn: &Connection, table: &str) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let cols = stmt.query_map([], |row| row.get::<_, String>(1))?.filter_map(Result::ok).collect();
+    Ok(cols)
+}
+
+/// Removes what older versions created and nothing uses anymore: the recurring
+/// courses ("planning type") and contributions tables, `courses.recurring_id` /
+/// `courses.pattern_key`, `rooms.building` / `rooms.floor`. Idempotent.
+fn drop_retired_schema(conn: &Connection) -> rusqlite::Result<()> {
+    let course_cols = columns_of(conn, "courses")?;
+    if course_cols.iter().any(|c| c == "recurring_id" || c == "pattern_key") {
+        // recurring_id is a foreign key, which SQLite cannot drop in place: rebuild
+        // the table (sqlite.org/lang_altertable.html, "other kinds of changes").
+        // Foreign keys are off meanwhile so the course links are kept as they are.
+        conn.execute_batch(
+            "PRAGMA foreign_keys = OFF;
+             BEGIN;
+             CREATE TABLE courses_new (
+                 id TEXT PRIMARY KEY,
+                 start TEXT NOT NULL,
+                 end TEXT NOT NULL,
+                 date_str TEXT NOT NULL,
+                 start_time_str TEXT NOT NULL,
+                 end_time_str TEXT NOT NULL,
+                 duration INTEGER DEFAULT 90,
+                 course_name TEXT NOT NULL,
+                 course_code TEXT,
+                 activity_type TEXT NOT NULL,
+                 activity_name TEXT,
+                 is_exam INTEGER DEFAULT 0,
+                 is_cancelled INTEGER DEFAULT 0,
+                 status TEXT,
+                 description TEXT,
+                 searchable_text TEXT,
+                 updated_at REAL NOT NULL
+             );
+             INSERT INTO courses_new
+                 SELECT id, start, end, date_str, start_time_str, end_time_str, duration, course_name,
+                        course_code, activity_type, activity_name, is_exam, is_cancelled, status,
+                        description, searchable_text, updated_at
+                 FROM courses;
+             DROP TABLE courses;
+             ALTER TABLE courses_new RENAME TO courses;
+             CREATE INDEX IF NOT EXISTS idx_courses_date ON courses(date_str);
+             CREATE INDEX IF NOT EXISTS idx_courses_start ON courses(start);
+             CREATE INDEX IF NOT EXISTS idx_courses_type ON courses(activity_type);
+             CREATE INDEX IF NOT EXISTS idx_courses_slot ON courses(start, end, course_name);
+             COMMIT;
+             PRAGMA foreign_keys = ON;",
+        )?;
+    }
+    conn.execute_batch("DROP TABLE IF EXISTS recurring_courses; DROP TABLE IF EXISTS contributions;")?;
+    let room_cols = columns_of(conn, "rooms")?;
+    for col in ["building", "floor"] {
+        if room_cols.iter().any(|c| c == col) {
+            conn.execute(&format!("ALTER TABLE rooms DROP COLUMN {col}"), [])?;
+        }
+    }
+    Ok(())
+}
+
 pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS courses (
@@ -268,9 +330,7 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
 
         CREATE TABLE IF NOT EXISTS rooms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE COLLATE NOCASE,
-            building TEXT,
-            floor TEXT
+            name TEXT UNIQUE COLLATE NOCASE
         );
 
         CREATE TABLE IF NOT EXISTS course_rooms (
@@ -290,13 +350,6 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
             PRIMARY KEY (course_id, group_id)
         );
 
-        CREATE TABLE IF NOT EXISTS contributions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp REAL NOT NULL,
-            course_count INTEGER NOT NULL,
-            consent INTEGER DEFAULT 1
-        );
-
         CREATE TABLE IF NOT EXISTS promotions (
             id TEXT PRIMARY KEY,
             code TEXT NOT NULL,
@@ -304,36 +357,6 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
             cycle TEXT NOT NULL,
             year INTEGER NOT NULL,
             semesters TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS recurring_courses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pattern_key TEXT UNIQUE NOT NULL,
-            course_name TEXT NOT NULL,
-            course_code TEXT,
-            activity_type TEXT NOT NULL,
-            activity_name TEXT,
-            day_of_week INTEGER NOT NULL,
-            day_name TEXT NOT NULL,
-            start_time TEXT NOT NULL,
-            end_time TEXT NOT NULL,
-            duration INTEGER NOT NULL,
-            promo_id TEXT,
-            promo_name TEXT,
-            subgroup TEXT,
-            group_display TEXT,
-            primary_teacher TEXT,
-            all_teachers TEXT,
-            primary_room TEXT,
-            all_rooms TEXT,
-            occurrences_count INTEGER DEFAULT 1,
-            first_date TEXT,
-            last_date TEXT,
-            frequency TEXT,
-            is_recurring INTEGER DEFAULT 1,
-            confidence_score REAL DEFAULT 1.0,
-            created_at REAL NOT NULL,
-            updated_at REAL NOT NULL
         );
 
         CREATE INDEX IF NOT EXISTS idx_courses_date ON courses(date_str);
@@ -344,29 +367,12 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_teachers_name ON teachers(name);
         CREATE INDEX IF NOT EXISTS idx_rooms_name ON rooms(name);
         CREATE INDEX IF NOT EXISTS idx_groups_name ON groups(name);
-        CREATE INDEX IF NOT EXISTS idx_rec_day ON recurring_courses(day_of_week, start_time);
-        CREATE INDEX IF NOT EXISTS idx_rec_promo ON recurring_courses(promo_id);
         CREATE INDEX IF NOT EXISTS idx_course_teachers_tid ON course_teachers(teacher_id);
         CREATE INDEX IF NOT EXISTS idx_course_rooms_rid ON course_rooms(room_id);
         CREATE INDEX IF NOT EXISTS idx_course_groups_gid ON course_groups(group_id);",
     )?;
 
-    // Check dynamic columns
-    let mut stmt = conn.prepare("PRAGMA table_info(courses)")?;
-    let c_cols: Vec<String> = stmt
-        .query_map([], |row| row.get::<_, String>(1))?
-        .filter_map(Result::ok)
-        .collect();
-
-    if !c_cols.contains(&"recurring_id".to_string()) {
-        conn.execute(
-            "ALTER TABLE courses ADD COLUMN recurring_id INTEGER REFERENCES recurring_courses(id);",
-            [],
-        )?;
-    }
-    if !c_cols.contains(&"pattern_key".to_string()) {
-        conn.execute("ALTER TABLE courses ADD COLUMN pattern_key TEXT;", [])?;
-    }
+    drop_retired_schema(conn)?;
 
     let mut stmt_g = conn.prepare("PRAGMA table_info(groups)")?;
     let g_cols: Vec<String> = stmt_g
@@ -614,11 +620,6 @@ pub fn ingest_courses(
             }
         }
     }
-
-    tx.execute(
-        "INSERT INTO contributions (timestamp, course_count, consent) VALUES (?1, ?2, ?3);",
-        params![now, courses.len() as i64, 1],
-    )?;
 
     tx.commit()?;
 
