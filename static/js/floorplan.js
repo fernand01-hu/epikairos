@@ -16,14 +16,14 @@
 
     const ROOMS = [
         // West wing
-        { id: "301", pts: "392,6 470,10 385,147 328,108" },
-        { id: "302", pts: "478,24 553,64 468,198 406,158" },
-        { id: "303", pts: "284,174 344,211 290,333 212,284" },
+        { id: "301", pts: "390,5 450,5 476,24 449,61 386,148 325,110" },
+        { id: "302", pts: "478,27 551,70 467,198 404,160 464,72" },
+        { id: "303", pts: "283,172 347,210 290,335 212,282" },
         { id: "304", label: "Bureau", kind: "office", pts: "366,246 416,264 380,325 343,298" },
         { id: "305", pts: "210,285 276,327 228,438 131,408" },
         { id: "308", pts: "68,505 190,585 71,648 27,567" },
         { id: "309", pts: "190,586 250,638 106,717 72,650" },
-        { id: "310", label: "Amphi", pts: "106,719 250,640 340,800 341,832 320,845 320,939 226,939 136,771 155,770 155,722" },
+        { id: "310", label: "Amphi", pts: "106,719 250,640 247,660 310,783 327,780 340,803 341,832 320,845 320,939 226,939 136,771 155,770 155,722" },
         { id: "312", label: "Bureau", kind: "office", pts: "340,508 395,558 356,588 318,546" },
         { id: "313", label: "Bureau", kind: "office", pts: "396,560 418,590 360,620 343,589" },
         { id: "314", label: "Bureau", kind: "office", pts: "419,592 435,623 375,652 361,622" },
@@ -52,14 +52,22 @@
     ];
 
     const PLAN_IDS = new Set(ROOMS.map(r => r.id));
+    // Drawing area in plan units
+    const PLAN = { x: 15, y: 0, w: 1595, h: 950 };
+    // Rooms are drawn this far inside their walls, so neighbours never share a border
+    const INSET = 4;
 
     function roomNumber(name) {
         const m = String(name || "").match(/\b(\d{3})\b/);
         return m ? m[1] : null;
     }
 
+    function parsePts(pts) {
+        return pts.split(" ").map(p => p.split(",").map(Number));
+    }
+
     function centroid(pts) {
-        const coords = pts.split(" ").map(p => p.split(",").map(Number));
+        const coords = parsePts(pts);
         // Area-weighted polygon centroid, so labels sit inside slanted rooms
         let a = 0, cx = 0, cy = 0;
         for (let i = 0; i < coords.length; i++) {
@@ -73,6 +81,30 @@
         return [cx / (6 * a), cy / (6 * a)];
     }
 
+    /** Moves every edge of the polygon `d` units inwards (mitred corners, capped). */
+    function inset(pts, d) {
+        const c = parsePts(pts);
+        const n = c.length;
+        let area = 0;
+        for (let i = 0; i < n; i++) {
+            const [x0, y0] = c[i], [x1, y1] = c[(i + 1) % n];
+            area += x0 * y1 - x1 * y0;
+        }
+        const sign = area > 0 ? 1 : -1;
+        const normal = (a, b) => {
+            const dx = b[0] - a[0], dy = b[1] - a[1];
+            const len = Math.hypot(dx, dy) || 1;
+            return [(-dy / len) * sign, (dx / len) * sign];
+        };
+        return c.map((p, i) => {
+            const n1 = normal(c[(i - 1 + n) % n], p);
+            const n2 = normal(p, c[(i + 1) % n]);
+            const dot = n1[0] * n2[0] + n1[1] * n2[1];
+            const k = Math.min(d / Math.max(1 + dot, 0.25), d * 3);
+            return `${(p[0] + (n1[0] + n2[0]) * k).toFixed(1)},${(p[1] + (n1[1] + n2[1]) * k).toFixed(1)}`;
+        }).join(" ");
+    }
+
     function el(tag, attrs, text) {
         const node = document.createElementNS(SVG_NS, tag);
         for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
@@ -82,16 +114,147 @@
 
     const STATE_LABELS = { free: t("libre"), soon: t("prise dans moins d'une heure"), busy: t("occupée"), unknown: t("pas de données") };
 
+    // -------------------------------------------------------------------------
+    // Zoom and pan (pinch, drag, Ctrl+wheel, double tap, buttons)
+    // The view is a rectangle of the plan with the same shape as the container.
+    // -------------------------------------------------------------------------
+    const MIN_WIDTH = 260;
+
+    function boxAspect(box) {
+        const r = box.getBoundingClientRect();
+        return r.width / Math.max(r.height, 1);
+    }
+
+    function fullWidth(aspect) {
+        return Math.max(PLAN.w, PLAN.h * aspect);
+    }
+
+    function clampView(v, aspect) {
+        const w = Math.min(Math.max(v.w, MIN_WIDTH), fullWidth(aspect));
+        const h = w / aspect;
+        const fit = (pos, size, start, total) =>
+            size >= total ? start + (total - size) / 2 : Math.min(Math.max(pos, start), start + total - size);
+        return { x: fit(v.x, w, PLAN.x, PLAN.w), y: fit(v.y, h, PLAN.y, PLAN.h), w, h };
+    }
+
+    /** Wide screens see the whole floor; tall ones start at full height on the west wing. */
+    function defaultView(aspect) {
+        if (aspect >= (PLAN.w / PLAN.h) * 0.9) return clampView({ x: 0, y: 0, w: fullWidth(aspect) }, aspect);
+        return clampView({ x: PLAN.x, y: PLAN.y, w: PLAN.h * aspect }, aspect);
+    }
+
+    function applyView(box) {
+        const svg = box.querySelector("svg");
+        const aspect = boxAspect(box);
+        box.fpView = clampView(box.fpView || defaultView(aspect), aspect);
+        if (svg) {
+            const v = box.fpView;
+            svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+        }
+        box.classList.toggle("is-zoomed", box.fpView.w < fullWidth(aspect) - 1);
+    }
+
+    /** Zooms by `factor` around the client point (px, py). */
+    function zoomAt(box, factor, px, py) {
+        const r = box.getBoundingClientRect();
+        const v = box.fpView;
+        const fx = (px - r.left) / r.width, fy = (py - r.top) / r.height;
+        const w = v.w / factor;
+        box.fpView = { x: v.x + fx * v.w - fx * w, y: v.y + fy * v.h - fy * (w / boxAspect(box)), w };
+        applyView(box);
+    }
+
+    function zoomCenter(box, factor) {
+        const r = box.getBoundingClientRect();
+        zoomAt(box, factor, r.left + r.width / 2, r.top + r.height / 2);
+    }
+
+    function resetView(box) {
+        box.fpView = defaultView(boxAspect(box));
+        applyView(box);
+    }
+
+    function enableZoom(box) {
+        if (box.fpZoomReady) return;
+        box.fpZoomReady = true;
+        const pointers = new Map();
+        let last = null;   // previous gesture state { x, y, dist }
+        let moved = 0;
+
+        const gesture = () => {
+            const pts = [...pointers.values()];
+            const x = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+            const y = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+            const dist = pts.length > 1 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : 0;
+            return { x, y, dist, count: pts.length };
+        };
+
+        box.addEventListener("pointerdown", e => {
+            if (e.pointerType === "mouse" && e.button !== 0) return;
+            if (e.target.closest(".fp-overlay")) return;
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            last = gesture();
+            if (pointers.size === 1) moved = 0;
+        });
+
+        box.addEventListener("pointermove", e => {
+            if (!pointers.has(e.pointerId)) return;
+            pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            const g = gesture();
+            if (!last || g.count !== last.count) { last = g; return; }
+            const zoomed = box.classList.contains("is-zoomed");
+            if (g.count === 1 && !zoomed) { last = g; return; }   // let the page scroll
+            moved += Math.hypot(g.x - last.x, g.y - last.y) + Math.abs(g.dist - last.dist);
+            if (moved < 6) return;
+            if (!box.hasPointerCapture(e.pointerId)) {
+                try { box.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+            }
+            const r = box.getBoundingClientRect();
+            const v = box.fpView;
+            const scale = v.w / r.width;
+            box.fpView = { ...v, x: v.x - (g.x - last.x) * scale, y: v.y - (g.y - last.y) * scale };
+            applyView(box);
+            if (g.count > 1 && last.dist > 0) zoomAt(box, g.dist / last.dist, g.x, g.y);
+            last = g;
+            e.preventDefault();
+        });
+
+        const end = e => {
+            if (!pointers.delete(e.pointerId)) return;
+            last = pointers.size ? gesture() : null;
+            if (moved >= 6) box.fpLastDrag = Date.now();
+        };
+        box.addEventListener("pointerup", end);
+        box.addEventListener("pointercancel", end);
+
+        box.addEventListener("wheel", e => {
+            if (!e.ctrlKey && !e.metaKey) return;   // plain wheel scrolls the page
+            e.preventDefault();
+            zoomAt(box, Math.exp(-e.deltaY / 300), e.clientX, e.clientY);
+        }, { passive: false });
+
+        box.addEventListener("dblclick", e => {
+            if (e.target.closest(".fp-overlay")) return;
+            zoomAt(box, 2, e.clientX, e.clientY);
+        });
+
+        window.addEventListener("resize", () => applyView(box));
+    }
+
+    // -------------------------------------------------------------------------
+    // Rendering
+    // -------------------------------------------------------------------------
+
     /**
-     * Renders the plan into `container`.
+     * Renders the plan into `container` (keeps the current zoom).
      * states: { "301": { state: "free"|"soon"|"busy", name, note }, ... } — rooms
      * missing from it are drawn as "no data". onSelect(roomId) fires on click/Enter.
      */
     function render(container, { states = {}, selected = null, onSelect } = {}) {
         const svg = el("svg", {
-            viewBox: "15 0 1595 950",
             class: "floorplan-svg",
             role: "group",
+            preserveAspectRatio: "xMidYMid meet",
             "aria-label": t("Plan du 3e étage"),
         });
 
@@ -112,7 +275,7 @@
                 g.setAttribute("aria-label", `${entry ? entry.name : t("Salle {room}", { room: def.id })}, ${STATE_LABELS[state]}`);
             }
 
-            g.appendChild(el("polygon", { points: def.pts }));
+            g.appendChild(el("polygon", { points: inset(def.pts, INSET) }));
             const [cx, cy] = centroid(def.pts);
             g.appendChild(el("text", { x: cx, y: cy - (def.label && !office ? 8 : 0), class: office ? "fp-num fp-num-sm" : "fp-num" }, def.id));
             if (def.label && !office) {
@@ -123,21 +286,34 @@
             }
 
             if (!office && onSelect) {
-                const activate = () => onSelect(def.id);
+                const activate = () => {
+                    // A drag or pinch that ends on a room is not a click
+                    if (container.fpLastDrag && Date.now() - container.fpLastDrag < 350) return;
+                    onSelect(def.id);
+                };
                 g.addEventListener("click", activate);
                 g.addEventListener("keydown", e => {
-                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); }
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(def.id); }
                 });
             }
             svg.appendChild(g);
         });
 
-        container.replaceChildren(svg);
+        const old = container.querySelector("svg");
+        if (old) old.replaceWith(svg);
+        else {
+            container.querySelector(".fp-loading")?.remove();
+            container.prepend(svg);
+        }
+        enableZoom(container);
+        applyView(container);
     }
 
-    function isOnPlan(roomName) {
-        return PLAN_IDS.has(roomNumber(roomName));
-    }
-
-    window.FloorPlan = { render, roomNumber, isOnPlan };
+    window.FloorPlan = {
+        render,
+        roomNumber,
+        zoomIn: (box) => zoomCenter(box, 1.6),
+        zoomOut: (box) => zoomCenter(box, 1 / 1.6),
+        reset: resetView,
+    };
 })();

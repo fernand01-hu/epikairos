@@ -805,20 +805,66 @@ i.bi[class*="text-"] {
     --fp-unknown: #3f3f46;
 }
 
-.floorplan-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+/* Map viewport: the plan keeps its shape on wide screens; on phones it is taller
+   and can be pinched, dragged and zoomed (floorplan.js). */
+.fp-viewport {
+    position: relative;
+    aspect-ratio: 1595 / 950;
+    overflow: hidden;
+    touch-action: pan-y;          /* one finger still scrolls the page... */
+    user-select: none;
+    -webkit-user-select: none;
 }
+.fp-viewport.is-zoomed {
+    touch-action: none;           /* ...until the map is zoomed in, then it drags the map */
+    cursor: grab;
+}
+.fp-viewport.is-zoomed:active { cursor: grabbing; }
 
-#floorPlanContainer {
-    min-width: 640px;
+@media (max-width: 767.98px) {
+    .fp-viewport {
+        aspect-ratio: auto;
+        height: min(68vh, 560px);
+    }
 }
 
 .floorplan-svg {
     display: block;
     width: 100%;
-    height: auto;
+    height: 100%;
 }
+
+.fp-overlay {
+    position: absolute;
+    z-index: 2;
+}
+.fp-clock {
+    top: 0.25rem;
+    left: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    padding: 0.1rem 0.4rem;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+.fp-zoom {
+    right: 0.25rem;
+    bottom: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+.fp-zoom .btn {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    color: var(--text);
+}
+.fp-zoom .btn + .btn { border-top: 1px solid var(--border); }
+.fp-zoom .btn:hover { background: var(--surface-2); }
 
 .fp-outline {
     fill: var(--surface-2);
@@ -897,16 +943,6 @@ i.bi[class*="text-"] {
 .room-dot.is-soon { background-color: var(--fp-soon-stroke); }
 .room-dot.is-unknown { background-color: var(--text-3); }
 
-.fp-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
-    padding: 0.2rem 0.55rem;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: var(--surface);
-}
 
 /* ==========================================================================
    Flat & square: no rounded corners, no shadows, anywhere.
@@ -948,17 +984,68 @@ a {
     pointer-events: none;
 }
 
-.fp-course {
-    padding: 0.45rem 0 0.45rem 0.6rem;
-    border-left: 2px solid var(--border-strong);
-    margin-bottom: 0.35rem;
-    font-size: 0.8125rem;
+/* Day picker with arrows: ‹ [ day ] › in one block */
+.fp-day-nav { display: flex; }
+.fp-day-nav .fp-day-picker { flex: 1; min-width: 0; }
+.fp-day-nav .fp-day-picker .btn { border-left: 0; border-right: 0; }
+.fp-day-nav > .btn { flex: 0 0 auto; padding-left: 0.6rem; padding-right: 0.6rem; }
+
+/* A room's day, drawn like a one-day planning */
+.rd-timeline {
+    position: relative;
+    margin-top: 0.75rem;
 }
-.fp-course.is-now { border-left-color: var(--fp-busy-stroke); background: var(--fp-busy); }
-.fp-course.is-past { opacity: 0.5; }
-.fp-course-time { font-size: 0.75rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.fp-course-title { font-weight: 600; }
-.fp-course-meta { font-size: 0.75rem; color: var(--text-2); }
+.rd-hour {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--border);
+}
+.rd-hour span {
+    position: absolute;
+    top: -0.55rem;
+    left: 0;
+    width: 2.6rem;
+    font-size: 0.6875rem;
+    color: var(--text-3);
+    background: var(--surface);
+    font-variant-numeric: tabular-nums;
+}
+.rd-events {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 2.9rem;
+    right: 0;
+}
+.rd-card {
+    position: absolute;
+    overflow: hidden;
+    padding: 3px 6px;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    color: var(--text);
+    background-color: color-mix(in srgb, var(--t, var(--type-autre)) 10%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--t, var(--type-autre)) 25%, var(--border));
+    border-left: 3px solid var(--t, var(--type-autre));
+}
+.rd-card.is-past { opacity: 0.5; }
+.rd-card.type-cm { --t: var(--type-cm); }
+.rd-card.type-td { --t: var(--type-td); }
+.rd-card.type-tp { --t: var(--type-tp); }
+.rd-card.type-ex { --t: var(--type-ex); }
+.rd-card.type-conf { --t: var(--type-conf); }
+.rd-card.type-evn { --t: var(--type-evn); }
+.rd-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-meta { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-now {
+    position: absolute;
+    left: 2.9rem;
+    right: 0;
+    border-top: 2px solid var(--danger);
+    z-index: 3;
+    pointer-events: none;
+}
 
 /* ==========================================================================
    Week time grid (Mon planning)

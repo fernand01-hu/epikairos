@@ -14,10 +14,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const dayBtn = document.getElementById("dayBtn");
     const dayInput = document.getElementById("dayInput");
     const dayClock = document.getElementById("dayClock");
-    const offPlanCard = document.getElementById("offPlanCard");
-    const offPlanList = document.getElementById("offPlanList");
+    const prevDayBtn = document.getElementById("prevDayBtn");
+    const nextDayBtn = document.getElementById("nextDayBtn");
 
     const SOON_MINUTES = 60;
+    const HOUR_PX = 44;      // height of one hour in the day timeline
     let rooms = [];          // [{ name, courses: [{title,type,start,end,teachers,groups}] }]
     let selectedRoom = null; // "301"
     let loadedDate = null;
@@ -94,7 +95,6 @@ document.addEventListener("DOMContentLoaded", () => {
         dayBtn.textContent = formatDay(dayInput.value);
         dayClock.textContent = t("Statut calculé à {time}", { time: `${pad(Math.floor(ref / 60))}:${pad(ref % 60)}` });
         renderDetails(ref);
-        renderOffPlan(ref);
     }
 
     function renderDetails(ref) {
@@ -120,35 +120,84 @@ document.addEventListener("DOMContentLoaded", () => {
             statusLine = status.next ? t("Libre jusqu'à {time}", { time: escapeHtml(status.next.start) }) : t("Libre jusqu'au soir");
         }
 
-        const courses = room.courses || [];
-        const list = courses.length === 0
-            ? `<div class="small text-muted">${t("Aucun cours ce jour-là.")}</div>`
-            : courses.map(c => {
-                const isNow = c === status.current;
-                const isPast = toMinutes(c.end) <= ref;
-                const people = [c.teachers && c.teachers.join(", "), c.groups && c.groups.join(", ")].filter(Boolean).join(" · ");
-                return `
-                    <div class="fp-course${isNow ? " is-now" : ""}${isPast ? " is-past" : ""}">
-                        <div class="fp-course-time">${escapeHtml(c.start)} – ${escapeHtml(c.end)}</div>
-                        <div class="fp-course-title">${escapeHtml(c.title || t("Cours"))}</div>
-                        ${people ? `<div class="fp-course-meta">${escapeHtml(people)}</div>` : ""}
-                    </div>`;
-            }).join("");
-
         details.innerHTML = `
             <div class="fp-detail-title"><span class="room-dot is-${status.state}"></span>${escapeHtml(room.name)}</div>
             <div class="fp-detail-status is-${status.state}">${statusLine}</div>
-            <div class="section-label mb-1">${escapeHtml(formatDay(dayInput.value))}</div>
-            ${list}`;
+            ${timeline(room.courses || [], ref)}`;
     }
 
-    function renderOffPlan(ref) {
-        const others = rooms.filter(r => !window.FloorPlan.isOnPlan(r.name));
-        offPlanCard.classList.toggle("d-none", others.length === 0);
-        offPlanList.innerHTML = others.map(room => {
-            const s = roomStatus(room, ref);
-            return `<span class="fp-chip"><span class="room-dot is-${s.state}"></span>${escapeHtml(room.name)}</span>`;
+    function typeClass(type) {
+        const u = String(type || "").trim().toUpperCase();
+        if (u === "CME" || u === "CM") return "cm";
+        if (u === "TDE" || u === "TD") return "td";
+        if (u === "TPE" || u === "TP") return "tp";
+        if (u.startsWith("EX") || u.includes("EXAM") || u.includes("EVAL")) return "ex";
+        if (u.includes("CONF")) return "conf";
+        if (u.includes("EVN") || u.includes("EVEN")) return "evn";
+        return "autre";
+    }
+
+    /** The room's day as a vertical timeline, like a one-day planning. */
+    function timeline(courses, ref) {
+        const items = courses
+            .map(c => ({ c, start: toMinutes(c.start), end: toMinutes(c.end) }))
+            .filter(i => i.start !== null && i.end !== null && i.end > i.start)
+            .sort((a, b) => a.start - b.start || b.end - a.end);
+        if (items.length === 0) return `<div class="small text-muted mt-2">${t("Aucun cours ce jour-là.")}</div>`;
+
+        const first = Math.min(8, Math.floor(items[0].start / 60));
+        const last = Math.max(19, Math.ceil(Math.max(...items.map(i => i.end)) / 60));
+        const top = (min) => ((min - first * 60) / 60) * HOUR_PX;
+
+        // Overlapping courses share the width side by side
+        let group = [], groupEnd = -1;
+        const flush = () => {
+            const lanes = [];
+            group.forEach(i => {
+                let lane = lanes.findIndex(end => end <= i.start);
+                if (lane === -1) { lane = lanes.length; lanes.push(0); }
+                lanes[lane] = i.end;
+                i.lane = lane;
+            });
+            group.forEach(i => { i.lanes = lanes.length; });
+            group = [];
+        };
+        items.forEach(i => {
+            if (group.length && i.start >= groupEnd) flush();
+            group.push(i);
+            groupEnd = Math.max(groupEnd, i.end);
+        });
+        flush();
+
+        let hours = "";
+        for (let h = first; h <= last; h++) {
+            hours += `<div class="rd-hour" style="top:${top(h * 60)}px"><span>${pad(h)}:00</span></div>`;
+        }
+        const isToday = dayInput.value === todayStr();
+        const now = isToday && ref >= first * 60 && ref <= last * 60
+            ? `<div class="rd-now" style="top:${top(ref)}px"></div>` : "";
+
+        const cards = items.map(i => {
+            const c = i.c;
+            const people = [c.teachers && c.teachers.join(", "), c.groups && c.groups.join(", ")].filter(Boolean).join(" · ");
+            const past = isToday && i.end <= ref;
+            const height = Math.max(top(i.end) - top(i.start) - 2, 22);
+            return `
+                <div class="rd-card type-${typeClass(c.type)}${past ? " is-past" : ""}"
+                     style="top:${top(i.start)}px;height:${height}px;left:calc(${(i.lane / i.lanes) * 100}% + 2px);right:calc(${((i.lanes - i.lane - 1) / i.lanes) * 100}% + 2px)"
+                     title="${escapeHtml(`${c.title || ""}\n${c.start} – ${c.end}${people ? "\n" + people : ""}`)}">
+                    <div class="rd-title">${escapeHtml(c.title || t("Cours"))}</div>
+                    <div class="rd-meta">${escapeHtml(c.start)} – ${escapeHtml(c.end)}</div>
+                    ${people ? `<div class="rd-meta">${escapeHtml(people)}</div>` : ""}
+                </div>`;
         }).join("");
+
+        return `
+            <div class="rd-timeline" style="height:${top(last * 60) + 8}px">
+                ${hours}
+                <div class="rd-events">${cards}</div>
+                ${now}
+            </div>`;
     }
 
     // -------------------------------------------------------------------------
@@ -163,7 +212,11 @@ document.addEventListener("DOMContentLoaded", () => {
             loadedDate = date;
             render();
         } catch (err) {
-            planContainer.innerHTML = `<div class="small text-danger p-4">${t("Impossible de charger les salles : {error}", { error: escapeHtml(err.message) })}</div>`;
+            const box = planContainer.querySelector(".fp-loading");
+            if (box) {
+                box.classList.add("text-danger");
+                box.textContent = t("Impossible de charger les salles : {error}", { error: err.message });
+            }
         }
     }
 
@@ -174,6 +227,19 @@ document.addEventListener("DOMContentLoaded", () => {
         dayInput.focus();
         dayInput.click();
     });
+
+    function shiftDay(days) {
+        const [y, m, d] = (dayInput.value || todayStr()).split("-").map(Number);
+        const next = new Date(y, m - 1, d + days);
+        dayInput.value = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-${pad(next.getDate())}`;
+        load(dayInput.value);
+    }
+    prevDayBtn.addEventListener("click", () => shiftDay(-1));
+    nextDayBtn.addEventListener("click", () => shiftDay(1));
+
+    document.getElementById("zoomInBtn").addEventListener("click", () => window.FloorPlan.zoomIn(planContainer));
+    document.getElementById("zoomOutBtn").addEventListener("click", () => window.FloorPlan.zoomOut(planContainer));
+    document.getElementById("zoomResetBtn").addEventListener("click", () => window.FloorPlan.reset(planContainer));
 
     dayInput.addEventListener("change", () => {
         if (!dayInput.value) dayInput.value = todayStr();
