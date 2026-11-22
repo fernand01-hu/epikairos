@@ -9,6 +9,8 @@ Site web pour consulter son emploi du temps EPITA à partir d'Auriga, voir les s
 - Salles libres : le plan du 3e étage avec l'état de chaque salle.
 - Admin : la liste des comptes qui se sont connectés, visible seulement par les comptes de `ADMIN_USERS`.
 
+Le site est en français ou en anglais : le bouton EN / FR à côté du thème change la langue, retenue dans un cookie. Les textes anglais sont dans `src/i18n/en.json` ; un test vérifie qu'aucun texte n'a été oublié.
+
 À chaque connexion, les cours récupérés depuis Auriga sont ajoutés à une base commune. C'est elle qui alimente Planning et Salles libres.
 
 ## Connexion

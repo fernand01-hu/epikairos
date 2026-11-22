@@ -13,9 +13,9 @@ if ('serviceWorker' in navigator) {
     const icon = document.getElementById('themeIcon');
     const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     const MODES = {
-        auto: { icon: 'bi bi-circle-half', label: 'Thème : automatique' },
-        light: { icon: 'bi bi-sun', label: 'Thème : clair' },
-        dark: { icon: 'bi bi-moon', label: 'Thème : sombre' },
+        auto: { icon: 'bi bi-circle-half', label: t('Thème : automatique') },
+        light: { icon: 'bi bi-sun', label: t('Thème : clair') },
+        dark: { icon: 'bi bi-moon', label: t('Thème : sombre') },
     };
     const NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
 
@@ -69,7 +69,7 @@ document.addEventListener('click', (e) => {
     if (!input) return;
     const show = input.type === 'password';
     input.type = show ? 'text' : 'password';
-    const label = show ? 'Masquer le mot de passe' : 'Afficher le mot de passe';
+    const label = show ? t('Masquer le mot de passe') : t('Afficher le mot de passe');
     btn.setAttribute('aria-pressed', String(show));
     btn.setAttribute('aria-label', label);
     btn.title = label;
@@ -78,3 +78,11 @@ document.addEventListener('click', (e) => {
 
 // Offline page: "Réessayer" button
 document.getElementById('offlineRetryBtn')?.addEventListener('click', () => window.location.reload());
+
+// Language button: remembers the choice for a year, then reloads in that language
+document.getElementById('langToggleBtn')?.addEventListener('click', (e) => {
+    const lang = e.currentTarget.dataset.lang === 'en' ? 'en' : 'fr';
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `lang=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+    location.reload();
+});

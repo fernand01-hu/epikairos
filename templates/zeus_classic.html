@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Planning — EpiKairos{% endblock %}
+{% block title %}{{ _("Planning") }} — EpiKairos{% endblock %}
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
@@ -18,39 +18,39 @@
         <!-- Panel 1: school groups -->
         <div class="zeus-panel" id="groupsPanel" role="tabpanel">
             <div class="zeus-search-box">
-                <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="Groupe ou professeur">
-                <button class="btn-search-icon" id="btnSearchTree" title="Rechercher">
+                <input type="text" class="zeus-search-input" id="treeSearchInput" placeholder="{{ _("Groupe ou professeur") }}">
+                <button class="btn-search-icon" id="btnSearchTree" title="{{ _("Rechercher") }}">
                     <i class="bi bi-search"></i>
                 </button>
-                <button class="btn-clear-icon" id="btnClearSearch" title="Effacer">
+                <button class="btn-clear-icon" id="btnClearSearch" title="{{ _("Effacer") }}">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
 
             <div class="zeus-group-header" id="btnToggleGroupSection">
-                <span>Groupes</span>
+                <span>{{ _("Groupes") }}</span>
                 <i class="bi bi-chevron-up" id="groupChevron"></i>
             </div>
 
             <div class="zeus-tree-container" id="groupTreeContainer">
                 <div class="text-center py-4 text-muted small" id="treeLoadingSpinner">
                     <div class="spinner-border spinner-border-sm" role="status"></div>
-                    <div class="mt-1">Chargement des groupes...</div>
+                    <div class="mt-1">{{ _("Chargement des groupes...") }}</div>
                 </div>
             </div>
 
             <div class="zeus-group-header" id="btnToggleTeacherSection">
-                <span>Professeurs <span class="zeus-count" id="teacherSelectedCount"></span></span>
+                <span>{{ _("Professeurs") }} <span class="zeus-count" id="teacherSelectedCount"></span></span>
                 <i class="bi bi-chevron-up" id="teacherChevron"></i>
             </div>
 
             <div class="zeus-tree-container" id="teacherListContainer">
-                <div class="small text-muted py-2">Chargement des professeurs...</div>
+                <div class="small text-muted py-2">{{ _("Chargement des professeurs...") }}</div>
             </div>
 
             <div class="zeus-sidebar-actions">
                 <button type="button" class="btn-clear-selection" id="btnClearSelection">
-                    <i class="bi bi-x-lg"></i> Effacer la sélection
+                    <i class="bi bi-x-lg"></i> {{ _("Effacer la sélection") }}
                 </button>
             </div>
         </div>
@@ -62,29 +62,29 @@
         <!-- Timetable Top Bar -->
         <div class="zeus-timetable-topbar">
             <div class="topbar-nav d-flex align-items-center gap-2">
-                <button type="button" class="btn btn-sm btn-outline-secondary icon-btn px-2 py-1" id="btnToggleSidebar" title="Masquer le menu de sélection" aria-label="Masquer / afficher le menu">
+                <button type="button" class="btn btn-sm btn-outline-secondary icon-btn px-2 py-1" id="btnToggleSidebar" title="{{ _("Masquer le menu de sélection") }}" aria-label="{{ _("Masquer / afficher le menu") }}">
                     <i class="bi bi-layout-sidebar-inset" id="toggleSidebarIcon"></i>
                 </button>
                 <div class="vr mx-1 d-none d-sm-block"></div>
-                <button type="button" class="btn btn-sm btn-link icon-btn" id="btnPrevWeek" title="Semaine précédente" aria-label="Semaine précédente">
+                <button type="button" class="btn btn-sm btn-link icon-btn" id="btnPrevWeek" title="{{ _("Semaine précédente") }}" aria-label="{{ _("Semaine précédente") }}">
                     <i class="bi bi-chevron-left"></i>
                 </button>
-                <button type="button" class="btn btn-sm btn-link icon-btn" id="btnNextWeek" title="Semaine suivante" aria-label="Semaine suivante">
+                <button type="button" class="btn btn-sm btn-link icon-btn" id="btnNextWeek" title="{{ _("Semaine suivante") }}" aria-label="{{ _("Semaine suivante") }}">
                     <i class="bi bi-chevron-right"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary ms-1" id="btnToday">
-                    Aujourd'hui
+                    {{ _("Aujourd'hui") }}
                 </button>
             </div>
 
             <div class="topbar-title" id="weekTitleLabel">
-                Semaine 42
+                {{ _("Semaine 42") }}
             </div>
 
             <div class="topbar-views d-flex align-items-center gap-2">
                 <div class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-primary active" id="btnViewWeek">Semaine</button>
-                    <button type="button" class="btn btn-outline-primary" id="btnViewDay">Jour</button>
+                    <button type="button" class="btn btn-outline-primary active" id="btnViewWeek">{{ _("Semaine") }}</button>
+                    <button type="button" class="btn btn-outline-primary" id="btnViewDay">{{ _("Jour") }}</button>
                 </div>
                 <input type="date" class="form-control form-control-sm" id="topbarDatePicker" value="{{ today_date }}" style="width: auto;">
             </div>
@@ -119,14 +119,14 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header border-bottom">
-                <h5 class="modal-title" id="courseDetailTitle">Détail du cours</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                <h5 class="modal-title" id="courseDetailTitle">{{ _("Détail du cours") }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _("Fermer") }}"></button>
             </div>
             <div class="modal-body p-4" id="courseDetailBody">
                 <!-- Populated dynamically -->
             </div>
             <div class="modal-footer border-top">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Fermer</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _("Fermer") }}</button>
             </div>
         </div>
     </div>
@@ -136,5 +136,5 @@
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122o"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122r"></script>
 {% endblock %}

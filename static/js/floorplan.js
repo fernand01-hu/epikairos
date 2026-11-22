@@ -80,7 +80,7 @@
         return node;
     }
 
-    const STATE_LABELS = { free: "libre", soon: "prise dans moins d'une heure", busy: "occupée", unknown: "pas de données" };
+    const STATE_LABELS = { free: t("libre"), soon: t("prise dans moins d'une heure"), busy: t("occupée"), unknown: t("pas de données") };
 
     /**
      * Renders the plan into `container`.
@@ -92,7 +92,7 @@
             viewBox: "15 0 1595 950",
             class: "floorplan-svg",
             role: "group",
-            "aria-label": "Plan du 3e étage",
+            "aria-label": t("Plan du 3e étage"),
         });
 
         svg.appendChild(el("path", { d: OUTLINE, class: "fp-outline" }));
@@ -109,14 +109,14 @@
             if (!office) {
                 g.setAttribute("tabindex", "0");
                 g.setAttribute("role", "button");
-                g.setAttribute("aria-label", `${entry ? entry.name : "Salle " + def.id}, ${STATE_LABELS[state]}`);
+                g.setAttribute("aria-label", `${entry ? entry.name : t("Salle {room}", { room: def.id })}, ${STATE_LABELS[state]}`);
             }
 
             g.appendChild(el("polygon", { points: def.pts }));
             const [cx, cy] = centroid(def.pts);
             g.appendChild(el("text", { x: cx, y: cy - (def.label && !office ? 8 : 0), class: office ? "fp-num fp-num-sm" : "fp-num" }, def.id));
             if (def.label && !office) {
-                g.appendChild(el("text", { x: cx, y: cy + 16, class: "fp-sub" }, def.label));
+                g.appendChild(el("text", { x: cx, y: cy + 16, class: "fp-sub" }, t(def.label)));
             }
             if (entry && entry.note && !office) {
                 g.appendChild(el("text", { x: cx, y: cy + (def.label ? 36 : 22), class: `fp-sub fp-note is-${state}` }, entry.note));

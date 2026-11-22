@@ -83,17 +83,15 @@ document.addEventListener("DOMContentLoaded", () => {
     function formatTime(isoStr) {
         if (!isoStr) return "";
         const d = new Date(isoStr);
-        return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        return d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
     }
 
     function formatWeekLabel(monday) {
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
 
-        const months = [
-            "janv.", "févr.", "mars", "avr.", "mai", "juin",
-            "juil.", "août", "sept.", "oct.", "nov.", "déc."
-        ];
+        const months = Array.from({ length: 12 }, (_, i) =>
+            new Date(2000, i, 1).toLocaleDateString(LOCALE, { month: "short" }));
         const mDay = monday.getDate();
         const sDay = sunday.getDate();
         const mMonth = months[monday.getMonth()];
@@ -118,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
             dateRangeStr = `${mDay} ${mMonth} - ${sDay} ${sMonth} ${year}`;
         }
 
-        return `Semaine ${weekNum} • ${dateRangeStr}`;
+        return t("Semaine {n} • {range}", { n: weekNum, range: dateRangeStr });
     }
 
     // =========================================================================
@@ -178,7 +176,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         if (courseCounts.size === 0) {
-            typeButtonGroup.innerHTML = '<span class="text-muted small">Aucune matière identifiée</span>';
+            typeButtonGroup.innerHTML = `<span class="text-muted small">${t("Aucune matière identifiée")}</span>`;
             return;
         }
 
@@ -327,7 +325,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const bodyHeight = (lastHour - firstHour) * HOUR_PX;
         const toPx = m => ((m - firstHour * 60) / 60) * HOUR_PX;
 
-        const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+        const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => t(d));
         const today = new Date();
 
         let html = `<div class="tg" style="--days: ${dayCount}; --hour: ${HOUR_PX}px;">`;
@@ -367,8 +365,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (weekCourses.length === 0 && visibleCourses.length > 0) {
             noWeekCoursesMessage.classList.remove("d-none");
             noWeekCoursesMessage.innerHTML = `
-                <div class="empty-title">Aucun cours cette semaine</div>
-                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="jumpToClosestCourseBtn">Aller à la prochaine semaine avec des cours</button>
+                <div class="empty-title">${t("Aucun cours cette semaine")}</div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="jumpToClosestCourseBtn">${t("Aller à la prochaine semaine avec des cours")}</button>
             `;
             const jumpBtn = document.getElementById("jumpToClosestCourseBtn");
             if (jumpBtn) {
@@ -409,9 +407,9 @@ document.addEventListener("DOMContentLoaded", () => {
         card.title = [`${formatTime(c.start)} - ${formatTime(c.end)}`, c.course_name, rooms, teachers].filter(Boolean).join("\n");
 
         card.innerHTML = `
-            <input type="checkbox" class="form-check-input event-checkbox" data-id="${escapeHtml(c.id)}" ${isSelected ? "checked" : ""} title="Sélectionner pour l'export" aria-label="Sélectionner pour l'export">
+            <input type="checkbox" class="form-check-input event-checkbox" data-id="${escapeHtml(c.id)}" ${isSelected ? "checked" : ""} title="${t("Sélectionner pour l'export")}" aria-label="${t("Sélectionner pour l'export")}">
             <div class="event-time">${formatTime(c.start)} – ${formatTime(c.end)}</div>
-            <div class="event-title">${c.is_cancelled ? "[Annulé] " : ""}${escapeHtml(c.course_name)}</div>
+            <div class="event-title">${c.is_cancelled ? t("[Annulé]") + " " : ""}${escapeHtml(c.course_name)}</div>
             ${rooms ? `<div class="event-meta">${escapeHtml(rooms)}</div>` : ""}
         `;
 
@@ -490,7 +488,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateSelectedCounter() {
         const visibleSelectedCount = visibleCourses.filter(c => selectedCourseIds.has(c.id)).length;
         if (selectedCountBadge) {
-            selectedCountBadge.textContent = `${visibleSelectedCount} / ${visibleCourses.length} cours sélectionnés`;
+            selectedCountBadge.textContent = t("{n} / {total} cours sélectionnés", { n: visibleSelectedCount, total: visibleCourses.length });
         }
     }
 
@@ -520,13 +518,13 @@ document.addEventListener("DOMContentLoaded", () => {
         downloadIcsBtn.addEventListener("click", async () => {
             const coursesToExport = visibleCourses.filter(c => selectedCourseIds.has(c.id));
             if (coursesToExport.length === 0) {
-                alert("Veuillez sélectionner au moins un cours à exporter.");
+                alert(t("Veuillez sélectionner au moins un cours à exporter."));
                 return;
             }
 
             try {
                 downloadIcsBtn.disabled = true;
-                downloadIcsBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Génération...';
+                downloadIcsBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> ${t("Génération...")}`;
 
                 const res = await fetch("/api/export-ics", {
                     method: "POST",
@@ -538,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
 
                 if (!res.ok) {
-                    throw new Error(`Erreur lors du téléchargement (${res.status})`);
+                    throw new Error(t("Erreur lors du téléchargement ({status})", { status: res.status }));
                 }
 
                 const blob = await res.blob();
@@ -556,7 +554,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert(`Erreur d'exportation : ${err.message}`);
             } finally {
                 downloadIcsBtn.disabled = false;
-                downloadIcsBtn.innerHTML = '<i class="bi bi-download me-1"></i> Télécharger .ics';
+                downloadIcsBtn.innerHTML = `<i class="bi bi-download me-1"></i> ${t("Télécharger .ics")}`;
             }
         });
     }
@@ -584,7 +582,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function feedApi(url, options = {}) {
         const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.success === false) throw new Error(data.error || `Erreur serveur (${res.status})`);
+        if (!res.ok || data.success === false) throw new Error((data.error && t(data.error)) || t("Erreur serveur ({status})", { status: res.status }));
         return data;
     }
 
@@ -598,7 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
             allowed_courses: isCourseFiltered ? activeChips.map(c => c.dataset.course).filter(Boolean) : null,
             hide_cancelled: hideCancelledSwitch ? hideCancelledSwitch.checked : false,
             courses: selected.length ? selected : (visibleCourses.length ? visibleCourses : allCourses),
-            subjectsLabel: isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : `Toutes (${allChips.length})`,
+            subjectsLabel: isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : t("Toutes ({n})", { n: allChips.length }),
         };
     }
 
@@ -611,15 +609,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span class="text-end">${value}</span>
             </div>`;
         feedFiltersBadges.innerHTML = [
-            row("Matières", escapeHtml(s.subjectsLabel)),
-            row("Cours annulés", s.hide_cancelled ? "Masqués" : "Inclus"),
-            row("Séances", String(s.courses.length)),
+            row(t("Matières"), escapeHtml(s.subjectsLabel)),
+            row(t("Cours annulés"), s.hide_cancelled ? t("Masqués") : t("Inclus")),
+            row(t("Séances"), String(s.courses.length)),
         ].join("");
     }
 
     function formatFeedDate(seconds) {
         if (!seconds) return "";
-        return new Date(seconds * 1000).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+        return new Date(seconds * 1000).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric" });
     }
 
     function renderFeeds(feeds) {
@@ -627,37 +625,36 @@ document.addEventListener("DOMContentLoaded", () => {
         if (createFeedBtn) createFeedBtn.disabled = feeds.length >= feedMax;
         if (createFeedHint) {
             createFeedHint.textContent = feeds.length > feedMax
-                ? `Vous avez ${feeds.length} liens pour un maximum de ${feedMax} : supprimez ceux que vous n'utilisez plus.`
+                ? t("Vous avez {n} liens pour un maximum de {max} : supprimez ceux que vous n'utilisez plus.", { n: feeds.length, max: feedMax })
                 : feeds.length === feedMax
-                    ? "Maximum atteint : supprimez un lien ou mettez à jour un lien existant."
+                    ? t("Maximum atteint : supprimez un lien ou mettez à jour un lien existant.")
                     : "";
         }
         if (!feedList) return;
         if (feeds.length === 0) {
-            feedList.innerHTML = '<div class="small text-muted">Aucun lien pour le moment.</div>';
+            feedList.innerHTML = `<div class="small text-muted">${t("Aucun lien pour le moment.")}</div>`;
             return;
         }
         feedList.innerHTML = feeds.map(f => {
             const details = [
-                `Créé le ${escapeHtml(formatFeedDate(f.created_at))}`,
-                f.subjects === null ? "toutes les matières" : `${f.subjects} matière${f.subjects > 1 ? "s" : ""}`,
-                f.hide_cancelled ? "annulés masqués" : "annulés inclus",
+                t("Créé le {date}", { date: escapeHtml(formatFeedDate(f.created_at)) }),
+                f.subjects === null ? t("toutes les matières") : f.subjects > 1 ? t("{n} matières", { n: f.subjects }) : t("1 matière"),
+                f.hide_cancelled ? t("annulés masqués") : t("annulés inclus"),
             ].join(" · ");
             return `
                 <div class="feed-item border p-3" data-id="${escapeHtml(f.id)}">
                     <div class="d-flex justify-content-between flex-wrap gap-2 small mb-2">
                         <span>${details}</span>
-                        ${f.auto_refresh ? '<span class="text-muted">Actualisation auto (mot de passe enregistré)</span>' : ""}
                     </div>
                     <div class="input-group input-group-sm mb-2">
-                        <input type="text" class="form-control font-monospace" readonly value="${escapeHtml(f.subscription_url)}" aria-label="Lien d'abonnement">
-                        <button type="button" class="btn btn-primary" data-copy="${escapeHtml(f.subscription_url)}">Copier</button>
-                        <a class="btn btn-outline-secondary" href="${escapeHtml(f.subscription_url)}" target="_blank" rel="noopener">Ouvrir</a>
+                        <input type="text" class="form-control font-monospace" readonly value="${escapeHtml(f.subscription_url)}" aria-label="${t("Lien d'abonnement")}">
+                        <button type="button" class="btn btn-primary" data-copy="${escapeHtml(f.subscription_url)}">${t("Copier")}</button>
+                        <a class="btn btn-outline-secondary" href="${escapeHtml(f.subscription_url)}" target="_blank" rel="noopener">${t("Ouvrir")}</a>
                     </div>
                     <div class="d-flex gap-2 flex-wrap">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="${escapeHtml(f.webcal_url)}">Copier le lien webcal</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-update>Mettre à jour avec mes filtres actuels</button>
-                        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-delete>Supprimer</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="${escapeHtml(f.webcal_url)}">${t("Copier le lien webcal")}</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-update>${t("Mettre à jour avec mes filtres actuels")}</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-delete>${t("Supprimer")}</button>
                     </div>
                 </div>`;
         }).join("");
@@ -710,10 +707,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     btn.disabled = true;
                     const { subjectsLabel, ...settings } = currentFeedSettings();
                     await feedApi(`/api/feeds/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(settings) });
-                    btn.textContent = "Mis à jour";
+                    btn.textContent = t("Mis à jour");
                     setTimeout(loadFeeds, 1200);
                 } else if (btn.hasAttribute("data-delete")) {
-                    if (!confirm("Supprimer ce lien ? Les agendas abonnés ne seront plus mis à jour.")) return;
+                    if (!confirm(t("Supprimer ce lien ? Les agendas abonnés ne seront plus mis à jour."))) return;
                     await feedApi(`/api/feeds/${encodeURIComponent(id)}`, { method: "DELETE" });
                     loadFeeds();
                 }

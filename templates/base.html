@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr" data-bs-theme="light">
+<html lang="{{ session.get('lang', 'fr') }}" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}EpiKairos — Emploi du Temps EPITA{% endblock %}</title>
+    <title>{% block title %}EpiKairos{% endblock %}</title>
 
     <!-- Early Theme Detection (Zero-Flicker) -->
     <script src="/static/js/theme-early.js?v=20261122p"></script>
@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261122n">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261122r">
     {% block head %}{% endblock %}
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -34,44 +34,46 @@
             <a class="navbar-brand d-flex align-items-center gap-2" href="/">
                 <span>EpiKairos</span>
             </a>
-            <button class="navbar-toggler border-0 icon-btn" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="Ouvrir le menu">
+            <button class="navbar-toggler border-0 icon-btn" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu" aria-controls="navMenu" aria-expanded="false" aria-label="{{ _('Ouvrir le menu') }}">
                 <i class="bi bi-list fs-4"></i>
             </button>
             <div class="collapse navbar-collapse" id="navMenu">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-1">
-                    <li class="nav-item"><a class="nav-link {% if active_page == 'personal' %}active{% endif %}" href="/personal">Mon planning</a></li>
-                    <li class="nav-item"><a class="nav-link {% if active_page == 'old-zeus' %}active{% endif %}" href="/planning">Planning</a></li>
-                    <li class="nav-item"><a class="nav-link {% if active_page == 'rooms' %}active{% endif %}" href="/rooms">Salles libres</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_page == 'personal' %}active{% endif %}" href="/personal">{{ _('Mon planning') }}</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_page == 'old-zeus' %}active{% endif %}" href="/planning">{{ _('Planning') }}</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_page == 'rooms' %}active{% endif %}" href="/rooms">{{ _('Salles libres') }}</a></li>
                     {% if session.get('role') == 'admin' %}
                     <li class="nav-item"><a class="nav-link {% if active_page == 'admin' %}active{% endif %}" href="/admin">Admin</a></li>
                     {% endif %}
                 </ul>
                 <div class="d-flex align-items-center gap-2 pb-2 pb-lg-0">
-                    <button id="themeToggleBtn" type="button" class="btn btn-link icon-btn" title="Thème : automatique" aria-label="Thème : automatique">
+                    {% set other_lang = 'fr' if session.get('lang') == 'en' else 'en' %}
+                    <button id="langToggleBtn" type="button" class="btn btn-link icon-btn lang-btn" data-lang="{{ other_lang }}" {% set lang_label = _('Passer en anglais') if other_lang == 'en' else _('Passer en français') %}title="{{ lang_label }}" aria-label="{{ lang_label }}">{{ other_lang | upper }}</button>
+                    <button id="themeToggleBtn" type="button" class="btn btn-link icon-btn" title="{{ _('Thème : automatique') }}" aria-label="{{ _('Thème : automatique') }}">
                         <i class="bi bi-circle-half" id="themeIcon"></i>
                     </button>
-                    <a href="https://github.com/fernand01-hu/zeus-v2" target="_blank" rel="noopener" class="btn btn-link icon-btn" title="Code source GitHub" aria-label="Code source GitHub">
+                    <a href="https://github.com/fernand01-hu/zeus-v2" target="_blank" rel="noopener" class="btn btn-link icon-btn" title="{{ _('Code source GitHub') }}" aria-label="{{ _('Code source GitHub') }}">
                         <i class="bi bi-github"></i>
                     </a>
                     {% if session.get('logged_in') %}
                     <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Compte connecté">
-                            <span class="text-truncate" style="max-width: 140px;">{{ session.get('username', 'Connecté') }}</span>
+                        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="{{ _('Compte connecté') }}">
+                            <span class="text-truncate" style="max-width: 140px;">{{ session.get('username', _('Connecté')) }}</span>
                             <i class="bi bi-chevron-down small"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/personal">Mon planning</a></li>
-                            <li><a class="dropdown-item" href="/login">Recharger les cours</a></li>
+                            <li><a class="dropdown-item" href="/personal">{{ _('Mon planning') }}</a></li>
+                            <li><a class="dropdown-item" href="/login">{{ _('Recharger les cours') }}</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="post" action="/logout" class="m-0">
-                                    <button type="submit" class="dropdown-item text-danger">Se déconnecter</button>
+                                    <button type="submit" class="dropdown-item text-danger">{{ _('Se déconnecter') }}</button>
                                 </form>
                             </li>
                         </ul>
                     </div>
                     {% else %}
-                    <a href="/login" class="btn btn-sm btn-primary">Connexion</a>
+                    <a href="/login" class="btn btn-sm btn-primary">{{ _('Connexion') }}</a>
                     {% endif %}
                 </div>
             </div>
@@ -94,8 +96,12 @@
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
+    <!-- Translations for texts built in JavaScript (data, not code) -->
+    {% if session.get('lang') == 'en' %}<script type="application/json" id="i18nData">{{ i18n_en }}</script>{% endif %}
+    <script src="/static/js/i18n.js?v=20261122r"></script>
+
     <!-- PWA & Theme Scripts -->
-    <script src="/static/js/site.js?v=20261122p"></script>
+    <script src="/static/js/site.js?v=20261122r"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

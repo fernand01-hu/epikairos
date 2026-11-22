@@ -44,7 +44,7 @@ pub async fn session_context(state: &AppState, cookies: &Cookies) -> minijinja::
         (Some(user), true) => Some(if is_admin(user) { "admin" } else { "user" }),
         _ => None,
     };
-    create_session_value(logged_in, username.as_deref(), role)
+    create_session_value(logged_in, username.as_deref(), role, crate::i18n::current_lang(cookies))
 }
 
 /// The old landing page was removed: `/` and `/dashboard` go straight to the planning.
@@ -229,7 +229,7 @@ pub async fn service_worker_handler() -> impl IntoResponse {
     )
 }
 
-pub async fn offline_handler(State(state): State<AppState>) -> Result<Html<String>, StatusCode> {
+pub async fn offline_handler(State(state): State<AppState>, cookies: Cookies) -> Result<Html<String>, StatusCode> {
     let tmpl = state
         .jinja
         .get_template("offline.html")
@@ -237,7 +237,7 @@ pub async fn offline_handler(State(state): State<AppState>) -> Result<Html<Strin
 
     // Cached by the service worker, so it is rendered logged out for everyone.
     let rendered = tmpl
-        .render(minijinja::context! { session => create_session_value(false, None, None) })
+        .render(minijinja::context! { session => create_session_value(false, None, None, crate::i18n::current_lang(&cookies)) })
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Html(rendered))

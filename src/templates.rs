@@ -9,6 +9,11 @@ pub struct SessionObject {
 }
 
 impl Object for SessionObject {
+    // Lets Rust read fields (the `_` function needs `session.lang`)
+    fn get_value(self: &Arc<Self>, key: &Value) -> Option<Value> {
+        key.as_str().and_then(|k| self.data.get(k).cloned())
+    }
+
     fn call_method(
         self: &Arc<Self>,
         _state: &minijinja::State,
@@ -31,6 +36,17 @@ impl Object for SessionObject {
 pub fn create_template_env() -> Environment<'static> {
     let mut env = Environment::new();
     env.set_loader(minijinja::path_loader("templates"));
+
+    // Translation: {{ _("Texte en français") }} follows the page's language
+    env.add_function("_", |state: &minijinja::State, text: String| -> String {
+        let lang = state
+            .lookup("session")
+            .and_then(|s| s.get_attr("lang").ok())
+            .and_then(|v| v.as_str().map(str::to_string))
+            .unwrap_or_else(|| "fr".to_string());
+        crate::i18n::tr(&lang, &text)
+    });
+    env.add_global("i18n_en", Value::from_safe_string(crate::i18n::english_json().to_string()));
 
     // Custom url_for helper
     env.add_function(
@@ -64,8 +80,9 @@ pub fn create_template_env() -> Environment<'static> {
     env
 }
 
-pub fn create_session_value(logged_in: bool, username: Option<&str>, role: Option<&str>) -> Value {
+pub fn create_session_value(logged_in: bool, username: Option<&str>, role: Option<&str>, lang: &str) -> Value {
     let mut map = HashMap::new();
+    map.insert("lang".to_string(), Value::from(lang));
     map.insert("logged_in".to_string(), Value::from(logged_in));
     if let Some(u) = username {
         map.insert("username".to_string(), Value::from(u));

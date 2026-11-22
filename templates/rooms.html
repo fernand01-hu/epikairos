@@ -1,23 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}Salles libres — EpiKairos{% endblock %}
+{% block title %}{{ _("Salles libres") }} — EpiKairos{% endblock %}
 
 {% block content %}
 <div class="row g-3 mb-4">
     <div class="col-lg-9">
         <div class="card p-2 p-sm-3 floorplan-card">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-1 mb-2">
-                <span class="section-label">3e étage</span>
+                <span class="section-label">{{ _("3e étage") }}</span>
                 <div class="fp-legend small text-muted">
-                    <span><i class="fp-swatch is-free"></i>Libre</span>
-                    <span><i class="fp-swatch is-soon"></i>Pris dans moins d'1 h</span>
-                    <span><i class="fp-swatch is-busy"></i>Occupée</span>
-                    <span><i class="fp-swatch is-unknown"></i>Bureau / pas de données</span>
+                    <span><i class="fp-swatch is-free"></i>{{ _("Libre") }}</span>
+                    <span><i class="fp-swatch is-soon"></i>{{ _("Pris dans moins d'1 h") }}</span>
+                    <span><i class="fp-swatch is-busy"></i>{{ _("Occupée") }}</span>
+                    <span><i class="fp-swatch is-unknown"></i>{{ _("Bureau / pas de données") }}</span>
                 </div>
             </div>
             <div class="floorplan-scroll">
                 <div id="floorPlanContainer">
-                    <div class="small text-muted p-4">Chargement…</div>
+                    <div class="small text-muted p-4">{{ _("Chargement…") }}</div>
                 </div>
             </div>
         </div>
@@ -26,18 +26,18 @@
     <div class="col-lg-3">
         <div class="card p-3 mb-3">
             <div class="fp-day-picker">
-                <button type="button" class="btn btn-outline-secondary w-100" id="dayBtn">Aujourd'hui</button>
-                <input type="date" id="dayInput" value="{{ today_date }}" aria-label="Choisir le jour" tabindex="-1">
+                <button type="button" class="btn btn-outline-secondary w-100" id="dayBtn">{{ _("Aujourd'hui") }}</button>
+                <input type="date" id="dayInput" value="{{ today_date }}" aria-label="{{ _("Choisir le jour") }}" tabindex="-1">
             </div>
             <div class="small text-muted mt-2" id="dayClock"></div>
         </div>
 
         <div class="card p-3 fp-details" id="floorPlanDetails" aria-live="polite">
-            <div class="small text-muted">Cliquez sur une salle pour voir ses cours de la journée.</div>
+            <div class="small text-muted">{{ _("Cliquez sur une salle pour voir ses cours de la journée.") }}</div>
         </div>
 
         <div class="card p-3 mt-3 d-none" id="offPlanCard">
-            <span class="section-label mb-2 d-block">Autres étages</span>
+            <span class="section-label mb-2 d-block">{{ _("Autres étages") }}</span>
             <div id="offPlanList" class="d-flex flex-wrap gap-1"></div>
         </div>
     </div>
@@ -45,6 +45,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/floorplan.js') }}?v=20261122f"></script>
-<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261122f"></script>
+<script src="{{ url_for('static', filename='js/floorplan.js') }}?v=20261122r"></script>
+<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261122r"></script>
 {% endblock %}

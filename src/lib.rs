@@ -4,6 +4,7 @@ pub mod auriga;
 pub mod accounts;
 pub mod db;
 pub mod feed;
+pub mod i18n;
 pub mod middleware;
 pub mod routes;
 pub mod session;

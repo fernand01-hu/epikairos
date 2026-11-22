@@ -1,24 +1,24 @@
 {% extends "base.html" %}
 
-{% block title %}Connexion Auriga — EpiKairos{% endblock %}
+{% block title %}{{ _("Connexion") }} — EpiKairos{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center py-md-4">
     <div class="col-md-8 col-lg-6 col-xl-5">
 
-        <h1 class="h4 text-center mb-4">Connexion</h1>
+        <h1 class="h4 text-center mb-4">{{ _("Connexion") }}</h1>
 
         {% if logged_out %}
-        <div class="alert mb-3" role="alert">Vous avez été déconnecté. Vos données locales ont été effacées.</div>
+        <div class="alert mb-3" role="alert">{{ _("Vous avez été déconnecté. Vos données locales ont été effacées.") }}</div>
         {% endif %}
 
         {% if session.get('logged_in') %}
         <div class="alert alert-success d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3" role="alert">
-            <span>Connecté en tant que <strong>{{ session.get('username') }}</strong>.</span>
+            <span>{{ _("Connecté en tant que") }} <strong>{{ session.get('username') }}</strong>.</span>
             <span class="d-flex gap-2">
-                <a href="/personal" class="btn btn-sm btn-outline-secondary">Mon planning</a>
+                <a href="/personal" class="btn btn-sm btn-outline-secondary">{{ _("Mon planning") }}</a>
                 <form method="post" action="/logout" class="d-inline m-0">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Se déconnecter</button>
+                    <button type="submit" class="btn btn-sm btn-outline-danger">{{ _("Se déconnecter") }}</button>
                 </form>
             </span>
         </div>
@@ -34,15 +34,15 @@
         <div class="card p-4">
             <div class="trust-notice mb-3" role="note">
                 <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
-                <span>Vous ne faites pas confiance au propriétaire de ce site ? Connectez-vous avec un <button type="button" class="btn btn-link p-0 align-baseline trust-link" id="useTokenLink">jeton temporaire</button> plutôt qu'avec votre mot de passe.</span>
+                <span>{{ _("Vous ne faites pas confiance au propriétaire de ce site ? Connectez-vous avec un <button type=\"button\" class=\"btn btn-link p-0 align-baseline trust-link\" id=\"useTokenLink\">jeton temporaire</button> plutôt qu'avec votre mot de passe.")|safe }}</span>
             </div>
 
             <ul class="nav nav-fill segmented mb-4" id="loginTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="tab-credentials-btn" data-bs-toggle="pill" data-bs-target="#tab-credentials" type="button" role="tab">Identifiants</button>
+                    <button class="nav-link active" id="tab-credentials-btn" data-bs-toggle="pill" data-bs-target="#tab-credentials" type="button" role="tab">{{ _("Identifiants") }}</button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tab-token-btn" data-bs-toggle="pill" data-bs-target="#tab-token" type="button" role="tab">Jeton d'accès</button>
+                    <button class="nav-link" id="tab-token-btn" data-bs-toggle="pill" data-bs-target="#tab-token" type="button" role="tab">{{ _("Jeton d'accès") }}</button>
                 </li>
             </ul>
 
@@ -50,35 +50,35 @@
                 <div class="tab-content mb-3" id="loginTabsContent">
                     <div class="tab-pane fade show active" id="tab-credentials" role="tabpanel">
                         <div class="mb-3">
-                            <label for="usernameInput" class="form-label">Identifiant EPITA</label>
+                            <label for="usernameInput" class="form-label">{{ _("Identifiant EPITA") }}</label>
                             <input type="text" class="form-control" id="usernameInput" placeholder="prenom.nom@epita.fr" autocomplete="username">
                         </div>
                         <div>
-                            <label for="passwordInput" class="form-label">Mot de passe</label>
+                            <label for="passwordInput" class="form-label">{{ _("Mot de passe") }}</label>
                             <div class="input-group">
                                 <input type="password" class="form-control" id="passwordInput" autocomplete="current-password">
-                                <button class="btn btn-outline-secondary password-toggle" type="button" data-target="passwordInput" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe"><i class="bi bi-eye"></i></button>
+                                <button class="btn btn-outline-secondary password-toggle" type="button" data-target="passwordInput" aria-label="{{ _("Afficher le mot de passe") }}" aria-pressed="false" title="{{ _("Afficher le mot de passe") }}"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
                     </div>
 
                     <div class="tab-pane fade" id="tab-token" role="tabpanel">
-                        <label for="tokenInput" class="form-label">Jeton Auriga (Bearer)</label>
+                        <label for="tokenInput" class="form-label">{{ _("Jeton Auriga (Bearer)") }}</label>
                         <textarea class="form-control font-monospace small" id="tokenInput" rows="3" placeholder="eyJhbGciOiJSUzI1NiIs..."></textarea>
-                        <div class="form-text">Le jeton n'est valable qu'<strong>une minute</strong> après le chargement de la page Auriga, et ne contient pas votre mot de passe.</div>
+                        <div class="form-text">{{ _("Le jeton n'est valable qu'<strong>une minute</strong> après le chargement de la page Auriga, et ne contient pas votre mot de passe.")|safe }}</div>
 
                         <details class="token-guide mt-3">
-                            <summary>Comment obtenir le jeton ?</summary>
+                            <summary>{{ _("Comment obtenir le jeton ?") }}</summary>
                             <ol class="token-steps">
-                                <li>Sur <strong>auriga.epita.fr</strong>, connecté, ouvrez les outils de développement (<strong>F12</strong>) puis l'onglet <strong>Réseau</strong> (Network).</li>
-                                <li>Appuyez sur <strong>F5</strong> pour recharger la page. La minute commence à ce moment-là : préparez l'onglet EpiKairos avant.</li>
-                                <li>Dans le filtre, tapez <code>myplanning</code> puis cliquez sur la ligne qui apparaît.</li>
-                                <li>Ouvrez l'onglet <strong>Headers</strong> (En-têtes), section Request Headers.</li>
-                                <li>Clic droit sur <strong>Authorization</strong> puis <strong>Copier la valeur</strong>. Ne sélectionnez pas le texte à la souris : Firefox le raccourcit avec « … ».</li>
-                                <li>Collez-le ci-dessus et validez dans la minute qui suit le F5. Trop tard ? Refaites F5 dans Auriga et recopiez.</li>
+                                <li>{{ _("Sur <strong>auriga.epita.fr</strong>, connecté, ouvrez les outils de développement (<strong>F12</strong>) puis l'onglet <strong>Réseau</strong> (Network).")|safe }}</li>
+                                <li>{{ _("Appuyez sur <strong>F5</strong> pour recharger la page. La minute commence à ce moment-là : préparez l'onglet EpiKairos avant.")|safe }}</li>
+                                <li>{{ _("Dans le filtre, tapez <code>myplanning</code> puis cliquez sur la ligne qui apparaît.")|safe }}</li>
+                                <li>{{ _("Ouvrez l'onglet <strong>Headers</strong> (En-têtes), section Request Headers.")|safe }}</li>
+                                <li>{{ _("Clic droit sur <strong>Authorization</strong> puis <strong>Copier la valeur</strong>. Ne sélectionnez pas le texte à la souris : Firefox le raccourcit avec « … ».")|safe }}</li>
+                                <li>{{ _("Collez-le ci-dessus et validez dans la minute qui suit le F5. Trop tard ? Refaites F5 dans Auriga et recopiez.") }}</li>
                             </ol>
-                            <a href="{{ url_for('static', filename='img/token-guide.png') }}" target="_blank" rel="noopener" title="Agrandir l'image">
-                                <img src="{{ url_for('static', filename='img/token-guide.png') }}" class="token-guide-img" alt="Outils de développement de Firefox, avec les étapes 1 à 5 marquées en rouge" loading="lazy">
+                            <a href="{{ url_for('static', filename='img/token-guide.png') }}" target="_blank" rel="noopener" title="{{ _("Agrandir l'image") }}">
+                                <img src="{{ url_for('static', filename='img/token-guide.png') }}" class="token-guide-img" alt="{{ _("Outils de développement de Firefox, avec les étapes 1 à 5 marquées en rouge") }}" loading="lazy">
                             </a>
                         </details>
                     </div>
@@ -86,27 +86,27 @@
 
                 <div class="row g-2 mb-3">
                     <div class="col-6">
-                        <label for="startDateInput" class="form-label">Du</label>
+                        <label for="startDateInput" class="form-label">{{ _("Du") }}</label>
                         <input type="date" class="form-control" id="startDateInput" value="{{ default_start }}">
                     </div>
                     <div class="col-6">
-                        <label for="endDateInput" class="form-label">Au</label>
+                        <label for="endDateInput" class="form-label">{{ _("Au") }}</label>
                         <input type="date" class="form-control" id="endDateInput" value="{{ default_end }}">
                     </div>
                 </div>
 
                 <div class="form-check mb-4">
                     <input class="form-check-input" type="checkbox" id="consentCheckbox" checked>
-                    <label class="form-check-label small" for="consentCheckbox">Contribuer à la base commune</label>
+                    <label class="form-check-label small" for="consentCheckbox">{{ _("Contribuer à la base commune") }}</label>
                     <div class="form-text mt-1">
-                        Vos créneaux (matières, salles, enseignants, groupes) alimentent les salles libres et le planning des groupes. Aucun identifiant n'est conservé.
+                        {{ _("Vos créneaux (matières, salles, enseignants, groupes) alimentent les salles libres et le planning des groupes. Aucun identifiant n'est conservé.") }}
                     </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" id="loginBtn">
                     <span class="spinner-border spinner-border-sm d-none" id="loginSpinner" role="status"></span>
                     <i class="bi bi-arrow-right" id="loginIcon"></i>
-                    <span id="loginBtnText">Récupérer mon emploi du temps</span>
+                    <span id="loginBtnText">{{ _("Récupérer mon emploi du temps") }}</span>
                 </button>
             </form>
         </div>
@@ -116,5 +116,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/login.js') }}?v=20261122p"></script>
+<script src="{{ url_for('static', filename='js/login.js') }}?v=20261122r"></script>
 {% endblock %}

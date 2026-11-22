@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Mon Emploi du Temps — EpiKairos{% endblock %}
+{% block title %}{{ _("Mon planning") }} — EpiKairos{% endblock %}
 
 {% block content %}
 <!-- Empty state (no planning loaded yet) -->
 <div id="noDataAlert" class="card empty-state mb-4 d-none">
     <i class="bi bi-calendar"></i>
-    <div class="empty-title">Aucun emploi du temps chargé</div>
-    <p class="small mx-auto mb-3" style="max-width: 420px;">Connectez-vous à Auriga pour récupérer vos cours, les filtrer et les exporter.</p>
-    <div><a href="/login" class="btn btn-primary">Se connecter à Auriga</a></div>
+    <div class="empty-title">{{ _("Aucun emploi du temps chargé") }}</div>
+    <p class="small mx-auto mb-3" style="max-width: 420px;">{{ _("Connectez-vous à Auriga pour récupérer vos cours, les filtrer et les exporter.") }}</p>
+    <div><a href="/login" class="btn btn-primary">{{ _("Se connecter à Auriga") }}</a></div>
 </div>
 
 <!-- Planning workspace -->
@@ -16,7 +16,7 @@
 
     <div class="d-flex align-items-center justify-content-end flex-wrap gap-2 mb-3">
         <div class="d-flex align-items-center gap-2">
-            <a href="/login" class="btn btn-sm btn-outline-secondary">Recharger depuis Auriga</a>
+            <a href="/login" class="btn btn-sm btn-outline-secondary">{{ _("Recharger depuis Auriga") }}</a>
         </div>
     </div>
 
@@ -25,14 +25,14 @@
         <div>
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="section-label">Matières</span>
-                    <button type="button" class="btn btn-link btn-xs p-0" id="selectAllTypesBtn">Toutes</button>
+                    <span class="section-label">{{ _("Matières") }}</span>
+                    <button type="button" class="btn btn-link btn-xs p-0" id="selectAllTypesBtn">{{ _("Toutes") }}</button>
                     <span class="text-muted small">·</span>
-                    <button type="button" class="btn btn-link btn-xs p-0" id="deselectAllTypesBtn">Aucune</button>
+                    <button type="button" class="btn btn-link btn-xs p-0" id="deselectAllTypesBtn">{{ _("Aucune") }}</button>
                 </div>
                 <div class="form-check mb-0">
                     <input class="form-check-input" type="checkbox" id="hideCancelledSwitch" checked>
-                    <label class="form-check-label small" for="hideCancelledSwitch">Masquer les cours annulés</label>
+                    <label class="form-check-label small" for="hideCancelledSwitch">{{ _("Masquer les cours annulés") }}</label>
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2" id="typeButtonGroup">
@@ -44,13 +44,13 @@
     <!-- Export bar -->
     <div class="sticky-action-bar px-3 py-2 mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
         <div class="d-flex align-items-center gap-3">
-            <span class="count-label" id="selectedCountBadge">0 cours sélectionnés</span>
-            <button class="btn btn-link btn-sm p-0" id="selectAllBtn">Tout cocher</button>
-            <button class="btn btn-link btn-sm p-0" id="deselectAllBtn">Tout décocher</button>
+            <span class="count-label" id="selectedCountBadge">{{ _("0 cours sélectionnés") }}</span>
+            <button class="btn btn-link btn-sm p-0" id="selectAllBtn">{{ _("Tout cocher") }}</button>
+            <button class="btn btn-link btn-sm p-0" id="deselectAllBtn">{{ _("Tout décocher") }}</button>
         </div>
         <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-secondary" id="openFeedModalBtn">Lien d'abonnement</button>
-            <button class="btn btn-sm btn-primary" id="downloadIcsBtn"><i class="bi bi-download me-1"></i> Télécharger .ics</button>
+            <button class="btn btn-sm btn-outline-secondary" id="openFeedModalBtn">{{ _("Lien d'abonnement") }}</button>
+            <button class="btn btn-sm btn-primary" id="downloadIcsBtn"><i class="bi bi-download me-1"></i> {{ _("Télécharger .ics") }}</button>
         </div>
     </div>
 
@@ -58,14 +58,14 @@
     <div class="card mb-5">
         <div class="card-header py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
             <div class="d-flex align-items-center gap-1 ms-auto" id="weekNavControls">
-                <button class="btn btn-sm btn-link icon-btn" id="prevWeekBtn" title="Semaine précédente" aria-label="Semaine précédente">
+                <button class="btn btn-sm btn-link icon-btn" id="prevWeekBtn" title="{{ _("Semaine précédente") }}" aria-label="{{ _("Semaine précédente") }}">
                     <i class="bi bi-chevron-left"></i>
                 </button>
-                <div class="week-label" id="currentWeekLabel">Chargement...</div>
-                <button class="btn btn-sm btn-link icon-btn" id="nextWeekBtn" title="Semaine suivante" aria-label="Semaine suivante">
+                <div class="week-label" id="currentWeekLabel">{{ _("Chargement...") }}</div>
+                <button class="btn btn-sm btn-link icon-btn" id="nextWeekBtn" title="{{ _("Semaine suivante") }}" aria-label="{{ _("Semaine suivante") }}">
                     <i class="bi bi-chevron-right"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-secondary ms-1" id="todayWeekBtn">Aujourd'hui</button>
+                <button class="btn btn-sm btn-outline-secondary ms-1" id="todayWeekBtn">{{ _("Aujourd'hui") }}</button>
             </div>
         </div>
 
@@ -75,13 +75,13 @@
                     <!-- Populated by app.js -->
                 </div>
                 <div id="noWeekCoursesMessage" class="empty-state d-none">
-                    <div class="empty-title">Aucun cours cette semaine</div>
-                    <div class="small">Utilisez les flèches pour changer de semaine.</div>
+                    <div class="empty-title">{{ _("Aucun cours cette semaine") }}</div>
+                    <div class="small">{{ _("Utilisez les flèches pour changer de semaine.") }}</div>
                 </div>
             </div>
 
             <div id="noCoursesMessage" class="empty-state d-none">
-                <div class="empty-title">Aucun cours ne correspond à vos filtres</div>
+                <div class="empty-title">{{ _("Aucun cours ne correspond à vos filtres") }}</div>
             </div>
         </div>
     </div>
@@ -93,41 +93,41 @@
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="feedModalLabel">Liens d'abonnement</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+                <h5 class="modal-title" id="feedModalLabel">{{ _("Liens d'abonnement") }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _("Fermer") }}"></button>
             </div>
             <div class="modal-body p-4">
                 <p class="text-muted small mb-3">
-                    Google Calendar, Apple Calendar ou Outlook relisent votre lien une à deux fois par jour. Il se met à jour quand vous ou un camarade de votre groupe vous connectez à EpiKairos.
+                    {{ _("Google Calendar, Apple Calendar ou Outlook relisent votre lien une à deux fois par jour. Il se met à jour quand vous ou un camarade de votre groupe vous connectez à EpiKairos.") }}
                 </p>
 
                 <div id="feedAlert" class="alert alert-danger small py-2 d-none" role="alert"></div>
 
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="section-label">Vos liens</span>
+                    <span class="section-label">{{ _("Vos liens") }}</span>
                     <span class="small text-muted" id="feedCount"></span>
                 </div>
                 <div id="feedList" class="d-flex flex-column gap-2 mb-4">
-                    <div class="small text-muted">Chargement...</div>
+                    <div class="small text-muted">{{ _("Chargement...") }}</div>
                 </div>
 
                 <div class="border-top pt-3">
-                    <div class="section-label mb-2">Nouveau lien</div>
+                    <div class="section-label mb-2">{{ _("Nouveau lien") }}</div>
                     <div class="row g-2 small mb-3" id="feedFiltersBadges">
                         <!-- Populated by app.js -->
                     </div>
-                    <button type="button" class="btn btn-sm btn-primary" id="createFeedBtn">Créer un lien avec mes filtres actuels</button>
+                    <button type="button" class="btn btn-sm btn-primary" id="createFeedBtn">{{ _("Créer un lien avec mes filtres actuels") }}</button>
                     <div class="form-text" id="createFeedHint"></div>
                 </div>
 
-                <div id="copyFeedback" class="small text-success mt-3 d-none">Lien copié.</div>
+                <div id="copyFeedback" class="small text-success mt-3 d-none">{{ _("Lien copié.") }}</div>
 
                 <div class="small text-muted mt-3">
-                    <div class="fw-semibold text-body mb-1">Ajouter à Google Calendar</div>
+                    <div class="fw-semibold text-body mb-1">{{ _("Ajouter à Google Calendar") }}</div>
                     <ol class="mb-0 ps-3">
-                        <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a> sur ordinateur.</li>
-                        <li>À côté de « Autres agendas », cliquez sur <strong>+</strong> puis « À partir de l'URL ».</li>
-                        <li>Collez le lien et validez.</li>
+                        <li>{{ _("Ouvrez <a href=\"https://calendar.google.com\" target=\"_blank\" rel=\"noopener\">Google Calendar</a> sur ordinateur.")|safe }}</li>
+                        <li>{{ _("À côté de « Autres agendas », cliquez sur <strong>+</strong> puis « À partir de l'URL ».")|safe }}</li>
+                        <li>{{ _("Collez le lien et validez.") }}</li>
                     </ol>
                 </div>
             </div>
@@ -137,5 +137,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122o"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122r"></script>
 {% endblock %}

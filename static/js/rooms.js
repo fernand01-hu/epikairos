@@ -50,9 +50,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function formatDay(dateStr) {
-        if (dateStr === todayStr()) return "Aujourd'hui";
+        if (dateStr === todayStr()) return t("Aujourd'hui");
         const [y, m, d] = dateStr.split("-").map(Number);
-        const label = new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+        const label = new Date(y, m - 1, d).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
         return label.charAt(0).toUpperCase() + label.slice(1);
     }
 
@@ -64,7 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const next = courses.find(c => toMinutes(c.start) > ref);
         if (next && toMinutes(next.start) - ref < SOON_MINUTES) {
-            return { state: "soon", next, note: `à ${next.start}` };
+            return { state: "soon", next, note: t("à {time}", { time: next.start }) };
         }
         return { state: "free", next, note: "" };
     }
@@ -92,37 +92,37 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         dayBtn.textContent = formatDay(dayInput.value);
-        dayClock.textContent = `Statut calculé à ${pad(Math.floor(ref / 60))}:${pad(ref % 60)}`;
+        dayClock.textContent = t("Statut calculé à {time}", { time: `${pad(Math.floor(ref / 60))}:${pad(ref % 60)}` });
         renderDetails(ref);
         renderOffPlan(ref);
     }
 
     function renderDetails(ref) {
         if (!selectedRoom) {
-            details.innerHTML = '<div class="small text-muted">Cliquez sur une salle pour voir ses cours de la journée.</div>';
+            details.innerHTML = `<div class="small text-muted">${t("Cliquez sur une salle pour voir ses cours de la journée.")}</div>`;
             return;
         }
         const room = rooms.find(r => window.FloorPlan.roomNumber(r.name) === selectedRoom);
         if (!room) {
             details.innerHTML = `
-                <div class="fp-detail-title"><span class="room-dot is-unknown"></span>Salle ${escapeHtml(selectedRoom)}</div>
-                <div class="small text-muted mt-1">Aucune donnée pour cette salle.</div>`;
+                <div class="fp-detail-title"><span class="room-dot is-unknown"></span>${t("Salle {room}", { room: escapeHtml(selectedRoom) })}</div>
+                <div class="small text-muted mt-1">${t("Aucune donnée pour cette salle.")}</div>`;
             return;
         }
 
         const status = roomStatus(room, ref);
         let statusLine;
         if (status.state === "busy") {
-            statusLine = `Occupée jusqu'à ${escapeHtml(status.current.end)}`;
+            statusLine = t("Occupée jusqu'à {time}", { time: escapeHtml(status.current.end) });
         } else if (status.state === "soon") {
-            statusLine = `Libre, cours à ${escapeHtml(status.next.start)}`;
+            statusLine = t("Libre, cours à {time}", { time: escapeHtml(status.next.start) });
         } else {
-            statusLine = status.next ? `Libre jusqu'à ${escapeHtml(status.next.start)}` : "Libre jusqu'au soir";
+            statusLine = status.next ? t("Libre jusqu'à {time}", { time: escapeHtml(status.next.start) }) : t("Libre jusqu'au soir");
         }
 
         const courses = room.courses || [];
         const list = courses.length === 0
-            ? '<div class="small text-muted">Aucun cours ce jour-là.</div>'
+            ? `<div class="small text-muted">${t("Aucun cours ce jour-là.")}</div>`
             : courses.map(c => {
                 const isNow = c === status.current;
                 const isPast = toMinutes(c.end) <= ref;
@@ -130,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return `
                     <div class="fp-course${isNow ? " is-now" : ""}${isPast ? " is-past" : ""}">
                         <div class="fp-course-time">${escapeHtml(c.start)} – ${escapeHtml(c.end)}</div>
-                        <div class="fp-course-title">${escapeHtml(c.title || "Cours")}</div>
+                        <div class="fp-course-title">${escapeHtml(c.title || t("Cours"))}</div>
                         ${people ? `<div class="fp-course-meta">${escapeHtml(people)}</div>` : ""}
                     </div>`;
             }).join("");
@@ -158,12 +158,12 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const res = await fetch(`/api/database/rooms-day?date=${encodeURIComponent(date)}`);
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || `Erreur serveur (${res.status})`);
+            if (!res.ok) throw new Error((data.error && t(data.error)) || t("Erreur serveur ({status})", { status: res.status }));
             rooms = data.rooms || [];
             loadedDate = date;
             render();
         } catch (err) {
-            planContainer.innerHTML = `<div class="small text-danger p-4">Impossible de charger les salles : ${escapeHtml(err.message)}</div>`;
+            planContainer.innerHTML = `<div class="small text-danger p-4">${t("Impossible de charger les salles : {error}", { error: escapeHtml(err.message) })}</div>`;
         }
     }
 

@@ -1161,3 +1161,12 @@ a {
     height: auto;
     border: 1px solid var(--border);
 }
+
+/* Language button (FR / EN) next to the theme button */
+.lang-btn {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    min-width: 2.25rem;
+    text-decoration: none;
+}

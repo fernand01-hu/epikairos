@@ -1,33 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}Administration — EpiKairos{% endblock %}
+{% block title %}{{ _("Administration") }} — EpiKairos{% endblock %}
 
 {% block content %}
 <div id="adminAlert" class="alert alert-danger d-none mb-3" role="alert"></div>
 
 <div class="card p-4">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <span class="section-label">Utilisateurs <span class="text-muted" id="userCount"></span></span>
-        <input type="search" class="form-control form-control-sm" id="userSearchInput" placeholder="Rechercher" style="max-width: 220px;">
+        <span class="section-label">{{ _("Utilisateurs") }} <span class="text-muted" id="userCount"></span></span>
+        <input type="search" class="form-control form-control-sm" id="userSearchInput" placeholder="{{ _("Rechercher") }}" style="max-width: 220px;">
     </div>
     <div class="table-responsive">
         <table class="table align-middle mb-0">
             <thead class="table-light">
                 <tr>
-                    <th>Identifiant</th>
-                    <th>Première connexion</th>
-                    <th>Dernière connexion</th>
+                    <th>{{ _("Identifiant") }}</th>
+                    <th>{{ _("Première connexion") }}</th>
+                    <th>{{ _("Dernière connexion") }}</th>
                 </tr>
             </thead>
             <tbody id="userTableBody">
-                <tr><td colspan="3" class="text-muted small">Chargement...</td></tr>
+                <tr><td colspan="3" class="text-muted small">{{ _("Chargement...") }}</td></tr>
             </tbody>
         </table>
     </div>
-    <div class="form-text mt-2">Les utilisateurs apparaissent ici après leur première connexion. Les administrateurs se règlent avec <code>ADMIN_USERS</code> sur le serveur.</div>
+    <div class="form-text mt-2">{{ _("Les utilisateurs apparaissent ici après leur première connexion. Les administrateurs se règlent avec <code>ADMIN_USERS</code> sur le serveur.")|safe }}</div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin.js') }}?v=20261122q"></script>
+<script src="{{ url_for('static', filename='js/admin.js') }}?v=20261122r"></script>
 {% endblock %}

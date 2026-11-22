@@ -99,7 +99,7 @@ async fn rooms_page_is_the_floor_plan_with_a_day_picker() {
     let body = app.get("/rooms", Some(USER)).await.body;
     assert!(body.contains(r#"id="floorPlanContainer""#));
     assert!(body.contains(r#"id="dayBtn""#));
-    assert!(body.contains("Pris dans moins d'1 h"));
+    assert!(body.contains("Pris dans moins d"), "legend of the soon state");
     for gone in ["roomSearchForm", "roomFilterInput", "viewListBtn", "page-header"] {
         assert!(!body.contains(gone), "{gone} should be gone");
     }

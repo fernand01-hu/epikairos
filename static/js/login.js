@@ -65,11 +65,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (isTokenActive || (tokenInput && !username)) {
             if (!tokenInput) {
-                showAlert("Veuillez coller votre jeton d'accès (access_token).");
+                showAlert(t("Veuillez coller votre jeton d'accès (access_token)."));
                 return;
             }
             if (tokenInput.includes("…") || tokenInput.includes("...")) {
-                showAlert("Le jeton collé est tronqué (il contient « … »). Dans l'onglet Réseau (F12), faites un clic droit sur le header Authorization puis « Copier la valeur ».");
+                showAlert(t("Le jeton collé est tronqué (il contient « … »). Dans l'onglet Réseau (F12), faites un clic droit sur le header Authorization puis « Copier la valeur »."));
                 return;
             }
             try {
@@ -77,14 +77,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (parts.length === 3) {
                     const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
                     if (payload.exp && Date.now() / 1000 > payload.exp) {
-                        showAlert("Ce jeton a expiré : il n'est valable qu'une minute. Rechargez Auriga (F5), copiez le nouveau jeton et collez-le tout de suite.");
+                        showAlert(t("Ce jeton a expiré : il n'est valable qu'une minute. Rechargez Auriga (F5), copiez le nouveau jeton et collez-le tout de suite."));
                         return;
                     }
                 }
             } catch (e) {}
         } else {
             if (!username || !password) {
-                showAlert("Veuillez renseigner votre identifiant et mot de passe.");
+                showAlert(t("Veuillez renseigner votre identifiant et mot de passe."));
                 return;
             }
         }
@@ -92,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loginBtn.disabled = true;
         loginSpinner.classList.remove("d-none");
         loginIcon.classList.add("d-none");
-        loginBtnText.textContent = "Authentification et récupération en cours...";
+        loginBtnText.textContent = t("Authentification et récupération en cours...");
 
         const payload = {
             start_date: startDate,
@@ -116,7 +116,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const data = await res.json();
             if (!res.ok || !data.success) {
-                throw new Error(data.error || `Erreur serveur (${res.status})`);
+                throw new Error((data.error && t(data.error)) || t("Erreur serveur ({status})", { status: res.status }));
             }
 
             // Save retrieved courses and credentials in localStorage for the personal page
@@ -125,18 +125,18 @@ document.addEventListener("DOMContentLoaded", () => {
             // Only the login name is kept: the password never stays in the browser.
             localStorage.setItem("zeus_credentials", JSON.stringify({ username: data.username || username }));
 
-            showSuccess(`Connexion réussie ! ${data.courses.length} cours récupérés. Redirection vers votre planning...`);
+            showSuccess(t("Connexion réussie ! {n} cours récupérés. Redirection vers votre planning...", { n: data.courses.length }));
 
             setTimeout(() => {
                 window.location.href = "/personal";
             }, 1000);
 
         } catch (err) {
-            showAlert(`Échec de la récupération : ${err.message}`);
+            showAlert(t("Échec de la récupération : {error}", { error: err.message }));
             loginBtn.disabled = false;
             loginSpinner.classList.add("d-none");
             loginIcon.classList.remove("d-none");
-            loginBtnText.textContent = "Récupérer mon emploi du temps";
+            loginBtnText.textContent = t("Récupérer mon emploi du temps");
         }
     });
 });

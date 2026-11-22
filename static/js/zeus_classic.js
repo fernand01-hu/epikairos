@@ -35,7 +35,7 @@ async function apiJson(url, options = {}) {
     const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data.success === false) {
-        throw new Error(data.error || `Erreur serveur (${res.status})`);
+        throw new Error((data.error && t(data.error)) || t("Erreur serveur ({status})", { status: res.status }));
     }
     return data;
 }
@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function formatTime(isoStr) {
         if (!isoStr) return "";
         const d = new Date(isoStr);
-        return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+        return d.toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
     }
 
     // =========================================================================
@@ -138,7 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function loadGroupTree() {
         try {
             const res = await fetch("/api/groups/tree");
-            if (!res.ok) throw new Error("Erreur de chargement de l'arbre");
+            if (!res.ok) throw new Error(t("Erreur de chargement de l'arbre"));
             groupTreeData = await res.json();
             renderTree(groupTreeData);
             fetchSchedule();
@@ -295,7 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderTeachers(teachers) {
         teacherListContainer.innerHTML = "";
         if (teachers.length === 0) {
-            teacherListContainer.innerHTML = '<div class="small text-muted py-2">Aucun professeur pour le moment. La liste se remplit quand des étudiants se connectent.</div>';
+            teacherListContainer.innerHTML = `<div class="small text-muted py-2">${t("Aucun professeur pour le moment. La liste se remplit quand des étudiants se connectent.")}</div>`;
             return;
         }
         // Forget selections for teachers that no longer appear in any course
@@ -521,12 +521,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const weekNum = getIsoWeekNumber(monday);
 
         // Update Topbar Title
-        weekTitleLabel.textContent = `Semaine ${weekNum}`;
+        weekTitleLabel.textContent = t("Semaine {n}", { n: weekNum });
         topbarDatePicker.value = toLocalDateStr(currentCalendarDate);
 
         // Days configuration
-        const frenchDayNames = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
-        const shortMonths = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+        // 2024-01-01 was a Monday
+        const frenchDayNames = Array.from({ length: 7 }, (_, i) =>
+            new Date(2024, 0, 1 + i).toLocaleDateString(LOCALE, { weekday: "long" }));
+        const shortMonths = Array.from({ length: 12 }, (_, i) =>
+            new Date(2000, i, 1).toLocaleDateString(LOCALE, { month: "short" }));
         const today = new Date();
 
         // Clear header and columns
@@ -615,29 +618,29 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("courseDetailTitle").textContent = c.course_name;
         const modalBody = document.getElementById("courseDetailBody");
 
-        const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "Non spécifiée";
-        const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "Non spécifié";
-        const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : "Non spécifié";
+        const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : t("Non spécifiée");
+        const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : t("Non spécifié");
+        const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : t("Non spécifié");
 
         modalBody.innerHTML = `
-            ${c.is_cancelled ? '<div class="mb-3"><span class="badge bg-danger px-3 py-1">ANNULÉ</span></div>' : ''}
+            ${c.is_cancelled ? '<div class="mb-3"><span class="badge bg-danger px-3 py-1">${t("ANNULÉ")}</span></div>' : ''}
             <dl class="row mb-0 small">
-                <dt class="col-sm-4 text-muted">Horaires :</dt>
+                <dt class="col-sm-4 text-muted">${t("Horaires :")}</dt>
                 <dd class="col-sm-8 fw-semibold">${formatTime(c.start)} - ${formatTime(c.end)} (${c.duration} min)</dd>
 
-                <dt class="col-sm-4 text-muted">Date :</dt>
-                <dd class="col-sm-8">${new Date(c.start).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
+                <dt class="col-sm-4 text-muted">${t("Date :")}</dt>
+                <dd class="col-sm-8">${new Date(c.start).toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</dd>
 
-                <dt class="col-sm-4 text-muted">Salle(s) :</dt>
+                <dt class="col-sm-4 text-muted">${t("Salle(s) :")}</dt>
                 <dd class="col-sm-8">${roomsStr}</dd>
 
-                <dt class="col-sm-4 text-muted">Enseignant(s) :</dt>
+                <dt class="col-sm-4 text-muted">${t("Enseignant(s) :")}</dt>
                 <dd class="col-sm-8">${teachersStr}</dd>
 
-                <dt class="col-sm-4 text-muted">Groupe(s) :</dt>
+                <dt class="col-sm-4 text-muted">${t("Groupe(s) :")}</dt>
                 <dd class="col-sm-8">👥 ${groupsStr}</dd>
 
-                <dt class="col-sm-4 text-muted">Statut :</dt>
+                <dt class="col-sm-4 text-muted">${t("Statut :")}</dt>
                 <dd class="col-sm-8"><span class="badge bg-light text-dark border">${escapeHtml(c.status || "PLANIFIE")}</span></dd>
             </dl>
         `;
@@ -697,10 +700,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 toggleSidebarIcon.className = "bi bi-layout-sidebar";
             }
             if (toggleSidebarLabel) {
-                toggleSidebarLabel.textContent = "Afficher le menu";
+                toggleSidebarLabel.textContent = t("Afficher le menu");
             }
             if (btnToggleSidebar) {
-                btnToggleSidebar.title = "Afficher le menu de sélection";
+                btnToggleSidebar.title = t("Afficher le menu de sélection");
                 btnToggleSidebar.classList.add("btn-primary");
                 btnToggleSidebar.classList.remove("btn-outline-secondary");
             }
@@ -710,10 +713,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 toggleSidebarIcon.className = "bi bi-layout-sidebar-inset";
             }
             if (toggleSidebarLabel) {
-                toggleSidebarLabel.textContent = "Masquer le menu";
+                toggleSidebarLabel.textContent = t("Masquer le menu");
             }
             if (btnToggleSidebar) {
-                btnToggleSidebar.title = "Masquer le menu de sélection";
+                btnToggleSidebar.title = t("Masquer le menu de sélection");
                 btnToggleSidebar.classList.remove("btn-primary");
                 btnToggleSidebar.classList.add("btn-outline-secondary");
             }
