@@ -26,7 +26,7 @@ fn logged_in_admin(state: &AppState, cookies: &Cookies) -> Option<String> {
 pub async fn admin_page_handler(State(state): State<AppState>, cookies: Cookies) -> Response {
     if logged_in_admin(&state, &cookies).is_none() {
         // Hide the page's existence from everyone else
-        return (StatusCode::NOT_FOUND, Html("Not Found")).into_response();
+        return crate::routes::web::not_found_page(&state, &cookies).await;
     }
     let session_val = session_context(&state, &cookies).await;
     let rendered = state.jinja.get_template("admin.html").and_then(|tmpl| {

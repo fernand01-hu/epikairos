@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _("État du service") }} — EpiKairos{% endblock %}
+
+{% block content %}
+<div class="status-page">
+    <div class="status-badge {{ 'is-ok' if ok else 'is-down' }}">
+        <i class="bi {{ 'bi-check-circle-fill' if ok else 'bi-exclamation-triangle-fill' }}" aria-hidden="true"></i>
+        {{ _("Tout fonctionne") if ok else _("Problème en cours") }}
+    </div>
+
+    <ul class="status-list">
+        <li><span>{{ _("Serveur") }}</span><span class="is-ok">{{ _("En ligne") }}</span></li>
+        <li><span>{{ _("Base commune") }}</span>
+            <span class="{{ 'is-ok' if school_ok else 'is-down' }}">{{ _("OK") if school_ok else _("Erreur") }}</span></li>
+        <li><span>{{ _("Liens d'abonnement") }}</span>
+            <span class="{{ 'is-ok' if feeds_ok else 'is-down' }}">{{ _("OK") if feeds_ok else _("Erreur") }}</span></li>
+        <li><span>{{ _("En ligne depuis") }}</span>
+            <span>{% if uptime_days %}{{ uptime_days }} {{ _("j") }} {% endif %}{{ uptime_hours }} {{ _("h") }} {{ uptime_minutes }} {{ _("min") }}</span></li>
+    </ul>
+
+    <p class="text-muted small mt-3 mb-0">{{ _("Vérifié le {date}") | replace("{date}", checked_at) }}</p>
+    <p class="text-muted small">{{ _("Les outils de surveillance reçoivent cette page en JSON.") }}</p>
+</div>
+{% endblock %}

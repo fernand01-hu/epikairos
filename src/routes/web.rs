@@ -1,7 +1,7 @@
 use axum::{
     extract::{Query, State},
-    http::{header, StatusCode},
-    response::{Html, IntoResponse, Redirect},
+    http::{header, HeaderMap, StatusCode, Uri},
+    response::{Html, IntoResponse, Redirect, Response},
 };
 use chrono::{DateTime, Utc};
 use chrono_tz::Europe::Paris;
@@ -285,14 +285,91 @@ pub async fn offline_handler(State(state): State<AppState>, cookies: Cookies) ->
     Ok(Html(rendered))
 }
 
-pub async fn health_handler() -> impl IntoResponse {
+/// When the server started, for the uptime shown on /health.
+pub static STARTED_AT: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+fn db_ok(pool: &crate::db::DbPool) -> bool {
+    pool.get()
+        .ok()
+        .and_then(|c| c.query_row("SELECT 1", [], |r| r.get::<_, i64>(0)).ok())
+        == Some(1)
+}
+
+/// Health check. Monitors and scripts get JSON; a browser gets a small status page.
+/// 200 when both databases answer, 503 otherwise.
+pub async fn health_handler(State(state): State<AppState>, cookies: Cookies, headers: HeaderMap) -> Response {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0);
+    let (school_pool, feed_pool) = (state.db_pool.clone(), state.feed_pool.clone());
+    let (school, feeds) = tokio::task::spawn_blocking(move || (db_ok(&school_pool), db_ok(&feed_pool)))
+        .await
+        .unwrap_or((false, false));
+    let ok = school && feeds;
+    let status = if ok { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE };
+    let uptime = STARTED_AT.get().map(|t| t.elapsed().as_secs()).unwrap_or(0);
 
-    axum::Json(serde_json::json!({
-        "status": "ok",
-        "time": now
-    }))
+    let wants_html = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("text/html"));
+    if wants_html {
+        let session_val = session_context(&state, &cookies).await;
+        let paris: DateTime<chrono_tz::Tz> = Utc::now().with_timezone(&Paris);
+        let rendered = state.jinja.get_template("health.html").and_then(|t| {
+            t.render(minijinja::context! {
+                ok => ok,
+                school_ok => school,
+                feeds_ok => feeds,
+                uptime_days => uptime / 86400,
+                uptime_hours => (uptime % 86400) / 3600,
+                uptime_minutes => (uptime % 3600) / 60,
+                checked_at => paris.format("%d/%m/%Y %H:%M:%S").to_string(),
+                session => session_val,
+            })
+        });
+        return match rendered {
+            Ok(html) => (status, [(header::CACHE_CONTROL, "no-store")], Html(html)).into_response(),
+            Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        };
+    }
+
+    (
+        status,
+        [(header::CACHE_CONTROL, "no-store")],
+        axum::Json(serde_json::json!({
+            "status": if ok { "ok" } else { "degraded" },
+            "school_db": if school { "ok" } else { "error" },
+            "feeds_db": if feeds { "ok" } else { "error" },
+            "uptime_secs": uptime,
+            "time": now
+        })),
+    )
+        .into_response()
+}
+
+/// The 404 page (HTML), with the usual navigation.
+pub async fn not_found_page(state: &AppState, cookies: &Cookies) -> Response {
+    let session_val = session_context(state, cookies).await;
+    match state
+        .jinja
+        .get_template("404.html")
+        .and_then(|t| t.render(minijinja::context! { session => session_val }))
+    {
+        Ok(html) => (StatusCode::NOT_FOUND, Html(html)).into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "Not Found").into_response(),
+    }
+}
+
+/// Any address no route matches: JSON for the API, the 404 page otherwise.
+pub async fn fallback_handler(State(state): State<AppState>, cookies: Cookies, uri: Uri) -> Response {
+    if uri.path().starts_with("/api/") {
+        return (
+            StatusCode::NOT_FOUND,
+            axum::Json(serde_json::json!({ "success": false, "error": "Introuvable." })),
+        )
+            .into_response();
+    }
+    not_found_page(&state, &cookies).await
 }

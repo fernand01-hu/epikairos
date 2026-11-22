@@ -53,6 +53,7 @@ pub fn init_databases(state: &AppState) -> Result<(), Box<dyn std::error::Error>
 
 /// All routes and middleware of the app.
 pub fn build_router(state: AppState) -> Router {
+    let _ = routes::web::STARTED_AT.set(std::time::Instant::now());
     Router::new()
         // Web views
         .route("/", get(routes::web::dashboard_handler))
@@ -103,13 +104,15 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/account/delete", post(routes::api::delete_account_handler))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
-        // Request body limit layer (2 MB)
-        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
-        // Auth and Security middleware layers
-        .layer(from_fn_with_state(
+        // Login check on matched routes only: unknown addresses get the 404 page,
+        // not a redirect to /login
+        .route_layer(from_fn_with_state(
             state.clone(),
             middleware::auth_middleware,
         ))
+        .fallback(routes::web::fallback_handler)
+        // Request body limit layer (2 MB)
+        .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(CookieManagerLayer::new())
         .layer(from_fn(middleware::security_headers_middleware))
         .with_state(state)

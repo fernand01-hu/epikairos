@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _("Page introuvable") }} — EpiKairos{% endblock %}
+
+{% block content %}
+<div class="status-page">
+    <div class="status-code">404</div>
+    <h1 class="h4 mb-2">{{ _("Page introuvable") }}</h1>
+    <p class="text-muted mb-4">{{ _("Cette adresse ne mène nulle part. Le lien est peut-être ancien ou mal copié.") }}</p>
+    <div class="d-flex gap-2 justify-content-center flex-wrap">
+        <a href="/planning" class="btn btn-primary">{{ _("Planning") }}</a>
+        <a href="/rooms" class="btn btn-outline-secondary">{{ _("Salles libres") }}</a>
+        <a href="/personal" class="btn btn-outline-secondary">{{ _("Mon planning") }}</a>
+    </div>
+</div>
+{% endblock %}

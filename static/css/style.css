@@ -1257,3 +1257,47 @@ a {
     min-width: 2.25rem;
     text-decoration: none;
 }
+
+/* Small centered pages: 404 and /health */
+.status-page {
+    max-width: 28rem;
+    margin: 3rem auto;
+    text-align: center;
+}
+.status-code {
+    font-size: 4.5rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-3);
+    margin-bottom: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border: 1px solid currentColor;
+    margin-bottom: 1.5rem;
+}
+.status-badge.is-ok, .status-list .is-ok { color: var(--ok); }
+.status-badge.is-down, .status-list .is-down { color: var(--danger); }
+.status-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    border: 1px solid var(--border);
+    background: var(--surface);
+}
+.status-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.9rem;
+}
+.status-list li + li { border-top: 1px solid var(--border); }
+.status-list li span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
