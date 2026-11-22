@@ -112,6 +112,10 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.removeItem("zeus_credentials");
             localStorage.removeItem("zeus_stats");
             localStorage.removeItem("zeus_consent");
+            // Pages cached for offline use show the previous account's name
+            if (window.caches) {
+                caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+            }
         } catch (e) {}
     }
 

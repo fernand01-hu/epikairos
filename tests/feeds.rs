@@ -228,3 +228,45 @@ fn legacy_xor_passwords_are_migrated_to_fernet() {
     assert_eq!(feed::get_feed(&conn, "legacy1").unwrap().unwrap().password.as_deref(), Some("old-pass"));
     assert_eq!(feed::migrate_legacy_passwords(&conn).unwrap(), 0, "second run is a no-op");
 }
+
+// --- abuse protections ------------------------------------------------------------
+
+#[test]
+fn feed_refresh_slot_is_granted_once_per_interval() {
+    setup_env();
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    feed::init_db(&conn).unwrap();
+    let id = feed::create_feed(&conn, USER, "pw", None, None, None, None, false, "Cal", Some("BEGIN:VCALENDAR"), None).unwrap();
+    let created: f64 = conn.query_row("SELECT last_cached_at FROM feeds WHERE feed_id = ?1", [&id], |r| r.get(0)).unwrap();
+    let hour = 3600.0;
+
+    // Fresh cache: no refresh, however many requests arrive
+    assert!(!feed::claim_feed_refresh(&conn, &id, 12.0 * hour, created + hour, false).unwrap());
+
+    // Stale cache: exactly one caller wins, the next ones are refused
+    let later = created + 13.0 * hour;
+    assert!(feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later, false).unwrap());
+    for _ in 0..50 {
+        assert!(!feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later + 1.0, false).unwrap());
+    }
+
+    // A failed refresh does not update the cache, but the slot still stays taken
+    assert!(!feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later + 11.0 * hour, false).unwrap());
+    assert!(feed::claim_feed_refresh(&conn, &id, 12.0 * hour, later + 12.5 * hour, false).unwrap());
+
+    // Feeds without courses retry on the short interval only
+    assert!(!feed::claim_feed_refresh(&conn, &id, 600.0, later + 12.5 * hour + 60.0, true).unwrap());
+    assert!(feed::claim_feed_refresh(&conn, &id, 600.0, later + 12.5 * hour + 601.0, true).unwrap());
+}
+
+#[tokio::test]
+async fn an_account_cannot_create_unlimited_feeds() {
+    let app = TestApp::new();
+    for i in 0..epikairos::routes::api::MAX_FEEDS_PER_USER {
+        let res = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await;
+        assert_eq!(res.status, StatusCode::OK, "feed {i}");
+    }
+    let res = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await;
+    assert_eq!(res.status, StatusCode::TOO_MANY_REQUESTS);
+    assert!(res.json()["error"].as_str().unwrap().contains("Réutilisez"));
+}

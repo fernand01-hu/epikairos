@@ -180,6 +180,9 @@ pub fn init_db(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     if !cols.contains(&"cached_courses_json".to_string()) {
         conn.execute("ALTER TABLE feeds ADD COLUMN cached_courses_json TEXT;", [])?;
     }
+    if !cols.contains(&"refresh_attempted_at".to_string()) {
+        conn.execute("ALTER TABLE feeds ADD COLUMN refresh_attempted_at REAL DEFAULT 0;", [])?;
+    }
 
     Ok(())
 }
@@ -399,4 +402,35 @@ mod tests {
         assert_eq!(decrypt_legacy_xor(&encoded, &key).as_deref(), Some(plain));
         assert_eq!(decrypt_legacy_xor("gAAAAABtoken", &key), None);
     }
+}
+
+/// Atomically reserves the right to refresh a feed from Auriga. Returns true for
+/// exactly one caller per `interval` seconds, whether or not the refresh then
+/// succeeds, so a public feed link can never trigger a stream of Auriga logins
+/// (which could get the student's account locked after a password change).
+/// Unless `ignore_cache_age`, the cached calendar must also be older than `interval`.
+pub fn claim_feed_refresh(
+    conn: &rusqlite::Connection,
+    feed_id: &str,
+    interval: f64,
+    now: f64,
+    ignore_cache_age: bool,
+) -> rusqlite::Result<bool> {
+    let claimed = conn.execute(
+        "UPDATE feeds SET refresh_attempted_at = ?1
+         WHERE feed_id = ?2
+           AND COALESCE(refresh_attempted_at, 0) <= ?1 - ?3
+           AND (?4 OR COALESCE(last_cached_at, 0) <= ?1 - ?3)",
+        params![now, feed_id, interval, ignore_cache_age],
+    )?;
+    Ok(claimed == 1)
+}
+
+/// Number of subscription links an account already owns (names compared without case).
+pub fn count_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite::Result<i64> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM feeds WHERE username = ?1 COLLATE NOCASE",
+        params![username.trim()],
+        |r| r.get(0),
+    )
 }

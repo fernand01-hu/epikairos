@@ -22,6 +22,11 @@ use crate::session::{sign_session, verify_session, UserSession};
 use crate::state::AppState;
 
 const DEFAULT_FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
+/// Minimum delay between Auriga attempts for a feed that has no courses yet.
+const FEED_RETRY_INTERVAL: f64 = 600.0;
+/// Subscription links one account may own.
+pub const MAX_FEEDS_PER_USER: i64 = 20;
+const FEED_LIMIT_REACHED: &str = "feed-limit-reached";
 
 /// Feed cache lifetime in seconds, overridable with `FEED_CACHE_DURATION`.
 fn feed_cache_duration() -> f64 {
@@ -649,6 +654,9 @@ pub async fn create_feed_handler(
 
     let res = tokio::task::spawn_blocking(move || {
         let conn = pool.get().map_err(|e| e.to_string())?;
+        if count_feeds_for(&conn, &username).map_err(|e| e.to_string())? >= MAX_FEEDS_PER_USER {
+            return Err(FEED_LIMIT_REACHED.to_string());
+        }
         create_feed(
             &conn,
             &username,
@@ -668,6 +676,16 @@ pub async fn create_feed_handler(
 
     let feed_id = match res {
         Ok(Ok(id)) => id,
+        Ok(Err(e)) if e == FEED_LIMIT_REACHED => {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "success": false,
+                    "error": format!("Vous avez déjà {} liens d'abonnement. Réutilisez un lien existant.", MAX_FEEDS_PER_USER)
+                })),
+            )
+                .into_response();
+        }
         _ => return internal_error(),
     };
 
@@ -852,9 +870,24 @@ pub async fn serve_feed_handler(
 
     let mut raw_courses = feed_opt.cached_courses.clone();
 
-    // Refresh from Auriga if credentials exist and expired
-    if let Some(ref pw) = feed_opt.password {
-        if !feed_opt.username.is_empty() && (cache_age >= feed_cache_duration() || raw_courses.is_empty()) {
+    // Refresh from Auriga when credentials exist and this request wins the refresh slot
+    let mut may_refresh = false;
+    if feed_opt.password.is_some() && !feed_opt.username.is_empty() {
+        let no_courses = raw_courses.is_empty();
+        let interval = if no_courses { FEED_RETRY_INTERVAL } else { feed_cache_duration() };
+        let pool = state.feed_pool.clone();
+        let fid = feed_id.to_string();
+        may_refresh = tokio::task::spawn_blocking(move || {
+            pool.get()
+                .ok()
+                .and_then(|conn| claim_feed_refresh(&conn, &fid, interval, now, no_courses).ok())
+                .unwrap_or(false)
+        })
+        .await
+        .unwrap_or(false);
+    }
+    if let (true, Some(pw)) = (may_refresh, feed_opt.password.as_ref()) {
+        {
             let mut client = AurigaClient::new(&feed_opt.username, pw);
             if client.login().await.is_ok() {
                 let (start_d, end_d) = get_default_school_year_range();
