@@ -299,3 +299,37 @@ async fn an_account_cannot_create_unlimited_feeds() {
     assert_eq!(res.status, StatusCode::TOO_MANY_REQUESTS);
     assert!(res.json()["error"].as_str().unwrap().contains("Réutilisez"));
 }
+
+#[tokio::test]
+async fn a_login_refreshes_the_users_links_without_a_password() {
+    let app = TestApp::new();
+    // Link created without credentials: only the courses loaded at that time
+    let created = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await.json();
+    let feed_url = created["feed_url"].as_str().unwrap().split('?').next().unwrap().to_string();
+    let feed_id = created["feed_id"].as_str().unwrap().to_string();
+    assert!(!app.get(&feed_url, None).await.body.contains("Nouveau cours"));
+
+    // Someone else's link must not change
+    let other_id = {
+        let conn = app.state.feed_pool.get().unwrap();
+        feed::create_feed(&conn, "bob.durand", "", None, None, None, None, false, "Cal", Some("BEGIN:VCALENDAR"), None).unwrap()
+    };
+
+    // Next login of the same student (session name, Auriga may send the @domain form)
+    let fresh = vec![course("9", "2026-02-01T08:00:00Z", "2026-02-01T09:00:00Z", "Nouveau cours", "Salle 305", "")];
+    let updated = {
+        let conn = app.state.feed_pool.get().unwrap();
+        feed::update_feeds_for_user(&conn, "Alice.Martin@epita.fr", &fresh, 1_900_000_000.0).unwrap()
+    };
+    assert_eq!(updated, 1);
+
+    let body = app.get(&feed_url, None).await.body;
+    assert!(body.contains("SUMMARY:Nouveau cours") && body.contains("LOCATION:Salle 305"), "{body}");
+    assert!(!body.contains("Algorithmique"), "old courses replaced");
+
+    let conn = app.state.feed_pool.get().unwrap();
+    let attempted: f64 = conn.query_row("SELECT refresh_attempted_at FROM feeds WHERE feed_id = ?1", [&feed_id], |r| r.get(0)).unwrap();
+    assert_eq!(attempted, 1_900_000_000.0, "no Auriga login right after fresh data");
+    let other: String = conn.query_row("SELECT last_cached_ics FROM feeds WHERE feed_id = ?1", [&other_id], |r| r.get(0)).unwrap();
+    assert_eq!(other, "BEGIN:VCALENDAR");
+}

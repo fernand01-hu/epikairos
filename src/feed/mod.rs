@@ -416,6 +416,30 @@ pub fn count_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite:
     )
 }
 
+/// Gives every subscription link of `username` the courses just downloaded at
+/// login, so links stay current without a stored password. The cached calendar is
+/// cleared (rebuilt with each link's filters on the next fetch), and the Auriga
+/// refresh slot is marked as used, since the data is brand new.
+/// Accounts are matched without case, with or without "@domain".
+pub fn update_feeds_for_user(
+    conn: &rusqlite::Connection,
+    username: &str,
+    courses: &[Course],
+    now: f64,
+) -> rusqlite::Result<usize> {
+    let login = username.trim().split('@').next().unwrap_or("").to_lowercase();
+    if login.is_empty() || courses.is_empty() {
+        return Ok(0);
+    }
+    let json = serde_json::to_string(courses).unwrap_or_default();
+    conn.execute(
+        "UPDATE feeds
+         SET cached_courses_json = ?1, last_cached_ics = '', refresh_attempted_at = ?2
+         WHERE lower(username) = ?3 OR lower(username) LIKE ?3 || '@%'",
+        params![json, now, login],
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -368,6 +368,23 @@ pub async fn fetch_planning_handler(
         "Étudiant Auriga".to_string()
     };
 
+    // Keep this account's subscription links current, even those created without a password
+    if user_display != "Étudiant Auriga" && !normalized.is_empty() {
+        let pool = state.feed_pool.clone();
+        let login_name = user_display.clone();
+        let fresh = normalized.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Ok(conn) = pool.get() {
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
+                if let Ok(n) = update_feeds_for_user(&conn, &login_name, &fresh, now) {
+                    if n > 0 {
+                        println!("[*] Refreshed {} subscription link(s) from a login", n);
+                    }
+                }
+            }
+        });
+    }
+
     // Remember the account so the admin can assign roles from the user list
     if user_display != "Étudiant Auriga" {
         let pool = state.db_pool.clone();

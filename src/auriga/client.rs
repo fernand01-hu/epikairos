@@ -276,6 +276,14 @@ impl AurigaClient {
 
         let token_json: serde_json::Value = token_res.json().await.map_err(|e| e.to_string())?;
 
+        // Lifetimes only (never the tokens): tells whether storing the refresh token
+        // instead of the password could keep subscription links refreshing.
+        println!(
+            "[auriga] token lifetimes: access {}s, refresh {}s",
+            token_json.get("expires_in").and_then(|v| v.as_i64()).unwrap_or(-1),
+            token_json.get("refresh_expires_in").and_then(|v| v.as_i64()).unwrap_or(-1),
+        );
+
         self.access_token = token_json
             .get("access_token")
             .and_then(|v| v.as_str())
