@@ -14,6 +14,14 @@
                 const theme = savedTheme ? savedTheme : (systemDark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-bs-theme', theme);
             } catch (e) {}
+            // Older versions stored the Auriga password here: keep only the login name.
+            try {
+                const creds = JSON.parse(localStorage.getItem('zeus_credentials') || 'null');
+                if (creds && (creds.password || creds.access_token)) {
+                    localStorage.setItem('zeus_credentials', JSON.stringify({ username: creds.username || '' }));
+                }
+                localStorage.removeItem('zeus_consent');
+            } catch (e) {}
         })();
     </script>
 

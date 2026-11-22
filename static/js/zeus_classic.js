@@ -161,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
             renderTree(groupTreeData);
             fetchSchedule();
         } catch (err) {
-            groupTreeContainer.innerHTML = `<div class="text-danger small p-2">Erreur: ${err.message}</div>`;
+            groupTreeContainer.innerHTML = `<div class="text-danger small p-2">Erreur: ${escapeHtml(err.message)}</div>`;
         }
     }
 
@@ -594,10 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : "Non spécifié";
 
         modalBody.innerHTML = `
-            <div class="mb-3">
-                <span class="badge bg-primary px-3 py-1 fs-6">${escapeHtml(c.activity_type)}</span>
-                ${c.is_cancelled ? '<span class="badge bg-danger px-3 py-1 fs-6 ms-1">ANNULÉ</span>' : ''}
-            </div>
+            ${c.is_cancelled ? '<div class="mb-3"><span class="badge bg-danger px-3 py-1">ANNULÉ</span></div>' : ''}
             <dl class="row mb-0 small">
                 <dt class="col-sm-4 text-muted">Horaires :</dt>
                 <dd class="col-sm-8 fw-semibold">${formatTime(c.start)} - ${formatTime(c.end)} (${c.duration} min)</dd>
@@ -754,8 +751,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 html += `
                     <div class="col-sm-6">
                         <div class="p-2 border bg-success-subtle border-success small">
-                            <strong class="text-success"><i class="bi bi-door-open me-1"></i>${r.room_name}</strong>
-                            <div class="text-muted" style="font-size:0.75rem;">${r.free_until}</div>
+                            <strong class="text-success"><i class="bi bi-door-open me-1"></i>${escapeHtml(r.room_name)}</strong>
+                            <div class="text-muted" style="font-size:0.75rem;">${escapeHtml(r.free_until)}</div>
                         </div>
                     </div>
                 `;
@@ -764,7 +761,7 @@ document.addEventListener("DOMContentLoaded", () => {
             html += "</div>";
             resultsEl.innerHTML = html;
         } catch (err) {
-            resultsEl.innerHTML = `<div class="text-danger small">Erreur: ${err.message}</div>`;
+            resultsEl.innerHTML = `<div class="text-danger small">Erreur: ${escapeHtml(err.message)}</div>`;
         }
     });
 
@@ -847,7 +844,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             if (!res.ok || !data.success) throw new Error(data.error || "Erreur de connexion");
 
-            localStorage.setItem("zeus_credentials", JSON.stringify({ username, password }));
+            localStorage.setItem("zeus_credentials", JSON.stringify({ username }));
             if (userDisplayName) {
                 userDisplayName.textContent = username.split("@")[0];
             }

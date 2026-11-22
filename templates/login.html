@@ -207,12 +207,8 @@ document.addEventListener("DOMContentLoaded", () => {
             // Save retrieved courses and credentials in localStorage for the personal page
             localStorage.setItem("zeus_courses", JSON.stringify(data.courses || []));
             localStorage.setItem("zeus_stats", JSON.stringify(data.stats || {}));
-            localStorage.setItem("zeus_credentials", JSON.stringify({
-                username: username,
-                password: password,
-                access_token: tokenInput
-            }));
-            localStorage.setItem("zeus_consent", consent ? "1" : "0");
+            // Only the login name is kept: the password never stays in the browser.
+            localStorage.setItem("zeus_credentials", JSON.stringify({ username: data.username || username }));
 
             showSuccess(`Connexion réussie ! ${data.courses.length} cours récupérés. Redirection vers votre planning...`);
 

@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use crate::db::DbPool;
 use crate::feed::FeedDbPool;
 
-// File name kept from the Flask backend so existing installs keep their sessions
+// Historical file name, kept so existing installs keep their sessions
 const SESSION_SECRET_FILE: &str = ".flask_secret";
 
 /// Resolves a secret file inside `SECRET_DIR` (defaults to the working directory).
@@ -33,7 +33,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(db_pool: DbPool, feed_pool: FeedDbPool, jinja: Environment<'static>) -> Self {
-        let secret_key = get_or_create_session_secret();
+        Self::with_secret(db_pool, feed_pool, jinja, get_or_create_session_secret())
+    }
+
+    /// Same as `new` with an explicit session signing key (used by the tests).
+    pub fn with_secret(db_pool: DbPool, feed_pool: FeedDbPool, jinja: Environment<'static>, secret_key: String) -> Self {
         Self {
             db_pool,
             feed_pool,

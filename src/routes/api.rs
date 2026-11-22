@@ -23,7 +23,7 @@ use crate::state::AppState;
 
 const DEFAULT_FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
 
-/// Feed cache lifetime in seconds, overridable with `FEED_CACHE_DURATION` (same as the Python backend).
+/// Feed cache lifetime in seconds, overridable with `FEED_CACHE_DURATION`.
 fn feed_cache_duration() -> f64 {
     static DURATION: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
     *DURATION.get_or_init(|| {
@@ -178,34 +178,6 @@ fn default_consent() -> bool {
 }
 
 #[derive(Deserialize)]
-pub struct IngestConsentPayload {
-    #[serde(default)]
-    pub courses: Vec<Course>,
-}
-
-#[derive(Deserialize)]
-pub struct RecurringCoursesQuery {
-    pub promo: Option<String>,
-    pub subgroup: Option<String>,
-    pub teacher: Option<String>,
-    pub keyword: Option<String>,
-    pub day: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct CustomCoursesPayload {
-    pub teachers: Option<Vec<String>>,
-    pub rooms: Option<Vec<String>>,
-    pub groups: Option<Vec<String>>,
-    pub activity_types: Option<Vec<String>>,
-    pub keyword: Option<String>,
-    pub start_date: Option<String>,
-    pub end_date: Option<String>,
-    #[serde(default)]
-    pub hide_cancelled: bool,
-}
-
-#[derive(Deserialize)]
 pub struct FreeRoomsPayload {
     pub date: Option<String>,
     pub start_time: Option<String>,
@@ -313,7 +285,8 @@ pub async fn fetch_planning_handler(
             )
                 .into_response();
         }
-        (c, username.clone())
+        let verified = c.username.clone();
+        (c, verified)
     } else {
         return (
             StatusCode::BAD_REQUEST,
@@ -408,203 +381,6 @@ pub async fn fetch_planning_handler(
         "username": user_display,
     }))
     .into_response()
-}
-
-// -----------------------------------------------------------------------------
-// POST /api/ingest-consent
-// -----------------------------------------------------------------------------
-pub async fn ingest_consent_handler(
-    State(state): State<AppState>,
-    Json(payload): Json<IngestConsentPayload>,
-) -> Response {
-    if payload.courses.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "success": false, "error": "Aucun cours à enregistrer." })),
-        )
-            .into_response();
-    }
-
-    let pool = state.db_pool.clone();
-    let courses = payload.courses;
-    let res = tokio::task::spawn_blocking(move || {
-        let mut conn = pool.get().map_err(|e| e.to_string())?;
-        ingest_courses(&mut conn, &courses, true).map_err(|e| e.to_string())
-    })
-    .await;
-
-    match res {
-        Ok(Ok(val)) => Json(serde_json::json!({ "success": true, "result": val })).into_response(),
-        Ok(Err(e)) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "success": false, "error": e })),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "success": false, "error": e.to_string() })),
-        )
-            .into_response(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// GET /api/database/stats
-// -----------------------------------------------------------------------------
-pub async fn db_stats_handler(State(state): State<AppState>) -> Response {
-    let pool = state.db_pool.clone();
-    let res = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        get_database_stats(&conn).map_err(|e| e.to_string())
-    })
-    .await;
-
-    match res {
-        Ok(Ok(stats)) => Json(stats).into_response(),
-        _ => internal_error(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// GET /api/database/options
-// -----------------------------------------------------------------------------
-pub async fn db_options_handler(State(state): State<AppState>) -> Response {
-    let pool = state.db_pool.clone();
-    let res = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        let teachers = get_all_teachers(&conn).map_err(|e| e.to_string())?;
-        let rooms = get_all_rooms(&conn).map_err(|e| e.to_string())?;
-        let groups = get_all_groups(&conn).map_err(|e| e.to_string())?;
-        let groups_structured = get_all_groups_structured(&conn).map_err(|e| e.to_string())?;
-        let promotions = get_structured_promotions_and_groups(&conn).map_err(|e| e.to_string())?;
-        let types = get_all_activity_types(&conn).map_err(|e| e.to_string())?;
-
-        Ok::<_, String>(serde_json::json!({
-            "teachers": teachers,
-            "rooms": rooms,
-            "groups": groups,
-            "groups_structured": groups_structured,
-            "promotions": promotions,
-            "types": types,
-        }))
-    })
-    .await;
-
-    match res {
-        Ok(Ok(val)) => Json(val).into_response(),
-        _ => internal_error(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// GET /api/database/promos
-// -----------------------------------------------------------------------------
-pub async fn db_promos_handler(State(state): State<AppState>) -> Response {
-    let pool = state.db_pool.clone();
-    let res = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        get_structured_promotions_and_groups(&conn).map_err(|e| e.to_string())
-    })
-    .await;
-
-    match res {
-        Ok(Ok(promos)) => Json(serde_json::json!({
-            "success": true,
-            "promotions": promos,
-        }))
-        .into_response(),
-        _ => internal_error(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// GET /api/database/recurring-courses
-// -----------------------------------------------------------------------------
-pub async fn db_recurring_courses_handler(
-    State(state): State<AppState>,
-    Query(query): Query<RecurringCoursesQuery>,
-) -> Response {
-    let pool = state.db_pool.clone();
-    let day_of_week = query.day.as_deref().and_then(|d| d.parse::<i64>().ok());
-    let promo = query.promo;
-    let subgroup = query.subgroup;
-    let teacher = query.teacher;
-    let keyword = query.keyword;
-
-    let res = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        query_recurring_courses(
-            &conn,
-            promo.as_deref(),
-            subgroup.as_deref(),
-            day_of_week,
-            teacher.as_deref(),
-            keyword.as_deref(),
-        )
-        .map_err(|e| e.to_string())
-    })
-    .await;
-
-    match res {
-        Ok(Ok(val)) => Json(val).into_response(),
-        _ => internal_error(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// POST /api/database/detect-patterns
-// -----------------------------------------------------------------------------
-pub async fn db_detect_patterns_handler(State(state): State<AppState>) -> Response {
-    let pool = state.db_pool.clone();
-    let res = tokio::task::spawn_blocking(move || {
-        let mut conn = pool.get().map_err(|e| e.to_string())?;
-        detect_and_sync_recurring_courses(&mut conn).map_err(|e| e.to_string())
-    })
-    .await;
-
-    match res {
-        Ok(Ok(val)) => Json(val).into_response(),
-        _ => internal_error(),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// POST /api/database/custom-courses
-// -----------------------------------------------------------------------------
-pub async fn db_custom_courses_handler(
-    State(state): State<AppState>,
-    Json(payload): Json<CustomCoursesPayload>,
-) -> Response {
-    let pool = state.db_pool.clone();
-    let res = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().map_err(|e| e.to_string())?;
-        query_custom_courses(
-            &conn,
-            payload.teachers.as_deref(),
-            payload.rooms.as_deref(),
-            payload.groups.as_deref(),
-            payload.activity_types.as_deref(),
-            payload.keyword.as_deref(),
-            payload.start_date.as_deref(),
-            payload.end_date.as_deref(),
-            payload.hide_cancelled,
-        )
-        .map_err(|e| e.to_string())
-    })
-    .await;
-
-    match res {
-        Ok(Ok(courses)) => {
-            let count = courses.len();
-            Json(serde_json::json!({
-                "success": true,
-                "courses": courses,
-                "count": count,
-            }))
-            .into_response()
-        }
-        _ => internal_error(),
-    }
 }
 
 // -----------------------------------------------------------------------------

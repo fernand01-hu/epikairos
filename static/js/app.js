@@ -151,7 +151,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const savedCoursesJson = localStorage.getItem("zeus_courses");
     const planningWorkspace = document.getElementById("planningWorkspace");
     const noDataAlert = document.getElementById("noDataAlert");
-    const contributeBtn = document.getElementById("contributeBtn");
 
     if (savedCoursesJson) {
         try {
@@ -185,32 +184,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const statsEl = document.getElementById("statsSummary");
             if (statsEl) {
                 statsEl.innerHTML = `<strong>${allCourses.length}</strong> cours enregistrés (${typesStr || "Tous"})`;
-            }
-
-            // Check if contribution button should be visible
-            const consentVal = localStorage.getItem("zeus_consent");
-            if (consentVal === "0" && contributeBtn) {
-                contributeBtn.classList.remove("d-none");
-                contributeBtn.addEventListener("click", async () => {
-                    try {
-                        contributeBtn.disabled = true;
-                        contributeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Envoi...';
-                        const res = await fetch("/api/ingest-consent", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ courses: allCourses })
-                        });
-                        if (res.ok) {
-                            localStorage.setItem("zeus_consent", "1");
-                            contributeBtn.classList.add("d-none");
-                            alert("Merci ! Vos cours ont été ajoutés anonymement à la base collaborative.");
-                        }
-                    } catch (e) {
-                        alert(`Erreur : ${e.message}`);
-                    } finally {
-                        contributeBtn.disabled = false;
-                    }
-                });
             }
 
             renderTypeFilterButtons(allCourses);
@@ -287,8 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 localStorage.setItem("zeus_courses", JSON.stringify(allCourses));
                 localStorage.setItem("zeus_stats", JSON.stringify(data.stats || {}));
-                localStorage.setItem("zeus_credentials", JSON.stringify(userCredentials));
-                localStorage.setItem("zeus_consent", "1");
+                localStorage.setItem("zeus_credentials", JSON.stringify({ username: userCredentials.username || "" }));
 
                 const now = new Date();
                 if (allCourses.length > 0) {
@@ -585,7 +557,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         card.innerHTML = `
             <input type="checkbox" class="form-check-input event-checkbox" data-id="${escapeHtml(c.id)}" ${isSelected ? "checked" : ""} title="Sélectionner pour l'export" aria-label="Sélectionner pour l'export">
-            <div class="event-time">${formatTime(c.start)} – ${formatTime(c.end)} · ${escapeHtml(c.activity_type || "")}</div>
+            <div class="event-time">${formatTime(c.start)} – ${formatTime(c.end)}</div>
             <div class="event-title">${c.is_cancelled ? "[Annulé] " : ""}${escapeHtml(c.course_name)}</div>
             ${rooms ? `<div class="event-meta">${escapeHtml(rooms)}</div>` : ""}
         `;
@@ -912,7 +884,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             userCredentials.username = userVal;
             userCredentials.password = passVal;
-            localStorage.setItem("zeus_credentials", JSON.stringify(userCredentials));
+            localStorage.setItem("zeus_credentials", JSON.stringify({ username: userVal }));
             generateCalendarFeed({ username: userVal, password: passVal });
         });
     }

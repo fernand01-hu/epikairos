@@ -220,8 +220,9 @@ pub async fn offline_handler(State(state): State<AppState>) -> Result<Html<Strin
         .get_template("offline.html")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Cached by the service worker, so it is rendered logged out for everyone.
     let rendered = tmpl
-        .render(minijinja::context! {})
+        .render(minijinja::context! { session => create_session_value(false, None, None) })
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Html(rendered))

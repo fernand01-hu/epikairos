@@ -1,14 +1,3 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
-ENV/
-
 # Secrets & Local Configuration
 .env
 .server_secret
@@ -24,9 +13,6 @@ feeds.db
 # Exported Calendar Files
 *.ics
 
-# Reference Repositories
-ChrysalideApp-main/
-
 # IDE & OS
 .DS_Store
 .idea/
@@ -37,3 +23,7 @@ ChrysalideApp-main/
 # Rust
 /target/
 target/
+
+# Local folders that must never be committed
+ChrysalideApp-main/
+__pycache__/

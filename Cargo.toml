@@ -8,8 +8,7 @@ description = "EpiKairos - High-performance EPITA Auriga Calendar Platform in Ru
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1.38", features = ["full"] }
-tower = { version = "0.4", features = ["util"] }
-tower-http = { version = "0.5", features = ["fs", "trace", "set-header", "cors"] }
+tower-http = { version = "0.5", features = ["fs"] }
 tower-cookies = "0.10"
 minijinja = { version = "2.0", features = ["loader", "json"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -24,8 +23,10 @@ regex = "1.10"
 rand = "0.8"
 sha2 = "0.10"
 base64 = "0.22"
-aes-gcm = "0.10"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 fernet = { version = "0.2.2", default-features = false, features = ["rustcrypto"] }
 hmac = "0.12"
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"

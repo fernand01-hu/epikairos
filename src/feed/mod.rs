@@ -381,12 +381,6 @@ pub fn update_feed_courses(
     Ok(())
 }
 
-pub fn delete_feed(conn: &rusqlite::Connection, feed_id: &str) -> rusqlite::Result<bool> {
-    init_db(conn)?;
-    let count = conn.execute("DELETE FROM feeds WHERE feed_id = ?1", params![feed_id])?;
-    Ok(count > 0)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

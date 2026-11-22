@@ -59,11 +59,9 @@ pub fn safe_truncate(s: &str, max_bytes: usize) -> &str {
 }
 
 /// Validates that a date parameter matches `^\d{4}-\d{2}-\d{2}$`.
+/// True for a real calendar date written exactly as YYYY-MM-DD.
 pub fn is_valid_date_format(date: &str) -> bool {
-    static DATE_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
-        Regex::new(r"^\d{4}-\d{2}-\d{2}$").unwrap()
-    });
-    DATE_REGEX.is_match(date)
+    date.len() == 10 && chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok()
 }
 
 /// Extracts the login form action URL and validates that its destination host matches `auth_base_url`.
@@ -88,6 +86,27 @@ pub fn extract_and_validate_form_action(html: &str, auth_base: &str) -> Result<r
     }
 
     Ok(action_url)
+}
+
+/// Decodes a JWT's payload without checking its signature. Only used on tokens
+/// that Auriga itself validates (login responses, or API calls made with them).
+pub fn decode_jwt_claims(token: &str) -> Option<serde_json::Value> {
+    let payload = token.split('.').nth(1)?;
+    let bytes = URL_SAFE_NO_PAD
+        .decode(payload.trim_end_matches('='))
+        .ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// The account name Keycloak put in the token (`preferred_username`, else `sub`).
+pub fn token_username(token: &str) -> Option<String> {
+    let claims = decode_jwt_claims(token)?;
+    claims
+        .get("preferred_username")
+        .or_else(|| claims.get("sub"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 pub struct AurigaClient {
@@ -127,30 +146,14 @@ impl AurigaClient {
             return Err("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de '…'). Faites Clic droit sur le header Authorization -> 'Copier la valeur' dans DevTools.".to_string());
         }
 
-        let mut extracted_username = String::new();
-        // Check expiration and username
-        if let Ok(parts) = clean.split('.').collect::<Vec<&str>>().try_into() {
-            let parts: [&str; 3] = parts;
-            let mut payload_b64 = parts[1].to_string();
-            while payload_b64.len() % 4 != 0 {
-                payload_b64.push('=');
-            }
-            if let Ok(decoded) = URL_SAFE_NO_PAD.decode(parts[1]).or_else(|_| base64::engine::general_purpose::STANDARD.decode(&payload_b64)) {
-                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&decoded) {
-                    if let Some(exp) = v.get("exp").and_then(|e| e.as_i64()) {
-                        let now = Utc::now().timestamp();
-                        if now > exp {
-                            return Err("Ce jeton d'accès Auriga a expiré (durée de validité de 5 minutes dépassée). Veuillez rafraîchir Auriga (F5) et copier le nouveau jeton, ou utilisez vos identifiants.".to_string());
-                        }
-                    }
-                    if let Some(u) = v.get("preferred_username").and_then(|u| u.as_str()) {
-                        extracted_username = u.to_string();
-                    } else if let Some(u) = v.get("sub").and_then(|u| u.as_str()) {
-                        extracted_username = u.to_string();
-                    }
+        if let Some(claims) = decode_jwt_claims(&clean) {
+            if let Some(exp) = claims.get("exp").and_then(|e| e.as_i64()) {
+                if Utc::now().timestamp() > exp {
+                    return Err("Ce jeton d'accès Auriga a expiré (durée de validité de 5 minutes dépassée). Veuillez rafraîchir Auriga (F5) et copier le nouveau jeton, ou utilisez vos identifiants.".to_string());
                 }
             }
         }
+        let extracted_username = token_username(&clean).unwrap_or_default();
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
@@ -287,6 +290,11 @@ impl AurigaClient {
         }
 
         self.password.clear();
+
+        // Trust the identity Keycloak returned, not the name that was typed in.
+        if let Some(name) = self.access_token.as_deref().and_then(token_username) {
+            self.username = name;
+        }
 
         Ok(())
     }
@@ -560,6 +568,11 @@ pub fn generate_ics_from_courses(courses: &[Course], calendar_name: &str) -> Str
     lines.join("\r\n")
 }
 
+/// Course filters ignore case, like the filters in the web page.
+fn case_insensitive_regex(pattern: &str) -> Result<Regex, regex::Error> {
+    regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build()
+}
+
 pub fn filter_courses(
     courses: &[Course],
     include_regex: Option<&str>,
@@ -570,7 +583,7 @@ pub fn filter_courses(
 ) -> Result<Vec<Course>, String> {
     let inc_re = if let Some(r) = include_regex {
         if !r.trim().is_empty() {
-            Some(Regex::new(r.trim()).map_err(|e| format!("Regex d'inclusion invalide: {}", e))?)
+            Some(case_insensitive_regex(r.trim()).map_err(|e| format!("Regex d'inclusion invalide: {}", e))?)
         } else {
             None
         }
@@ -580,7 +593,7 @@ pub fn filter_courses(
 
     let exc_re = if let Some(r) = exclude_regex {
         if !r.trim().is_empty() {
-            Some(Regex::new(r.trim()).map_err(|e| format!("Regex d'exclusion invalide: {}", e))?)
+            Some(case_insensitive_regex(r.trim()).map_err(|e| format!("Regex d'exclusion invalide: {}", e))?)
         } else {
             None
         }
