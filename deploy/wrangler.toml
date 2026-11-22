@@ -1,0 +1,11 @@
+# Cloudflare Worker that shows a "down" page when the home server is unreachable.
+# Deploy from this folder:  npx wrangler deploy
+name = "epikairos-fallback"
+main = "cloudflare-fallback-worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = false
+
+# In front of the real site (www included); a Route, not a Custom domain
+routes = [
+  { pattern = "*epikairos.org/*", zone_name = "epikairos.org" }
+]

@@ -27,3 +27,6 @@ target/
 # Local folders that must never be committed
 ChrysalideApp-main/
 __pycache__/
+
+# Wrangler local cache
+.wrangler/
