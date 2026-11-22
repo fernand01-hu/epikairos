@@ -472,8 +472,38 @@ pub async fn fetch_planning_handler(
 // -----------------------------------------------------------------------------
 // POST /api/database/free-rooms
 // -----------------------------------------------------------------------------
+/// Teacher names are only for logged-in users: blanks every "teachers" list.
+fn strip_teachers(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (k, v) in map.iter_mut() {
+                if k == "teachers" {
+                    *v = serde_json::Value::Array(Vec::new());
+                } else {
+                    strip_teachers(v);
+                }
+            }
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(strip_teachers),
+        _ => {}
+    }
+}
+
+/// JSON response, without teacher names unless the visitor is logged in.
+fn public_json<T: serde::Serialize>(state: &AppState, cookies: &Cookies, data: T) -> Response {
+    let mut value = match serde_json::to_value(data) {
+        Ok(v) => v,
+        Err(_) => return internal_error(),
+    };
+    if session_username(state, cookies).is_none() {
+        strip_teachers(&mut value);
+    }
+    Json(value).into_response()
+}
+
 pub async fn db_free_rooms_handler(
     State(state): State<AppState>,
+    cookies: Cookies,
     Json(payload): Json<FreeRoomsPayload>,
 ) -> Response {
     let now_dt: DateTime<chrono_tz::Tz> = Utc::now().with_timezone(&Paris);
@@ -491,7 +521,7 @@ pub async fn db_free_rooms_handler(
     .await;
 
     match res {
-        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Ok(result)) => public_json(&state, &cookies, result),
         _ => internal_error(),
     }
 }
@@ -506,6 +536,7 @@ pub struct RoomsDayQuery {
 
 pub async fn db_rooms_day_handler(
     State(state): State<AppState>,
+    cookies: Cookies,
     Query(query): Query<RoomsDayQuery>,
 ) -> Response {
     let today = Utc::now().with_timezone(&Paris).format("%Y-%m-%d").to_string();
@@ -522,7 +553,7 @@ pub async fn db_rooms_day_handler(
     .await;
 
     match res {
-        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Ok(result)) => public_json(&state, &cookies, result),
         _ => internal_error(),
     }
 }
@@ -562,8 +593,13 @@ pub async fn teachers_handler(State(state): State<AppState>) -> Response {
 // -----------------------------------------------------------------------------
 pub async fn groups_schedule_handler(
     State(state): State<AppState>,
-    Json(payload): Json<GroupSchedulePayload>,
+    cookies: Cookies,
+    Json(mut payload): Json<GroupSchedulePayload>,
 ) -> Response {
+    // Searching by teacher is for logged-in users only
+    if session_username(&state, &cookies).is_none() {
+        payload.teachers.clear();
+    }
     let pool = state.db_pool.clone();
     let res = tokio::task::spawn_blocking(move || {
         let conn = pool.get().map_err(|e| e.to_string())?;
@@ -581,12 +617,11 @@ pub async fn groups_schedule_handler(
     match res {
         Ok(Ok(courses)) => {
             let count = courses.len();
-            Json(serde_json::json!({
-                "success": true,
-                "courses": courses,
-                "count": count,
-            }))
-            .into_response()
+            public_json(
+                &state,
+                &cookies,
+                serde_json::json!({ "success": true, "courses": courses, "count": count }),
+            )
         }
         _ => internal_error(),
     }

@@ -24,7 +24,6 @@ async fn public_paths_need_no_session() {
         "/old-zeus",
         "/zeus",
         "/api/groups/tree",
-        "/api/teachers",
         "/api/database/rooms-day",
     ] {
         let res = app.get(path, None).await;

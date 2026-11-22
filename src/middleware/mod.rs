@@ -91,7 +91,6 @@ pub async fn auth_middleware(
         || path == "/rooms"
         || path == "/api/fetch-planning"
         || path == "/api/groups/tree"
-        || path == "/api/teachers"
         || path == "/api/groups/schedule"
         || path == "/api/database/rooms-day"
         || path == "/api/database/free-rooms"

@@ -11,7 +11,7 @@
 
 {% block content %}
 <!-- Main App Layout: Sidebar + Timetable -->
-<div class="zeus-app-body">
+<div class="zeus-app-body" data-logged-in="{{ '1' if session.get('logged_in') else '0' }}">
 
     <!-- Left Sidebar -->
     <aside class="zeus-sidebar">
@@ -138,5 +138,5 @@
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122w"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122y"></script>
 {% endblock %}

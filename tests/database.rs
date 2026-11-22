@@ -225,7 +225,7 @@ fn teacher_list_counts_active_courses_only() {
 #[tokio::test]
 async fn teachers_endpoint_and_schedule_by_teacher() {
     let app = TestApp::new();
-    assert_eq!(app.get("/api/teachers", None).await.status, StatusCode::OK);
+    assert_eq!(app.get("/api/teachers", None).await.status, StatusCode::UNAUTHORIZED, "login required");
 
     let mut c = course("1", "2026-11-02T09:00:00Z", "2026-11-02T10:00:00Z", "Graphes", "Salle 305", "G1");
     c.teachers = vec!["François BONI".into()];
@@ -241,4 +241,35 @@ async fn teachers_endpoint_and_schedule_by_teacher() {
         .json();
     assert_eq!(res["count"], 1);
     assert_eq!(res["courses"][0]["teachers"][0], "François BONI");
+}
+
+#[tokio::test]
+async fn teacher_names_are_hidden_from_anonymous_visitors() {
+    let app = TestApp::new();
+    let today = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Paris).format("%Y-%m-%d").to_string();
+    let mut c = course("1", &format!("{today}T09:00:00Z"), &format!("{today}T10:00:00Z"), "Graphes", "Salle 305", "G1");
+    c.teachers = vec!["François BONI".into()];
+    app.ingest(&[c]);
+
+    // Group schedule: the course, without its teacher
+    let body = serde_json::json!({ "patterns": ["G1"] });
+    let anon = app.post("/api/groups/schedule", None, body.clone()).await;
+    assert_eq!(anon.json()["count"], 1);
+    assert!(!anon.body.contains("BONI"), "{}", anon.body);
+    assert!(app.post("/api/groups/schedule", Some("alice.martin"), body).await.body.contains("BONI"));
+
+    // Searching by teacher does nothing without a session
+    let by_teacher = serde_json::json!({ "teachers": ["François BONI"] });
+    assert_eq!(app.post("/api/groups/schedule", None, by_teacher.clone()).await.json()["count"], 0);
+    assert_eq!(app.post("/api/groups/schedule", Some("alice.martin"), by_teacher).await.json()["count"], 1);
+
+    // Free rooms day view
+    let path = format!("/api/database/rooms-day?date={today}");
+    let rooms = app.get(&path, None).await;
+    assert!(rooms.body.contains("Graphes") && !rooms.body.contains("BONI"), "{}", rooms.body);
+    assert!(app.get(&path, Some("alice.martin")).await.body.contains("BONI"));
+
+    // Planning page tells the script whether to show teachers
+    assert!(app.get("/planning", None).await.body.contains(r#"data-logged-in="0""#));
+    assert!(app.get("/planning", Some("alice.martin")).await.body.contains(r#"data-logged-in="1""#));
 }

@@ -283,7 +283,15 @@ document.addEventListener("DOMContentLoaded", () => {
         teacherSelectedCount.textContent = selectedTeachers.size ? `(${selectedTeachers.size})` : "";
     }
 
+    // Teacher names and schedules are only shown to logged-in users
+    const LOGGED_IN = document.querySelector(".zeus-app-body")?.dataset.loggedIn === "1";
+
     async function loadTeachers() {
+        if (!LOGGED_IN) {
+            selectedTeachers.clear();
+            teacherListContainer.innerHTML = `<div class="small text-muted py-2">${t("Les professeurs sont visibles une fois connecté.")} <a href="/login">${t("Connexion")}</a></div>`;
+            return;
+        }
         try {
             const data = await apiJson("/api/teachers");
             renderTeachers(data.teachers || []);
@@ -637,7 +645,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const modalBody = document.getElementById("courseDetailBody");
 
         const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : t("Non spécifiée");
-        const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : t("Non spécifié");
+        const teachersStr = !LOGGED_IN
+            ? `<a href="/login">${t("Connectez-vous pour voir les professeurs")}</a>`
+            : c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : t("Non spécifié");
         const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : t("Non spécifié");
 
         modalBody.innerHTML = `
