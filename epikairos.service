@@ -1,15 +1,18 @@
 [Unit]
-Description=EpiKairos EPITA Calendar App
-After=network.target
+Description=EpiKairos EPITA Calendar App (Rust backend)
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=fernand
-WorkingDirectory=/home/fernand/epikairos
-ExecStart=/home/fernand/epikairos/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:5000 app:app
+WorkingDirectory=/home/fernand/playground/zeus-v2
+# Build first with: cargo build --release
+ExecStart=/home/fernand/playground/zeus-v2/target/release/epikairos
 Restart=always
 RestartSec=5
-Environment=PYTHONUNBUFFERED=1
+Environment=PORT=5000
+Environment=HOST=0.0.0.0
 
 [Install]
 WantedBy=multi-user.target

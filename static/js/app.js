@@ -1,6 +1,6 @@
 /**
  * Auriga Calendar Web Application Client
- * Complete Calendar & Regex Filter UI
+ * Calendar & filter UI
  */
 
 let allCourses = [];
@@ -8,7 +8,6 @@ let visibleCourses = [];
 let selectedCourseIds = new Set();
 let userCredentials = { username: "", password: "", access_token: "" };
 let currentCalendarDate = new Date();
-let currentViewMode = "week"; // "week" | "table"
 
 function escapeHtml(str) {
     if (str === null || str === undefined) return "";
@@ -20,45 +19,8 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
-const coursePaletteLight = [
-    { bg: "#dbeafe", text: "#1d4ed8", border: "#2563eb" }, // Blue
-    { bg: "#d1fae5", text: "#065f46", border: "#059669" }, // Emerald
-    { bg: "#fef3c7", text: "#92400e", border: "#d97706" }, // Amber
-    { bg: "#ede9fe", text: "#5b21b6", border: "#7c3aed" }, // Purple
-    { bg: "#ccfbf1", text: "#115e59", border: "#0d9488" }, // Teal
-    { bg: "#ffe4e6", text: "#9f1239", border: "#e11d48" }, // Rose
-    { bg: "#e0f2fe", text: "#0369a1", border: "#0284c7" }, // Sky
-    { bg: "#fae8ff", text: "#86198f", border: "#c026d3" }, // Fuchsia
-    { bg: "#f8fafc", text: "#334155", border: "#64748b" }, // Slate
-    { bg: "#ecfccb", text: "#3f6212", border: "#65a30d" }, // Lime
-    { bg: "#ffedd5", text: "#9a3412", border: "#ea580c" }, // Orange
-    { bg: "#fce7f3", text: "#9d174d", border: "#db2777" }, // Pink
-];
-
-const coursePaletteDark = [
-    { bg: "rgba(37, 99, 235, 0.22)", text: "#93c5fd", border: "#3b82f6" }, // Blue
-    { bg: "rgba(5, 150, 105, 0.22)", text: "#6ee7b7", border: "#10b981" }, // Emerald
-    { bg: "rgba(217, 119, 6, 0.22)", text: "#fde047", border: "#f59e0b" }, // Amber
-    { bg: "rgba(124, 58, 237, 0.22)", text: "#d8b4fe", border: "#8b5cf6" }, // Purple
-    { bg: "rgba(13, 148, 136, 0.22)", text: "#5eead4", border: "#14b8a6" }, // Teal
-    { bg: "rgba(225, 29, 72, 0.22)", text: "#fda4af", border: "#f43f5e" }, // Rose
-    { bg: "rgba(2, 132, 199, 0.22)", text: "#7dd3fc", border: "#0ea5e9" }, // Sky
-    { bg: "rgba(192, 38, 211, 0.22)", text: "#f0abfc", border: "#d946ef" }, // Fuchsia
-    { bg: "rgba(100, 116, 139, 0.22)", text: "#cbd5e1", border: "#64748b" }, // Slate
-    { bg: "rgba(101, 163, 13, 0.22)", text: "#bef264", border: "#84cc16" }, // Lime
-    { bg: "rgba(234, 88, 12, 0.22)", text: "#fdba74", border: "#f97316" }, // Orange
-    { bg: "rgba(219, 39, 119, 0.22)", text: "#f9a8d4", border: "#ec4899" }, // Pink
-];
-
-function isDarkModeActive() {
-    return document.documentElement.getAttribute("data-bs-theme") === "dark";
-}
-
-function getCoursePalette() {
-    return isDarkModeActive() ? coursePaletteDark : coursePaletteLight;
-}
-
-const coursePalette = coursePaletteLight;
+// Height of one hour in the week time grid, in pixels.
+const HOUR_PX = 56;
 
 document.addEventListener("DOMContentLoaded", () => {
     // DOM Elements - Login & Main UI
@@ -71,15 +33,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const planningSection = document.getElementById("planningSection");
 
     // Filter Elements
-    const includeRegexInput = document.getElementById("includeRegexInput");
-    const excludeRegexInput = document.getElementById("excludeRegexInput");
     const hideCancelledSwitch = document.getElementById("hideCancelledSwitch");
     const typeButtonGroup = document.getElementById("typeButtonGroup");
     const selectAllTypesBtn = document.getElementById("selectAllTypesBtn");
     const deselectAllTypesBtn = document.getElementById("deselectAllTypesBtn");
 
     // Action Bar Elements
-    const masterCheckbox = document.getElementById("masterCheckbox");
     const selectAllBtn = document.getElementById("selectAllBtn");
     const deselectAllBtn = document.getElementById("deselectAllBtn");
     const selectedCountBadge = document.getElementById("selectedCountBadge");
@@ -87,13 +46,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const openFeedModalBtn = document.getElementById("openFeedModalBtn");
 
     // Calendar & View Switcher Elements
-    const viewModeWeekBtn = document.getElementById("viewModeWeekBtn");
-    const viewModeListBtn = document.getElementById("viewModeListBtn");
-    const calendarWeekView = document.getElementById("calendarWeekView");
-    const calendarTableView = document.getElementById("calendarTableView");
     const weekDaysGrid = document.getElementById("weekDaysGrid");
     const noWeekCoursesMessage = document.getElementById("noWeekCoursesMessage");
-    const weekNavControls = document.getElementById("weekNavControls");
     const prevWeekBtn = document.getElementById("prevWeekBtn");
     const nextWeekBtn = document.getElementById("nextWeekBtn");
     const todayWeekBtn = document.getElementById("todayWeekBtn");
@@ -195,7 +149,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const savedCoursesJson = localStorage.getItem("zeus_courses");
     const planningWorkspace = document.getElementById("planningWorkspace");
     const noDataAlert = document.getElementById("noDataAlert");
-    const contributeBtn = document.getElementById("contributeBtn");
 
     if (savedCoursesJson) {
         try {
@@ -220,41 +173,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 } else {
                     currentCalendarDate = new Date(firstCourseDate);
                 }
-            }
-
-            const stats = JSON.parse(localStorage.getItem("zeus_stats") || "{}");
-            const typesStr = Object.entries(stats.types || {})
-                .map(([type, count]) => `${type}: ${count}`)
-                .join(", ");
-            const statsEl = document.getElementById("statsSummary");
-            if (statsEl) {
-                statsEl.innerHTML = `<strong>${allCourses.length}</strong> cours enregistrés (${typesStr || "Tous"})`;
-            }
-
-            // Check if contribution button should be visible
-            const consentVal = localStorage.getItem("zeus_consent");
-            if (consentVal === "0" && contributeBtn) {
-                contributeBtn.classList.remove("d-none");
-                contributeBtn.addEventListener("click", async () => {
-                    try {
-                        contributeBtn.disabled = true;
-                        contributeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Envoi...';
-                        const res = await fetch("/api/ingest-consent", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ courses: allCourses })
-                        });
-                        if (res.ok) {
-                            localStorage.setItem("zeus_consent", "1");
-                            contributeBtn.classList.add("d-none");
-                            alert("Merci ! Vos cours ont été ajoutés anonymement à la base collaborative.");
-                        }
-                    } catch (e) {
-                        alert(`Erreur : ${e.message}`);
-                    } finally {
-                        contributeBtn.disabled = false;
-                    }
-                });
             }
 
             renderTypeFilterButtons(allCourses);
@@ -331,8 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 localStorage.setItem("zeus_courses", JSON.stringify(allCourses));
                 localStorage.setItem("zeus_stats", JSON.stringify(data.stats || {}));
-                localStorage.setItem("zeus_credentials", JSON.stringify(userCredentials));
-                localStorage.setItem("zeus_consent", "1");
+                localStorage.setItem("zeus_credentials", JSON.stringify({ username: userCredentials.username || "" }));
 
                 const now = new Date();
                 if (allCourses.length > 0) {
@@ -345,15 +262,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 } else {
                     currentCalendarDate = new Date();
-                }
-
-                const stats = data.stats || {};
-                const typesStr = Object.entries(stats.types || {})
-                    .map(([type, count]) => `${type}: ${count}`)
-                    .join(", ");
-                const statsEl = document.getElementById("statsSummary");
-                if (statsEl) {
-                    statsEl.innerHTML = `<strong>${stats.total}</strong> cours trouvés (${typesStr}) | <strong>${stats.cancelled}</strong> annulés`;
                 }
 
                 renderTypeFilterButtons(allCourses);
@@ -407,49 +315,22 @@ document.addEventListener("DOMContentLoaded", () => {
             .map(e => e[0]);
 
         typeButtonGroup.innerHTML = "";
-        const isDark = isDarkModeActive();
-        const palette = getCoursePalette();
 
-        sortedCourses.forEach((courseName, idx) => {
-            const color = palette[idx % palette.length];
+        sortedCourses.forEach(courseName => {
             const count = courseCounts.get(courseName);
 
             const btn = document.createElement("button");
             btn.type = "button";
             btn.className = "type-filter-chip course-filter-chip";
             btn.dataset.course = courseName;
-            btn.dataset.colorBg = color.bg;
-            btn.dataset.colorText = color.text;
-            btn.dataset.colorBorder = color.border;
             btn.title = `Matière : ${courseName} (${count} séance${count > 1 ? "s" : ""})`;
-            btn.style.backgroundColor = color.bg;
-            btn.style.color = color.text;
-            btn.style.borderColor = color.border;
-
-            const badgeBg = isDark ? "rgba(0,0,0,0.4)" : "#ffffff";
-            const badgeColor = isDark ? color.text : "#0f172a";
-
             btn.innerHTML = `
-                <i class="bi bi-check-circle-fill"></i>
-                <span class="text-truncate" style="max-width: 240px;">${courseName}</span>
-                <span class="badge rounded-pill ms-1 shadow-sm" style="font-size:0.65rem; background-color:${badgeBg}; color:${badgeColor}; border: 1px solid ${color.border};">${count}</span>
+                <span class="chip-label text-truncate">${escapeHtml(courseName)}</span>
+                <span class="chip-count">${count}</span>
             `;
 
             btn.addEventListener("click", () => {
                 btn.classList.toggle("unchecked");
-                const icon = btn.querySelector("i");
-                const currentlyDark = isDarkModeActive();
-                if (btn.classList.contains("unchecked")) {
-                    icon.className = "bi bi-circle";
-                    btn.style.backgroundColor = currentlyDark ? "#0f172a" : "#f1f5f9";
-                    btn.style.color = currentlyDark ? "#64748b" : "#94a3b8";
-                    btn.style.borderColor = currentlyDark ? "#334155" : "#cbd5e1";
-                } else {
-                    icon.className = "bi bi-check-circle-fill";
-                    btn.style.backgroundColor = btn.dataset.colorBg;
-                    btn.style.color = btn.dataset.colorText;
-                    btn.style.borderColor = btn.dataset.colorBorder;
-                }
                 applyFilters();
             });
 
@@ -459,98 +340,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (selectAllTypesBtn) {
         selectAllTypesBtn.addEventListener("click", () => {
-            document.querySelectorAll(".type-filter-chip").forEach(btn => {
-                btn.classList.remove("unchecked");
-                const icon = btn.querySelector("i");
-                if (icon) icon.className = "bi bi-check-circle-fill";
-                if (btn.dataset.colorBg) {
-                    btn.style.backgroundColor = btn.dataset.colorBg;
-                    btn.style.color = btn.dataset.colorText;
-                    btn.style.borderColor = btn.dataset.colorBorder;
-                }
-            });
+            document.querySelectorAll(".type-filter-chip").forEach(btn => btn.classList.remove("unchecked"));
             applyFilters();
         });
     }
 
     if (deselectAllTypesBtn) {
         deselectAllTypesBtn.addEventListener("click", () => {
-            const currentlyDark = isDarkModeActive();
-            document.querySelectorAll(".type-filter-chip").forEach(btn => {
-                btn.classList.add("unchecked");
-                const icon = btn.querySelector("i");
-                if (icon) icon.className = "bi bi-circle";
-                btn.style.backgroundColor = currentlyDark ? "#0f172a" : "#f1f5f9";
-                btn.style.color = currentlyDark ? "#64748b" : "#94a3b8";
-                btn.style.borderColor = currentlyDark ? "#334155" : "#cbd5e1";
-            });
+            document.querySelectorAll(".type-filter-chip").forEach(btn => btn.classList.add("unchecked"));
             applyFilters();
         });
     }
 
-    // Refresh chips when theme changes dynamically
-    window.addEventListener("themeChanged", () => {
-        const isDark = isDarkModeActive();
-        const palette = getCoursePalette();
-        document.querySelectorAll(".type-filter-chip").forEach((btn, idx) => {
-            const color = palette[idx % palette.length];
-            btn.dataset.colorBg = color.bg;
-            btn.dataset.colorText = color.text;
-            btn.dataset.colorBorder = color.border;
-
-            const badge = btn.querySelector(".badge");
-            if (badge) {
-                badge.style.backgroundColor = isDark ? "rgba(0,0,0,0.4)" : "#ffffff";
-                badge.style.color = isDark ? color.text : "#0f172a";
-                badge.style.borderColor = color.border;
-            }
-
-            if (btn.classList.contains("unchecked")) {
-                btn.style.backgroundColor = isDark ? "#0f172a" : "#f1f5f9";
-                btn.style.color = isDark ? "#64748b" : "#94a3b8";
-                btn.style.borderColor = isDark ? "#334155" : "#cbd5e1";
-            } else {
-                btn.style.backgroundColor = color.bg;
-                btn.style.color = color.text;
-                btn.style.borderColor = color.border;
-            }
-        });
-    });
-
     // =========================================================================
-    // 3. Realtime Regex & Filter Application
+    // 3. Filter application
     // =========================================================================
     function applyFilters() {
-        const includeVal = includeRegexInput.value.trim();
-        const excludeVal = excludeRegexInput.value.trim();
         const hideCancelled = hideCancelledSwitch.checked;
 
         // Collect checked course names (chips without .unchecked)
         const activeChipElements = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
         const activeCourses = activeChipElements.map(cb => cb.dataset.course).filter(Boolean);
         const hasCourseFilters = document.querySelectorAll(".type-filter-chip").length > 0;
-
-        let includePattern = null;
-        let excludePattern = null;
-
-        includeRegexInput.classList.remove("is-invalid");
-        excludeRegexInput.classList.remove("is-invalid");
-
-        if (includeVal) {
-            try {
-                includePattern = new RegExp(includeVal, "i");
-            } catch (e) {
-                includeRegexInput.classList.add("is-invalid");
-            }
-        }
-
-        if (excludeVal) {
-            try {
-                excludePattern = new RegExp(excludeVal, "i");
-            } catch (e) {
-                excludeRegexInput.classList.add("is-invalid");
-            }
-        }
 
         visibleCourses = allCourses.filter(c => {
             if (hideCancelled && c.is_cancelled) {
@@ -564,191 +375,138 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            const text = c.searchable_text || "";
-
-            if (includePattern && !includePattern.test(text)) {
-                return false;
-            }
-
-            if (excludePattern && excludePattern.test(text)) {
-                return false;
-            }
-
             return true;
         });
 
         // Re-render both views
         renderWeekCalendar();
-        renderCourseTable();
         updateSelectedCounter();
     }
 
-    // Presets buttons
-    document.querySelectorAll(".preset-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const target = btn.dataset.target;
-            const val = btn.dataset.val;
-            if (target === "include") {
-                includeRegexInput.value = val;
-            } else if (target === "exclude") {
-                excludeRegexInput.value = val;
-            }
-            applyFilters();
-        });
-    });
-
-    includeRegexInput.addEventListener("input", applyFilters);
-    excludeRegexInput.addEventListener("input", applyFilters);
     hideCancelledSwitch.addEventListener("change", applyFilters);
 
     // =========================================================================
     // 4. Real Calendar Weekly View & Navigation (Left & Right Arrows)
     // =========================================================================
+    function minutesOfDay(d) {
+        return d.getHours() * 60 + d.getMinutes();
+    }
+
+    /** Puts overlapping courses side by side: sets c._lane and c._lanes. */
+    function assignLanes(items) {
+        items.sort((x, y) => x._s - y._s || y._e - x._e);
+        let cluster = [];
+        let clusterEnd = -1;
+        const flush = () => {
+            const laneEnds = [];
+            cluster.forEach(it => {
+                let lane = laneEnds.findIndex(end => end <= it._s);
+                if (lane === -1) { lane = laneEnds.length; laneEnds.push(0); }
+                laneEnds[lane] = it._e;
+                it._lane = lane;
+            });
+            cluster.forEach(it => { it._lanes = laneEnds.length; });
+            cluster = [];
+        };
+        items.forEach(it => {
+            if (cluster.length && it._s >= clusterEnd) flush();
+            cluster.push(it);
+            clusterEnd = Math.max(clusterEnd, it._e);
+        });
+        if (cluster.length) flush();
+    }
+
     function renderWeekCalendar() {
         if (!weekDaysGrid) return;
-        weekDaysGrid.innerHTML = "";
 
         const monday = getMonday(currentCalendarDate);
         if (currentWeekLabel) {
             currentWeekLabel.textContent = formatWeekLabel(monday);
         }
 
-        // Check if there are Sunday courses in this week to decide if we show 6 or 7 days
-        const weekSunday = new Date(monday);
-        weekSunday.setDate(monday.getDate() + 6);
-
-        const hasSundayCourses = visibleCourses.some(c => {
-            const d = new Date(c.start);
-            return isSameDay(d, weekSunday);
-        });
-
-        const totalDaysToShow = hasSundayCourses ? 7 : 6;
-        weekDaysGrid.classList.toggle("has-sunday", hasSundayCourses);
-        const frenchDayNames = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-        const shortMonths = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-        const todayDate = new Date();
-
-        let totalCoursesInThisWeek = 0;
-
-        for (let i = 0; i < totalDaysToShow; i++) {
-            const currentDayDate = new Date(monday);
-            currentDayDate.setDate(monday.getDate() + i);
-
-            // Filter and sort courses on this day
-            const dayCourses = visibleCourses.filter(c => isSameDay(new Date(c.start), currentDayDate));
-            dayCourses.sort((a, b) => new Date(a.start) - new Date(b.start));
-            totalCoursesInThisWeek += dayCourses.length;
-
-            const isToday = isSameDay(currentDayDate, todayDate);
-
-            // Day Column container
-            const col = document.createElement("div");
-            col.className = `day-column ${isToday ? "is-today" : ""}`;
-
-            // Column Header
-            const dayName = frenchDayNames[i];
-            const dateNum = currentDayDate.getDate();
-            const monthStr = shortMonths[currentDayDate.getMonth()];
-
-            col.innerHTML = `
-                <div class="day-column-header">
-                    <div class="d-flex align-items-center justify-content-center gap-1">
-                        <span class="fw-bold fs-6">${dayName}</span>
-                        ${isToday ? '<span class="badge bg-primary text-white rounded-pill px-2 py-0 small ms-1" style="font-size:0.65rem;">Aujourd\'hui</span>' : ''}
-                    </div>
-                    <div class="text-muted small">${dateNum} ${monthStr}</div>
-                    <div class="small fw-semibold text-secondary mt-1" style="font-size: 0.75rem;">
-                        ${dayCourses.length} cours
-                    </div>
-                </div>
-                <div class="day-events-list"></div>
-            `;
-
-            const eventsList = col.querySelector(".day-events-list");
-
-            if (dayCourses.length === 0) {
-                eventsList.innerHTML = `
-                    <div class="text-center text-muted py-5 small opacity-75">
-                        <i class="bi bi-cup-hot d-block mb-1 text-secondary fs-5"></i>
-                        <span>Aucun cours</span>
-                    </div>
-                `;
-            } else {
-                dayCourses.forEach(c => {
-                    const info = getTypeInfo(c.activity_type);
-                    const isSelected = selectedCourseIds.has(c.id);
-
-                    const card = document.createElement("div");
-                    card.className = `calendar-card border-${info.key} ${!isSelected ? "deselected" : ""} ${c.is_cancelled ? "card-cancelled" : ""}`;
-                    card.dataset.id = c.id;
-
-                    const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "";
-                    const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "";
-                    const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : "";
-
-                    card.innerHTML = `
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <span class="event-time">
-                                <i class="bi bi-clock me-1 text-primary"></i>
-                                ${formatTime(c.start)} - ${formatTime(c.end)}
-                            </span>
-                            <div class="d-flex align-items-center gap-1">
-                                <span class="badge badge-${info.key} px-2 py-1" style="font-size: 0.7rem;">
-                                    ${escapeHtml(c.activity_type)}
-                                </span>
-                                <input type="checkbox" class="form-check-input event-checkbox ms-1 m-0" data-id="${c.id}" ${isSelected ? "checked" : ""} title="Sélectionner pour export">
-                            </div>
-                        </div>
-                        <div class="event-title" title="${escapeHtml(c.course_name)}">
-                            ${c.is_cancelled ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">ANNULÉ</span>' : ''}
-                            ${escapeHtml(c.course_name)}
-                        </div>
-                        <div class="event-meta">
-                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${roomsStr}"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${roomsStr}</div>` : ""}
-                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${teachersStr}"><i class="bi bi-person-fill text-primary me-1"></i>${teachersStr}</div>` : ""}
-                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${groupsStr}"><i class="bi bi-people-fill text-secondary me-1"></i>${groupsStr}</div>` : ""}
-                        </div>
-                    `;
-
-                    // Checkbox toggle logic
-                    const cb = card.querySelector(".event-checkbox");
-                    cb.addEventListener("click", (e) => {
-                        e.stopPropagation();
-                        toggleCourseSelection(c.id, cb.checked);
-                    });
-
-                    // Card click toggles checkbox
-                    card.addEventListener("click", (e) => {
-                        if (e.target !== cb) {
-                            const newChecked = !selectedCourseIds.has(c.id);
-                            cb.checked = newChecked;
-                            toggleCourseSelection(c.id, newChecked);
-                        }
-                    });
-
-                    eventsList.appendChild(card);
-                });
-            }
-
-            weekDaysGrid.appendChild(col);
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            days.push(d);
         }
 
-        // If entire week has no courses, show empty week alert
-        if (totalCoursesInThisWeek === 0 && visibleCourses.length > 0) {
+        const weekCourses = visibleCourses
+            .map(c => {
+                const start = new Date(c.start);
+                const end = new Date(c.end);
+                const dayIndex = days.findIndex(d => isSameDay(d, start));
+                return { c, start, end, dayIndex, _s: minutesOfDay(start), _e: Math.max(minutesOfDay(end), minutesOfDay(start) + 15) };
+            })
+            .filter(x => x.dayIndex !== -1);
+
+        // Sunday only when it has courses; hours span 8h–19h, widened to fit the week.
+        const showSunday = weekCourses.some(x => x.dayIndex === 6);
+        const dayCount = showSunday ? 7 : 6;
+        let firstHour = 8;
+        let lastHour = 19;
+        weekCourses.forEach(x => {
+            firstHour = Math.min(firstHour, Math.floor(x._s / 60));
+            lastHour = Math.max(lastHour, Math.ceil(x._e / 60));
+        });
+        firstHour = Math.max(0, firstHour);
+        lastHour = Math.min(24, lastHour);
+        const bodyHeight = (lastHour - firstHour) * HOUR_PX;
+        const toPx = m => ((m - firstHour * 60) / 60) * HOUR_PX;
+
+        const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+        const today = new Date();
+
+        let html = `<div class="tg" style="--days: ${dayCount}; --hour: ${HOUR_PX}px;">`;
+        html += '<div class="tg-head"><div class="tg-corner"></div>';
+        for (let i = 0; i < dayCount; i++) {
+            const d = days[i];
+            html += `<div class="tg-dayhead${isSameDay(d, today) ? " is-today" : ""}"><span>${dayNames[i]}</span> <strong>${d.getDate()}</strong></div>`;
+        }
+        html += `</div><div class="tg-body" style="height: ${bodyHeight}px;"><div class="tg-axis">`;
+        for (let h = firstHour + 1; h < lastHour; h++) {
+            html += `<span style="top: ${(h - firstHour) * HOUR_PX}px;">${String(h).padStart(2, "0")}:00</span>`;
+        }
+        html += "</div>";
+        for (let i = 0; i < dayCount; i++) {
+            html += `<div class="tg-col${isSameDay(days[i], today) ? " is-today" : ""}" data-day="${i}"></div>`;
+        }
+        html += "</div></div>";
+        weekDaysGrid.innerHTML = html;
+
+        const cols = weekDaysGrid.querySelectorAll(".tg-col");
+        for (let i = 0; i < dayCount; i++) {
+            const items = weekCourses.filter(x => x.dayIndex === i);
+            assignLanes(items);
+            items.forEach(x => cols[i].appendChild(buildEventCard(x, toPx)));
+        }
+
+        // Current time line
+        const todayIndex = days.findIndex(d => isSameDay(d, today));
+        const nowM = minutesOfDay(today);
+        if (todayIndex !== -1 && todayIndex < dayCount && nowM >= firstHour * 60 && nowM <= lastHour * 60) {
+            const line = document.createElement("div");
+            line.className = "tg-now";
+            line.style.top = `${toPx(nowM)}px`;
+            cols[todayIndex].appendChild(line);
+        }
+
+        if (weekCourses.length === 0 && visibleCourses.length > 0) {
             noWeekCoursesMessage.classList.remove("d-none");
             noWeekCoursesMessage.innerHTML = `
-                <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
-                <div class="fw-semibold fs-5">Aucun cours cette semaine</div>
-                <div class="small text-muted mt-1">Utilisez les flèches <strong>&larr;</strong> et <strong>&rarr;</strong> ci-dessus pour naviguer dans votre calendrier.</div>
-                <button type="button" class="btn btn-sm btn-outline-primary mt-3 rounded-pill fw-semibold" id="jumpToClosestCourseBtn">
-                    <i class="bi bi-arrow-right-circle me-1"></i> Aller à la semaine avec des cours
-                </button>
+                <div class="empty-title">Aucun cours cette semaine</div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="jumpToClosestCourseBtn">Aller à la prochaine semaine avec des cours</button>
             `;
             const jumpBtn = document.getElementById("jumpToClosestCourseBtn");
             if (jumpBtn) {
                 jumpBtn.addEventListener("click", () => {
-                    if (visibleCourses.length > 0) {
-                        currentCalendarDate = new Date(visibleCourses[0].start);
+                    const ref = getMonday(currentCalendarDate);
+                    const upcoming = visibleCourses
+                        .map(c => new Date(c.start))
+                        .sort((x, y) => x - y);
+                    const next = upcoming.find(d => d >= ref) || upcoming[upcoming.length - 1];
+                    if (next) {
+                        currentCalendarDate = new Date(next);
                         renderWeekCalendar();
                     }
                 });
@@ -756,6 +514,47 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             noWeekCoursesMessage.classList.add("d-none");
         }
+    }
+
+    function buildEventCard(x, toPx) {
+        const c = x.c;
+        const info = getTypeInfo(c.activity_type);
+        const isSelected = selectedCourseIds.has(c.id);
+        const top = toPx(x._s);
+        const height = Math.max(22, toPx(x._e) - top - 2);
+
+        const card = document.createElement("div");
+        card.className = `calendar-card tg-event border-${info.key}${!isSelected ? " deselected" : ""}${c.is_cancelled ? " card-cancelled" : ""}${height < 60 ? " is-compact" : ""}`;
+        card.dataset.id = c.id;
+        card.style.top = `${top}px`;
+        card.style.height = `${height}px`;
+        card.style.left = `calc(${(x._lane / x._lanes) * 100}% + 2px)`;
+        card.style.width = `calc(${100 / x._lanes}% - 4px)`;
+
+        const rooms = c.rooms && c.rooms.length ? c.rooms.join(", ") : "";
+        const teachers = c.teachers && c.teachers.length ? c.teachers.join(", ") : "";
+        card.title = [`${formatTime(c.start)} - ${formatTime(c.end)}`, c.course_name, rooms, teachers].filter(Boolean).join("\n");
+
+        card.innerHTML = `
+            <input type="checkbox" class="form-check-input event-checkbox" data-id="${escapeHtml(c.id)}" ${isSelected ? "checked" : ""} title="Sélectionner pour l'export" aria-label="Sélectionner pour l'export">
+            <div class="event-time">${formatTime(c.start)} – ${formatTime(c.end)}</div>
+            <div class="event-title">${c.is_cancelled ? "[Annulé] " : ""}${escapeHtml(c.course_name)}</div>
+            ${rooms ? `<div class="event-meta">${escapeHtml(rooms)}</div>` : ""}
+        `;
+
+        const cb = card.querySelector(".event-checkbox");
+        cb.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleCourseSelection(c.id, cb.checked);
+        });
+        card.addEventListener("click", (e) => {
+            if (e.target !== cb) {
+                const newChecked = !selectedCourseIds.has(c.id);
+                cb.checked = newChecked;
+                toggleCourseSelection(c.id, newChecked);
+            }
+        });
+        return card;
     }
 
     function toggleCourseSelection(id, isSelected) {
@@ -774,11 +573,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             const cb = card.querySelector(".event-checkbox");
             if (cb) cb.checked = isSelected;
-        });
-
-        // Update row checkbox in table view
-        document.querySelectorAll(`.row-select-cb[data-id="${id}"]`).forEach(cb => {
-            cb.checked = isSelected;
         });
 
         updateSelectedCounter();
@@ -810,7 +604,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("keydown", (e) => {
         if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
         if (planningSection.classList.contains("d-none")) return;
-        if (currentViewMode !== "week") return;
 
         if (e.key === "ArrowLeft") {
             currentCalendarDate.setDate(currentCalendarDate.getDate() - 7);
@@ -821,150 +614,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // View Mode Toggle (Semaine / Tableau)
-    if (viewModeWeekBtn && viewModeListBtn) {
-        viewModeWeekBtn.addEventListener("click", () => {
-            currentViewMode = "week";
-            viewModeWeekBtn.classList.add("btn-primary");
-            viewModeWeekBtn.classList.remove("btn-outline-secondary");
-            viewModeListBtn.classList.remove("btn-primary");
-            viewModeListBtn.classList.add("btn-outline-secondary");
-            calendarWeekView.classList.remove("d-none");
-            calendarTableView.classList.add("d-none");
-            weekNavControls.classList.remove("d-none");
-        });
-
-        viewModeListBtn.addEventListener("click", () => {
-            currentViewMode = "table";
-            viewModeListBtn.classList.add("btn-primary");
-            viewModeListBtn.classList.remove("btn-outline-secondary");
-            viewModeWeekBtn.classList.remove("btn-primary");
-            viewModeWeekBtn.classList.add("btn-outline-secondary");
-            calendarTableView.classList.remove("d-none");
-            calendarWeekView.classList.add("d-none");
-            weekNavControls.classList.add("d-none");
-        });
-    }
-
-    // =========================================================================
-    // 5. Render Course Table (Alternative View)
-    // =========================================================================
-    function formatFrenchDateTime(isoStart, isoEnd) {
-        if (!isoStart) return "";
-        try {
-            const dStart = new Date(isoStart);
-            const dateStr = dStart.toLocaleDateString("fr-FR", {
-                weekday: "short",
-                day: "numeric",
-                month: "short"
-            });
-            const startH = dStart.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-
-            let endH = "";
-            if (isoEnd) {
-                const dEnd = new Date(isoEnd);
-                endH = " - " + dEnd.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-            }
-            return `<span class="fw-semibold text-capitalize">${dateStr}</span><br><span class="text-muted small">${startH}${endH}</span>`;
-        } catch {
-            return isoStart;
-        }
-    }
-
-    function renderCourseTable() {
-        const tbody = document.getElementById("coursesTableBody");
-        const noMsg = document.getElementById("noCoursesMessage");
-        if (!tbody) return;
-
-        tbody.innerHTML = "";
-
-        if (visibleCourses.length === 0) {
-            if (noMsg) noMsg.classList.remove("d-none");
-        } else {
-            if (noMsg) noMsg.classList.add("d-none");
-        }
-
-        const fragment = document.createDocumentFragment();
-
-        visibleCourses.forEach(c => {
-            const tr = document.createElement("tr");
-            const isChecked = selectedCourseIds.has(c.id);
-            if (c.is_cancelled) {
-                tr.classList.add("course-row-cancelled");
-            }
-
-            const info = getTypeInfo(c.activity_type);
-
-            const roomsFormatted = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
-            const teachersFormatted = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
-            const groupsFormatted = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
-
-            tr.innerHTML = `
-                <td class="text-center">
-                    <input class="form-check-input row-select-cb" type="checkbox" data-id="${c.id}" ${isChecked ? "checked" : ""}>
-                </td>
-                <td>${formatFrenchDateTime(c.start, c.end)}</td>
-                <td>
-                    <span class="badge badge-${info.key} px-2 py-1">
-                        ${c.is_cancelled ? "[ANNULÉ] " : ""}${escapeHtml(c.activity_type)}
-                    </span>
-                </td>
-                <td>
-                    <div class="fw-semibold">${escapeHtml(c.course_name)}</div>
-                    <div class="small text-muted font-monospace">${escapeHtml(c.course_code || "")}</div>
-                </td>
-                <td>${roomsFormatted}</td>
-                <td>${teachersFormatted}</td>
-                <td>${groupsFormatted}</td>
-            `;
-
-            fragment.appendChild(tr);
-        });
-
-        tbody.appendChild(fragment);
-
-        tbody.querySelectorAll(".row-select-cb").forEach(cb => {
-            cb.addEventListener("change", (e) => {
-                const id = e.target.dataset.id;
-                toggleCourseSelection(id, e.target.checked);
-            });
-        });
-    }
-
     function updateSelectedCounter() {
         const visibleSelectedCount = visibleCourses.filter(c => selectedCourseIds.has(c.id)).length;
         if (selectedCountBadge) {
             selectedCountBadge.textContent = `${visibleSelectedCount} / ${visibleCourses.length} cours sélectionnés`;
-        }
-        if (masterCheckbox) {
-            masterCheckbox.checked = visibleCourses.length > 0 && visibleSelectedCount === visibleCourses.length;
         }
     }
 
     // =========================================================================
     // 6. Batch Selection Controls
     // =========================================================================
-    if (masterCheckbox) {
-        masterCheckbox.addEventListener("change", (e) => {
-            const shouldCheck = e.target.checked;
-            visibleCourses.forEach(c => {
-                if (shouldCheck) {
-                    selectedCourseIds.add(c.id);
-                } else {
-                    selectedCourseIds.delete(c.id);
-                }
-            });
-            renderWeekCalendar();
-            document.querySelectorAll(".row-select-cb").forEach(cb => cb.checked = shouldCheck);
-            updateSelectedCounter();
-        });
-    }
-
     if (selectAllBtn) {
         selectAllBtn.addEventListener("click", () => {
             visibleCourses.forEach(c => selectedCourseIds.add(c.id));
             renderWeekCalendar();
-            document.querySelectorAll(".row-select-cb").forEach(cb => cb.checked = true);
             updateSelectedCounter();
         });
     }
@@ -973,7 +636,6 @@ document.addEventListener("DOMContentLoaded", () => {
         deselectAllBtn.addEventListener("click", () => {
             visibleCourses.forEach(c => selectedCourseIds.delete(c.id));
             renderWeekCalendar();
-            document.querySelectorAll(".row-select-cb").forEach(cb => cb.checked = false);
             updateSelectedCounter();
         });
     }
@@ -1093,8 +755,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Collect filters from DOM
-        const includeRegex = includeRegexInput ? includeRegexInput.value.trim() : "";
-        const excludeRegex = excludeRegexInput ? excludeRegexInput.value.trim() : "";
         const hideCancelled = hideCancelledSwitch ? hideCancelledSwitch.checked : false;
 
         const allChips = Array.from(document.querySelectorAll(".type-filter-chip"));
@@ -1108,32 +768,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Display active filter verification badges
         if (feedFiltersBadges) {
-            feedFiltersBadges.innerHTML = `
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Inclusion Regex :</span>
-                    ${includeRegex ? `<code class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace">${escapeHtml(includeRegex)}</code>` : `<span class="badge bg-light text-secondary border">Tous les cours</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Exclusion Regex :</span>
-                    ${excludeRegex ? `<code class="badge bg-danger-subtle text-danger border border-danger-subtle font-monospace">${escapeHtml(excludeRegex)}</code>` : `<span class="badge bg-light text-secondary border">Aucune</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Matières :</span>
-                    ${isCourseFiltered ? `<span class="badge bg-info-subtle text-info border border-info-subtle">${activeChips.length}/${allChips.length} matières sélectionnées</span>` : `<span class="badge bg-light text-secondary border">Toutes (${allChips.length})</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Cours annulés :</span>
-                    ${hideCancelled ? `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Masqués</span>` : `<span class="badge bg-light text-secondary border">Inclus</span>`}
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Séances incluses :</span>
-                    <span class="badge bg-dark">${payloadCourses.length} cours</span>
-                </div>
-                <div class="col-sm-6">
-                    <span class="fw-semibold text-dark">Mise à jour :</span>
-                    <span class="badge bg-success-subtle text-success border border-success-subtle">1 à 2x / jour (toutes les 12h)</span>
-                </div>
-            `;
+            const row = (label, value) => `
+                <div class="col-sm-6 d-flex justify-content-between gap-2 border-bottom py-1">
+                    <span class="text-muted">${label}</span>
+                    <span class="text-end text-truncate">${value}</span>
+                </div>`;
+            feedFiltersBadges.innerHTML = [
+                row("Matières", isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : `Toutes (${allChips.length})`),
+                row("Cours annulés", hideCancelled ? "Masqués" : "Inclus"),
+                row("Séances", `${payloadCourses.length}`),
+                row("Mise à jour", "Toutes les 12 h"),
+            ].join("");
         }
 
         try {
@@ -1143,8 +788,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({
                     username: username,
                     password: password,
-                    include_regex: includeRegex,
-                    exclude_regex: excludeRegex,
                     allowed_courses: allowedCoursesToSend,
                     hide_cancelled: hideCancelled,
                     courses: payloadCourses
@@ -1168,7 +811,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="text-danger small mb-3">
                     <i class="bi bi-exclamation-circle me-1"></i> Erreur : ${escapeHtml(err.message)}
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="retryFeedBtn">
+                <button type="button" class="btn btn-sm btn-outline-primary px-3" id="retryFeedBtn">
                     <i class="bi bi-arrow-clockwise me-1"></i> Réessayer
                 </button>
             `;
@@ -1200,7 +843,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             userCredentials.username = userVal;
             userCredentials.password = passVal;
-            localStorage.setItem("zeus_credentials", JSON.stringify(userCredentials));
+            localStorage.setItem("zeus_credentials", JSON.stringify({ username: userVal }));
             generateCalendarFeed({ username: userVal, password: passVal });
         });
     }

@@ -1,0 +1,816 @@
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono_tz::Europe::Paris;
+use rand::RngCore;
+use regex::Regex;
+use reqwest::header::{ACCEPT, CONTENT_TYPE, USER_AGENT};
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
+
+use crate::db::models::Course;
+
+pub const CLIENT_ID: &str = "np-front";
+pub const REDIRECT_URI: &str = "https://auriga.epita.fr/";
+pub const AUTH_BASE_URL: &str =
+    "https://ionisepita-auth.np-auriga.nfrance.net/auth/realms/npionisepita/protocol/openid-connect/auth";
+pub const TOKEN_URL: &str =
+    "https://ionisepita-auth.np-auriga.nfrance.net/auth/realms/npionisepita/protocol/openid-connect/token";
+pub const API_BASE_URL: &str = "https://auriga.epita.fr/api";
+
+pub const DEFAULT_USER_AGENT: &str =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
+
+pub fn generate_pkce_pair() -> (String, String) {
+    let mut bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    let verifier = URL_SAFE_NO_PAD.encode(bytes);
+
+    let mut hasher = Sha256::new();
+    hasher.update(verifier.as_bytes());
+    let hash = hasher.finalize();
+    let challenge = URL_SAFE_NO_PAD.encode(hash);
+
+    (verifier, challenge)
+}
+
+pub fn get_default_school_year_range() -> (String, String) {
+    let now: DateTime<chrono_tz::Tz> = Utc::now().with_timezone(&Paris);
+    let (start_year, end_year) = if now.format("%m").to_string().parse::<u32>().unwrap_or(9) >= 8 {
+        let y = now.format("%Y").to_string().parse::<i32>().unwrap_or(2026);
+        (y, y + 1)
+    } else {
+        let y = now.format("%Y").to_string().parse::<i32>().unwrap_or(2026);
+        (y - 1, y)
+    };
+    (format!("{}-09-01", start_year), format!("{}-08-31", end_year))
+}
+
+/// Truncates a UTF-8 string to at most `max_bytes` without splitting multi-byte character boundaries.
+pub fn safe_truncate(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut cut = max_bytes;
+    while cut > 0 && !s.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    &s[..cut]
+}
+
+/// Validates that a date parameter matches `^\d{4}-\d{2}-\d{2}$`.
+/// True for a real calendar date written exactly as YYYY-MM-DD.
+pub fn is_valid_date_format(date: &str) -> bool {
+    date.len() == 10 && chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok()
+}
+
+/// Extracts the login form action URL and validates that its destination host matches `auth_base_url`.
+pub fn extract_and_validate_form_action(html: &str, auth_base: &str) -> Result<reqwest::Url, String> {
+    let form_re = Regex::new(r#"(?i)<form[^>]*id="kc-form-login"[^>]*action="([^"]+)""#)
+        .or_else(|_| Regex::new(r#"(?i)<form[^>]*action="([^"]+)"[^>]*id="kc-form-login""#))
+        .map_err(|e| e.to_string())?;
+
+    let action_cap = form_re
+        .captures(html)
+        .ok_or_else(|| "Formulaire de connexion Auriga introuvable.".to_string())?;
+
+    let raw_action = action_cap[1].replace("&amp;", "&");
+    let auth_base_url = reqwest::Url::parse(auth_base).map_err(|e| e.to_string())?;
+    let action_url = auth_base_url.join(&raw_action).map_err(|e| e.to_string())?;
+
+    if action_url.host_str() != auth_base_url.host_str() {
+        return Err(format!(
+            "Destination du formulaire non autorisée: host {:?}",
+            action_url.host_str()
+        ));
+    }
+
+    Ok(action_url)
+}
+
+/// Decodes a JWT's payload without checking its signature. Only used on tokens
+/// that Auriga itself validates (login responses, or API calls made with them).
+pub fn decode_jwt_claims(token: &str) -> Option<serde_json::Value> {
+    let payload = token.split('.').nth(1)?;
+    let bytes = URL_SAFE_NO_PAD
+        .decode(payload.trim_end_matches('='))
+        .ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// The account name Keycloak put in the token (`preferred_username`, else `sub`).
+pub fn token_username(token: &str) -> Option<String> {
+    let claims = decode_jwt_claims(token)?;
+    claims
+        .get("preferred_username")
+        .or_else(|| claims.get("sub"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+pub struct AurigaClient {
+    pub username: String,
+    pub password: String,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    client: reqwest::Client,
+}
+
+impl AurigaClient {
+    pub fn new(username: &str, password: &str) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .cookie_store(true)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap_or_default();
+
+        Self {
+            username: username.to_string(),
+            password: password.to_string(),
+            access_token: None,
+            refresh_token: None,
+            client,
+        }
+    }
+
+    pub fn with_access_token(token: &str) -> Result<Self, String> {
+        let mut clean = token.trim().trim_matches('"').trim_matches('\'').trim().to_string();
+        if clean.to_lowercase().starts_with("bearer ") {
+            clean = clean[7..].trim().trim_matches('"').trim_matches('\'').trim().to_string();
+        }
+
+        if clean.contains('\u{2026}') || clean.contains("...") {
+            return Err("Le jeton collé est incomplet : il a été tronqué par votre navigateur (présence de '…'). Faites Clic droit sur le header Authorization -> 'Copier la valeur' dans DevTools.".to_string());
+        }
+
+        if let Some(claims) = decode_jwt_claims(&clean) {
+            if let Some(exp) = claims.get("exp").and_then(|e| e.as_i64()) {
+                if Utc::now().timestamp() > exp {
+                    return Err("Ce jeton d'accès Auriga a expiré (durée de validité de 5 minutes dépassée). Veuillez rafraîchir Auriga (F5) et copier le nouveau jeton, ou utilisez vos identifiants.".to_string());
+                }
+            }
+        }
+        let extracted_username = token_username(&clean).unwrap_or_default();
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .cookie_store(true)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap_or_default();
+
+        Ok(Self {
+            username: extracted_username,
+            password: String::new(),
+            access_token: Some(clean),
+            refresh_token: None,
+            client,
+        })
+    }
+
+    pub async fn login(&mut self) -> Result<(), String> {
+        let (code_verifier, code_challenge) = generate_pkce_pair();
+        let mut state_bytes = [0u8; 16];
+        let mut nonce_bytes = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut state_bytes);
+        rand::thread_rng().fill_bytes(&mut nonce_bytes);
+        let state = URL_SAFE_NO_PAD.encode(state_bytes);
+        let nonce = URL_SAFE_NO_PAD.encode(nonce_bytes);
+
+        let auth_url = reqwest::Url::parse_with_params(
+            AUTH_BASE_URL,
+            &[
+                ("client_id", CLIENT_ID),
+                ("redirect_uri", REDIRECT_URI),
+                ("state", &state),
+                ("response_mode", "query"),
+                ("response_type", "code"),
+                ("scope", "openid"),
+                ("nonce", &nonce),
+                ("prompt", "login"),
+                ("code_challenge", &code_challenge),
+                ("code_challenge_method", "S256"),
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+
+        let res = self
+            .client
+            .get(auth_url)
+            .header(USER_AGENT, DEFAULT_USER_AGENT)
+            .send()
+            .await
+            .map_err(|e| format!("Erreur connexion Keycloak: {}", e))?;
+
+        let html = res.text().await.map_err(|e| e.to_string())?;
+
+        let action_url = extract_and_validate_form_action(&html, AUTH_BASE_URL)?;
+
+        let login_params = [
+            ("username", self.username.as_str()),
+            ("password", self.password.as_str()),
+            ("credentialId", ""),
+        ];
+
+        let post_res = self
+            .client
+            .post(action_url)
+            .header(USER_AGENT, DEFAULT_USER_AGENT)
+            .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .form(&login_params)
+            .send()
+            .await
+            .map_err(|e| format!("Erreur soumission identifiants: {}", e))?;
+
+        let status = post_res.status().as_u16();
+        let redirect_target = if post_res.status().is_redirection() {
+            post_res
+                .headers()
+                .get("location")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.to_string())
+        } else if status == 200 {
+            let body = post_res.text().await.unwrap_or_default();
+            let err_re = Regex::new(r#"(?is)<span[^>]*class="[^"]*kc-feedback-text[^"]*"[^>]*>(.*?)</span>"#).unwrap();
+            let msg = err_re.captures(&body).map(|c| c[1].trim().to_string()).unwrap_or_else(|| "Identifiants invalides".to_string());
+            let clean_msg = Regex::new(r"<[^>]+>").unwrap().replace_all(&msg, "").to_string();
+            return Err(format!("Échec de connexion Auriga : {}", clean_msg));
+        } else {
+            return Err(format!("Réponse inattendue lors de la connexion (HTTP {})", status));
+        };
+
+        let redir = redirect_target.ok_or_else(|| "Aucune redirection reçue après authentification.".to_string())?;
+        let redir_url = reqwest::Url::parse(&redir).map_err(|e| e.to_string())?;
+
+        let code = redir_url
+            .query_pairs()
+            .find(|(k, _)| k == "code")
+            .map(|(_, v)| v.into_owned())
+            .ok_or_else(|| "Code d'autorisation introuvable dans la redirection.".to_string())?;
+
+        let token_params = [
+            ("grant_type", "authorization_code"),
+            ("client_id", CLIENT_ID),
+            ("redirect_uri", REDIRECT_URI),
+            ("code", code.as_str()),
+            ("code_verifier", code_verifier.as_str()),
+        ];
+
+        let token_res = self
+            .client
+            .post(TOKEN_URL)
+            .header(USER_AGENT, DEFAULT_USER_AGENT)
+            .form(&token_params)
+            .send()
+            .await
+            .map_err(|e| format!("Erreur échange de token: {}", e))?;
+
+        if !token_res.status().is_success() {
+            let err_body = token_res.text().await.unwrap_or_default();
+            return Err(format!("Échec de récupération du token: {}", err_body));
+        }
+
+        let token_json: serde_json::Value = token_res.json().await.map_err(|e| e.to_string())?;
+
+        self.access_token = token_json
+            .get("access_token")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        self.refresh_token = token_json
+            .get("refresh_token")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        if self.access_token.is_none() {
+            return Err("Jeton d'accès manquant dans la réponse Keycloak.".to_string());
+        }
+
+        self.password.clear();
+
+        // Trust the identity Keycloak returned, not the name that was typed in.
+        if let Some(name) = self.access_token.as_deref().and_then(token_username) {
+            self.username = name;
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_planning(&self, start_date: &str, end_date: &str) -> Result<Vec<serde_json::Value>, String> {
+        if !is_valid_date_format(start_date) || !is_valid_date_format(end_date) {
+            return Err("Format de date invalide (attendu: YYYY-MM-DD)".to_string());
+        }
+
+        let token = self.access_token.as_ref().ok_or_else(|| "Non authentifié.".to_string())?;
+
+        let url = format!(
+            "{}/plannings/me?days=0&days=1&days=2&days=3&days=4&days=5&days=6&days=7&startDate={}&endDate={}",
+            API_BASE_URL, start_date, end_date
+        );
+
+        let res = self
+            .client
+            .get(&url)
+            .header(USER_AGENT, DEFAULT_USER_AGENT)
+            .header("Authorization", format!("Bearer {}", token))
+            .header(ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|e| format!("Erreur réseau Auriga API: {}", e))?;
+
+        if res.status().as_u16() == 401 {
+            return Err("Accès refusé (401) par Auriga : Votre jeton est expiré ou invalide. Les jetons Auriga ont une validité de 5 minutes. Rafraîchissez Auriga (F5) et recopiez le jeton, ou utilisez l'onglet Identifiant & Mot de passe.".to_string());
+        }
+
+        if !res.status().is_success() {
+            let err_txt = res.text().await.unwrap_or_default();
+            let clean = Regex::new(r"<[^>]+>").unwrap().replace_all(&err_txt, " ").trim().to_string();
+            return Err(format!("Erreur API Auriga: {}", safe_truncate(&clean, 250)));
+        }
+
+        let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+
+        if let Some(arr) = data.as_array() {
+            Ok(arr.clone())
+        } else if let Some(interventions) = data.get("interventions").and_then(|v| v.as_array()) {
+            Ok(interventions.clone())
+        } else {
+            Ok(vec![])
+        }
+    }
+}
+
+/// Labels of `item[array_key][*][object_key]`: its French caption, else its code,
+/// else the first of `extra_keys` that is set. Blank labels are skipped.
+fn list_of(item: &serde_json::Value, array_key: &str, object_key: &str, extra_keys: &[&str]) -> Vec<String> {
+    let Some(entries) = item.get(array_key).and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let obj = entry.get(object_key)?;
+            let caption = obj.get("caption").and_then(|c| c.get("fr").or_else(|| c.get("en")));
+            std::iter::once(caption)
+                .chain(std::iter::once(obj.get("code")))
+                .chain(extra_keys.iter().map(|k| obj.get(*k)))
+                .flatten()
+                .filter_map(|v| v.as_str())
+                .map(str::trim)
+                .find(|s| !s.is_empty())
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+pub fn normalize_course(item: &serde_json::Value) -> Course {
+    let id = item.get("id").and_then(|v| v.as_i64()).map(|n| n.to_string()).unwrap_or_else(|| "0".to_string());
+    let start = item.get("startDateTime").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let end = item.get("endDateTime").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+    let mut course_code = String::new();
+    let mut course_name = String::new();
+
+    if let Some(units) = item.get("interventionPedagogicalUnits").and_then(|v| v.as_array()) {
+        if let Some(first_unit) = units.first().and_then(|u| u.get("pedagogicalUnit")) {
+            course_code = first_unit.get("code").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            if let Some(caption) = first_unit.get("caption") {
+                course_name = caption.get("fr").or_else(|| caption.get("en")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+            }
+        }
+    }
+
+    if course_name.is_empty() {
+        course_name = item.get("name").and_then(|v| v.get("name")).and_then(|v| v.as_str()).unwrap_or("Cours").to_string();
+    }
+
+    let act = item.get("activityType");
+    let act_code = act.and_then(|v| v.get("code")).and_then(|v| v.as_str()).unwrap_or("AUTRE").to_string();
+    let act_name = act.and_then(|v| v.get("caption")).and_then(|v| v.get("fr")).and_then(|v| v.as_str()).unwrap_or(&act_code).to_string();
+    let is_exam = act.and_then(|v| v.get("isExam")).and_then(|v| v.as_bool()).unwrap_or(false);
+
+    let status_code = item.get("interventionStatus").and_then(|v| v.get("code")).and_then(|v| v.as_str()).unwrap_or("PLANIFIE");
+    let is_cancelled = status_code == "ANNULE" || status_code == "CANCELLED";
+
+    let mut teachers = Vec::new();
+    if Some(true) == item.get("interventionInstructors").map(|v| v.is_array()) {
+        if let Some(arr) = item.get("interventionInstructors").and_then(|v| v.as_array()) {
+            for inst in arr {
+                if let Some(person) = inst.get("person") {
+                    let first = person.get("currentFirstName").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    let last = person.get("currentLastName").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    let full = format!("{} {}", first, last).trim().to_string();
+                    if !full.is_empty() {
+                        teachers.push(full);
+                    }
+                }
+            }
+        }
+    }
+
+    // Rooms: interventionResources[].resource -> caption.fr, else code, else name
+    let rooms = list_of(item, "interventionResources", "resource", &["name"]);
+
+    // Groups: interventionPopulations[].population -> caption.fr, else code
+    // (older payloads used interventionPromotions[].promotion.name)
+    let mut groups = list_of(item, "interventionPopulations", "population", &[]);
+    if groups.is_empty() {
+        groups = list_of(item, "interventionPromotions", "promotion", &["name"]);
+    }
+
+    let duration = if !start.is_empty() && !end.is_empty() {
+        if let (Ok(dt_start), Ok(dt_end)) = (DateTime::parse_from_rfc3339(&start), DateTime::parse_from_rfc3339(&end)) {
+            (dt_end.timestamp() - dt_start.timestamp()) / 60
+        } else {
+            90
+        }
+    } else {
+        90
+    };
+
+    let summary = format!("[{}] {}", act_code, course_name);
+    let searchable_text = format!(
+        "{} {} {} {} {} {}",
+        course_name,
+        course_code,
+        act_name,
+        teachers.join(" "),
+        rooms.join(" "),
+        groups.join(" ")
+    );
+
+    Course {
+        id,
+        start,
+        end,
+        duration,
+        summary,
+        course_name,
+        course_code,
+        activity_type: act_code,
+        activity_name: act_name,
+        is_exam,
+        is_cancelled,
+        status: status_code.to_string(),
+        teachers,
+        rooms,
+        groups,
+        description: String::new(),
+        searchable_text,
+    }
+}
+
+pub fn escape_ics_text(text: &str) -> String {
+    text.replace('\\', "\\\\")
+        .replace(';', "\\;")
+        .replace(',', "\\,")
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .replace('\n', "\\n")
+}
+
+pub fn fold_line(line: &str, max_octets: usize) -> String {
+    let bytes = line.as_bytes();
+    if bytes.len() <= max_octets {
+        return line.to_string();
+    }
+
+    let mut parts = Vec::new();
+    let mut remaining = line;
+    let mut limit = max_octets;
+
+    while remaining.len() > limit {
+        let mut cut = limit;
+        while cut > 0 && !remaining.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        parts.push(&remaining[..cut]);
+        remaining = &remaining[cut..];
+        limit = 74;
+    }
+
+    if !remaining.is_empty() {
+        parts.push(remaining);
+    }
+
+    parts.join("\r\n ")
+}
+
+pub fn format_ics_datetime(iso_str: &str) -> String {
+    if let Ok(dt) = DateTime::parse_from_rfc3339(iso_str) {
+        let in_paris = dt.with_timezone(&Paris);
+        in_paris.format("%Y%m%dT%H%M%S").to_string()
+    } else if let Ok(ndt) = NaiveDateTime::parse_from_str(iso_str, "%Y-%m-%dT%H:%M:%S") {
+        ndt.format("%Y%m%dT%H%M%S").to_string()
+    } else {
+        iso_str
+            .chars()
+            .filter(|c| c.is_ascii_digit() || *c == 'T')
+            .collect()
+    }
+}
+
+pub fn generate_ics_from_courses(courses: &[Course], calendar_name: &str) -> String {
+    let now_utc = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let mut lines = vec![
+        "BEGIN:VCALENDAR".to_string(),
+        "VERSION:2.0".to_string(),
+        "PRODID:-//EpiKairos//EPITA Calendar Rust//FR".to_string(),
+        "CALSCALE:GREGORIAN".to_string(),
+        "METHOD:PUBLISH".to_string(),
+    ];
+    let clean_cal_name = calendar_name.replace(['\r', '\n'], " ");
+    lines.push(fold_line(&format!("X-WR-CALNAME:{}", escape_ics_text(&clean_cal_name)), 75));
+    lines.push("X-WR-TIMEZONE:Europe/Paris".to_string());
+
+    for c in courses {
+        let clean_id: String = c
+            .id
+            .chars()
+            .filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-' || *ch == '_')
+            .collect();
+        lines.push("BEGIN:VEVENT".to_string());
+        lines.push(format!("UID:auriga-{}@epita.fr", clean_id));
+        lines.push(format!("DTSTAMP:{}", now_utc));
+        lines.push(format!("DTSTART;TZID=Europe/Paris:{}", format_ics_datetime(&c.start)));
+        lines.push(format!("DTEND;TZID=Europe/Paris:{}", format_ics_datetime(&c.end)));
+        lines.push(fold_line(&format!("SUMMARY:{}", escape_ics_text(&c.summary)), 75));
+
+        if !c.rooms.is_empty() {
+            lines.push(fold_line(&format!("LOCATION:{}", escape_ics_text(&c.rooms.join(", "))), 75));
+        }
+
+        let mut desc_parts = Vec::new();
+        if !c.course_name.is_empty() {
+            desc_parts.push(format!("Matière: {}", c.course_name));
+        }
+        if !c.teachers.is_empty() {
+            desc_parts.push(format!("Enseignant: {}", c.teachers.join(", ")));
+        }
+        if !c.groups.is_empty() {
+            desc_parts.push(format!("Groupe: {}", c.groups.join(", ")));
+        }
+        if c.is_cancelled {
+            desc_parts.push("STATUT: COURS ANNULE".to_string());
+        }
+        let desc = desc_parts.join("\n");
+        lines.push(fold_line(&format!("DESCRIPTION:{}", escape_ics_text(&desc)), 75));
+
+        if c.is_cancelled {
+            lines.push("STATUS:CANCELLED".to_string());
+        } else {
+            lines.push("STATUS:CONFIRMED".to_string());
+        }
+
+        lines.push("END:VEVENT".to_string());
+    }
+
+    lines.push("END:VCALENDAR".to_string());
+    lines.push(String::new());
+    lines.join("\r\n")
+}
+
+/// Course filters ignore case, like the filters in the web page.
+fn case_insensitive_regex(pattern: &str) -> Result<Regex, regex::Error> {
+    regex::RegexBuilder::new(pattern).case_insensitive(true).size_limit(1 << 20).build()
+}
+
+pub fn filter_courses(
+    courses: &[Course],
+    include_regex: Option<&str>,
+    exclude_regex: Option<&str>,
+    allowed_types: Option<&[String]>,
+    allowed_courses: Option<&[String]>,
+    hide_cancelled: bool,
+) -> Result<Vec<Course>, String> {
+    let inc_re = if let Some(r) = include_regex {
+        if !r.trim().is_empty() {
+            Some(case_insensitive_regex(r.trim()).map_err(|e| format!("Regex d'inclusion invalide: {}", e))?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let exc_re = if let Some(r) = exclude_regex {
+        if !r.trim().is_empty() {
+            Some(case_insensitive_regex(r.trim()).map_err(|e| format!("Regex d'exclusion invalide: {}", e))?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let types_set: Option<HashSet<String>> = allowed_types.map(|list| list.iter().map(|s| s.to_uppercase()).collect());
+    let courses_set: Option<HashSet<String>> = allowed_courses.map(|list| list.iter().map(|s| s.trim().to_lowercase()).collect());
+
+    let mut filtered = Vec::new();
+    for c in courses {
+        if hide_cancelled && c.is_cancelled {
+            continue;
+        }
+
+        if let Some(ref t_set) = types_set {
+            if !t_set.contains(&c.activity_type.to_uppercase()) {
+                continue;
+            }
+        }
+
+        if let Some(ref c_set) = courses_set {
+            if !c_set.contains(&c.course_name.trim().to_lowercase()) {
+                continue;
+            }
+        }
+
+        if let Some(ref inc) = inc_re {
+            if !inc.is_match(&c.searchable_text) {
+                continue;
+            }
+        }
+
+        if let Some(ref exc) = exc_re {
+            if exc.is_match(&c.searchable_text) {
+                continue;
+            }
+        }
+
+        filtered.push(c.clone());
+    }
+
+    Ok(filtered)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_ics_crlf_sanitization() {
+        let course = Course {
+            id: "123\r\nX-INJECTED:PWNED\r\n456".to_string(),
+            start: "2026-10-13T09:00:00".to_string(),
+            end: "2026-10-13T11:00:00".to_string(),
+            duration: 120,
+            summary: "Test Course".to_string(),
+            rooms: vec!["Salle 1".to_string()],
+            teachers: vec!["Prof".to_string()],
+            groups: vec!["G1".to_string()],
+            course_name: "Rust 101".to_string(),
+            course_code: "CM".to_string(),
+            activity_type: "CM".to_string(),
+            activity_name: "Cours".to_string(),
+            is_exam: false,
+            is_cancelled: false,
+            status: "PLANIFIE".to_string(),
+            description: String::new(),
+            searchable_text: String::new(),
+        };
+
+        let cal_name = "Calendar\r\nEVIL-HEADER:VALUE\r\nName";
+        let ics = generate_ics_from_courses(&[course], cal_name);
+
+        assert!(!ics.contains("X-INJECTED:PWNED"));
+        assert!(!ics.contains("EVIL-HEADER:VALUE\r\n"));
+        assert!(ics.contains("UID:auriga-123X-INJECTEDPWNED456@epita.fr"));
+    }
+
+    #[test]
+    fn test_format_ics_datetime_rfc3339() {
+        let utc_dt = "2026-10-13T07:00:00Z";
+        let formatted = format_ics_datetime(utc_dt);
+        // In October, Paris is CEST (UTC+2), so 07:00Z -> 09:00:00
+        assert_eq!(formatted, "20261013T090000");
+
+        let offset_dt = "2026-10-13T09:00:00+02:00";
+        let formatted_offset = format_ics_datetime(offset_dt);
+        assert_eq!(formatted_offset, "20261013T090000");
+    }
+
+    #[test]
+    fn test_format_ics_datetime_naive() {
+        let naive_dt = "2026-10-13T09:00:00";
+        let formatted = format_ics_datetime(naive_dt);
+        assert_eq!(formatted, "20261013T090000");
+    }
+
+    #[test]
+    fn test_format_ics_datetime_crlf_injection() {
+        let malicious = "2026-10-13T09:00:00\r\nSUMMARY:INJECTED\r\n";
+        let result = format_ics_datetime(malicious);
+        assert!(!result.contains('\r'));
+        assert!(!result.contains('\n'));
+        assert!(!result.contains(':'));
+        assert!(!result.contains("SUMMARY"));
+        assert!(result.chars().all(|c| c.is_ascii_digit() || c == 'T'));
+
+        let evil_only = "\r\nEVIL\r\n";
+        let evil_result = format_ics_datetime(evil_only);
+        assert_eq!(evil_result, "");
+    }
+
+    #[test]
+    fn test_safe_truncate() {
+        // ASCII cases
+        assert_eq!(safe_truncate("hello world", 50), "hello world");
+        assert_eq!(safe_truncate("hello world", 5), "hello");
+        assert_eq!(safe_truncate("hello world", 0), "");
+        assert_eq!(safe_truncate("", 10), "");
+
+        // Multi-byte UTF-8: French accents ('é' is 2 bytes: 0xC3 0xA9)
+        let s = "héllò";
+        // 'h' (1) + 'é' (2) = 3 bytes
+        assert_eq!(safe_truncate(s, 3), "hé");
+        // Byte index 2 falls in the middle of 'é' (cut back to 1: 'h')
+        assert_eq!(safe_truncate(s, 2), "h");
+
+        // 4-byte characters: Crab emoji 🦀 is 4 bytes
+        let s_emoji = "Rust 🦀 rocks";
+        // "Rust " is 5 bytes. 🦀 starts at 5 and ends at 9.
+        assert_eq!(safe_truncate(s_emoji, 5), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 6), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 7), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 8), "Rust ");
+        assert_eq!(safe_truncate(s_emoji, 9), "Rust 🦀");
+    }
+
+    #[test]
+    fn test_extract_and_validate_form_action() {
+        let auth_base = "https://ionisepita-auth.np-auriga.nfrance.net/auth/realms/npionisepita/protocol/openid-connect/auth";
+
+        // Relative action path (legitimate)
+        let html_rel = r#"<html><body><form id="kc-form-login" action="/auth/realms/npionisepita/login-actions/authenticate?session_code=123"></form></body></html>"#;
+        let action_url = extract_and_validate_form_action(html_rel, auth_base).unwrap();
+        assert_eq!(action_url.host_str(), Some("ionisepita-auth.np-auriga.nfrance.net"));
+        assert_eq!(action_url.path(), "/auth/realms/npionisepita/login-actions/authenticate");
+
+        // Absolute action URL matching host (legitimate)
+        let html_abs = r#"<html><body><form id="kc-form-login" action="https://ionisepita-auth.np-auriga.nfrance.net/auth/realms/npionisepita/login-actions/authenticate"></form></body></html>"#;
+        let action_url_abs = extract_and_validate_form_action(html_abs, auth_base).unwrap();
+        assert_eq!(action_url_abs.host_str(), Some("ionisepita-auth.np-auriga.nfrance.net"));
+
+        // Attacker external host
+        let html_evil = r#"<html><body><form id="kc-form-login" action="https://evil-attacker.com/steal-creds"></form></body></html>"#;
+        let err = extract_and_validate_form_action(html_evil, auth_base).unwrap_err();
+        assert!(err.contains("Destination du formulaire non autorisée"));
+
+        // Attacker lookalike subdomain
+        let html_subdomain = r#"<html><body><form id="kc-form-login" action="https://ionisepita-auth.np-auriga.nfrance.net.evil.com/auth"></form></body></html>"#;
+        let err_sub = extract_and_validate_form_action(html_subdomain, auth_base).unwrap_err();
+        assert!(err_sub.contains("Destination du formulaire non autorisée"));
+
+        // Missing login form
+        let html_missing = "<html><body><div>No form here</div></body></html>";
+        let err_missing = extract_and_validate_form_action(html_missing, auth_base).unwrap_err();
+        assert!(err_missing.contains("Formulaire de connexion Auriga introuvable"));
+    }
+
+    #[test]
+    fn test_is_valid_date_format() {
+        // Valid ISO date strings (YYYY-MM-DD)
+        assert!(is_valid_date_format("2026-10-14"));
+        assert!(is_valid_date_format("2026-01-01"));
+        assert!(is_valid_date_format("1999-12-31"));
+
+        // Parameter injection attempts
+        assert!(!is_valid_date_format("2026-10-14&other_param=1"));
+        assert!(!is_valid_date_format("2026-10-14#fragment"));
+        assert!(!is_valid_date_format("2026-10-14\r\n"));
+        assert!(!is_valid_date_format("2026-10-14' OR '1'='1"));
+        assert!(!is_valid_date_format("2026/10/14"));
+        assert!(!is_valid_date_format("2026-1-1"));
+        assert!(!is_valid_date_format("14-10-2026"));
+        assert!(!is_valid_date_format(""));
+        assert!(!is_valid_date_format("   "));
+    }
+
+    #[tokio::test]
+    async fn test_get_planning_date_validation() {
+        let mut client = AurigaClient::new("test_user", "test_pw");
+        client.access_token = Some("fake_token".to_string());
+
+        // Invalid start date (injection attempt)
+        let res_inj = client.get_planning("2026-10-14&evil=1", "2026-10-20").await;
+        assert!(res_inj.is_err());
+        assert_eq!(res_inj.unwrap_err(), "Format de date invalide (attendu: YYYY-MM-DD)");
+
+        // Invalid end date
+        let res_end = client.get_planning("2026-10-14", "not-a-date").await;
+        assert!(res_end.is_err());
+        assert_eq!(res_end.unwrap_err(), "Format de date invalide (attendu: YYYY-MM-DD)");
+    }
+
+    #[test]
+    fn test_password_cleanup() {
+        let mut client = AurigaClient::new("test_user", "super_secret_password");
+        assert_eq!(client.password, "super_secret_password");
+
+        // Simulate successful login cleanup
+        client.password.clear();
+        assert!(client.password.is_empty());
+    }
+}

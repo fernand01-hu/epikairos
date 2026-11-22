@@ -1,130 +1,50 @@
 {% extends "base.html" %}
 
-{% block title %}Recherche de Salles Libres — EpiKairos{% endblock %}
+{% block title %}Salles libres — EpiKairos{% endblock %}
 
 {% block content %}
-<div id="roomsRoot" data-is-now="{{ '1' if is_now else '0' }}"></div>
-
-<!-- Search Controls Card -->
-<div class="card card-custom mb-4">
-    <div class="card-body p-4">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-            <h6 class="fw-bold mb-0 text-muted text-uppercase small">
-                <i class="bi bi-sliders me-1 text-primary"></i> Filtres personnalisés de créneau
-            </h6>
-            <span class="small text-muted" id="liveSlotClock"></span>
-        </div>
-        <form id="roomSearchForm">
-            <div class="row g-3 align-items-end">
-                <div class="col-md-3">
-                    <label for="roomDateInput" class="form-label fw-semibold small">
-                        <i class="bi bi-calendar-event text-primary me-1"></i> Date
-                    </label>
-                    <input type="date" class="form-control form-control-sm" id="roomDateInput" value="{{ today_date }}">
-                </div>
-
-                <div class="col-md-2">
-                    <label for="roomStartTimeInput" class="form-label fw-semibold small">
-                        <i class="bi bi-clock text-primary me-1"></i> Début
-                    </label>
-                    <input type="time" class="form-control form-control-sm" id="roomStartTimeInput" value="{{ default_start_time }}">
-                </div>
-
-                <div class="col-md-2">
-                    <label for="roomEndTimeInput" class="form-label fw-semibold small">
-                        <i class="bi bi-clock-fill text-primary me-1"></i> Fin
-                    </label>
-                    <input type="time" class="form-control form-control-sm" id="roomEndTimeInput" value="{{ default_end_time }}">
-                </div>
-
-                <div class="col-md-5 d-flex gap-2">
-                    <button type="submit" class="btn btn-success btn-sm px-4 rounded-pill fw-semibold shadow-sm flex-grow-1" id="searchRoomsBtn">
-                        <i class="bi bi-search me-1"></i> Vérifier la disponibilité
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill" id="nowBtn" title="Régler sur l'heure actuelle">
-                        Maintenant
-                    </button>
+<div class="row g-3 mb-4">
+    <div class="col-lg-9">
+        <div class="card p-2 p-sm-3 floorplan-card">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 px-1 mb-2">
+                <span class="section-label">3e étage</span>
+                <div class="fp-legend small text-muted">
+                    <span><i class="fp-swatch is-free"></i>Libre</span>
+                    <span><i class="fp-swatch is-soon"></i>Pris dans moins d'1 h</span>
+                    <span><i class="fp-swatch is-busy"></i>Occupée</span>
+                    <span><i class="fp-swatch is-unknown"></i>Bureau / pas de données</span>
                 </div>
             </div>
-
-            <!-- Quick Preset Buttons -->
-            <div class="mt-3 pt-3 border-top d-flex align-items-center gap-2 flex-wrap">
-                <span class="small text-muted fw-semibold me-1">Créneaux rapides :</span>
-                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="08:30" data-end="12:30">Matinée (08h30 - 12h30)</button>
-                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="12:00" data-end="14:00">Midi (12h00 - 14h00)</button>
-                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="14:00" data-end="18:00">Après-midi (14h00 - 18h00)</button>
-                <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill slot-preset-btn" data-start="18:00" data-end="21:00">Soirée (18h00 - 21h00)</button>
+            <div class="floorplan-scroll">
+                <div id="floorPlanContainer">
+                    <div class="small text-muted p-4">Chargement…</div>
+                </div>
             </div>
-        </form>
-    </div>
-</div>
-
-<!-- Results Summary Header -->
-<div id="resultsSummaryBar" class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3 d-none">
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="badge bg-success text-white px-3 py-2 rounded-pill fs-6" id="freeRoomsBadge">
-            0 salles libres
-        </span>
-        <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 rounded-pill fs-6" id="occupiedRoomsBadge">
-            0 salles occupées
-        </span>
-        <div class="text-muted small ms-md-2" id="searchIntervalLabel"></div>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-        <input type="text" id="roomFilterInput" class="form-control form-control-sm rounded-pill" placeholder="Filtrer (ex: Pasteur, Voltaire, 301...)" style="max-width: 250px;">
-        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" id="refreshBtn" title="Actualiser les résultats">
-            <i class="bi bi-arrow-clockwise"></i>
-        </button>
-    </div>
-</div>
-
-<!-- Loading Spinner -->
-<div id="roomsLoading" class="text-center py-5 d-none">
-    <div class="spinner-border text-success" role="status">
-        <span class="visually-hidden">Recherche des salles...</span>
-    </div>
-    <div class="small text-muted mt-2">Vérification des disponibilités en cours...</div>
-</div>
-
-<!-- Results Container -->
-<div id="roomsResultsContainer">
-    <!-- Free Rooms Section -->
-    <div id="freeRoomsSection" class="mb-4 d-none">
-        <h5 class="fw-bold text-success mb-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center gap-2">
-                <i class="bi bi-check-circle-fill"></i>
-                Salles Disponibles
-            </span>
-            <span class="badge bg-success-subtle text-success border border-success rounded-pill px-3 py-1 fs-7 fw-normal" id="freeFilteredCount"></span>
-        </h5>
-        <div class="row g-3" id="freeRoomsGrid">
-            <!-- Populated dynamically -->
         </div>
     </div>
 
-    <!-- Occupied Rooms Section -->
-    <div id="occupiedRoomsSection" class="mb-4 d-none">
-        <h5 class="fw-bold text-danger mb-3 d-flex align-items-center justify-content-between">
-            <span class="d-flex align-items-center gap-2">
-                <i class="bi bi-x-circle-fill"></i>
-                Salles Occupées
-            </span>
-            <span class="badge bg-danger-subtle text-danger border border-danger rounded-pill px-3 py-1 fs-7 fw-normal" id="occupiedFilteredCount"></span>
-        </h5>
-        <div class="row g-3" id="occupiedRoomsGrid">
-            <!-- Populated dynamically -->
+    <div class="col-lg-3">
+        <div class="card p-3 mb-3">
+            <div class="fp-day-picker">
+                <button type="button" class="btn btn-outline-secondary w-100" id="dayBtn">Aujourd'hui</button>
+                <input type="date" id="dayInput" value="{{ today_date }}" aria-label="Choisir le jour" tabindex="-1">
+            </div>
+            <div class="small text-muted mt-2" id="dayClock"></div>
+        </div>
+
+        <div class="card p-3 fp-details" id="floorPlanDetails" aria-live="polite">
+            <div class="small text-muted">Cliquez sur une salle pour voir ses cours de la journée.</div>
+        </div>
+
+        <div class="card p-3 mt-3 d-none" id="offPlanCard">
+            <span class="section-label mb-2 d-block">Autres étages</span>
+            <div id="offPlanList" class="d-flex flex-wrap gap-1"></div>
         </div>
     </div>
-</div>
-
-<!-- Initial Prompt / No Results Message -->
-<div id="roomsInitialPrompt" class="card card-custom p-5 text-center text-muted mb-4">
-    <i class="bi bi-door-open fs-1 text-secondary mb-2 d-block"></i>
-    <div class="fw-semibold fs-5 mb-1">Prêt à trouver une salle libre</div>
-    <div class="small">Sélectionnez une date et un créneau horaire ci-dessus ou cliquez sur "Maintenant".</div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261013"></script>
+<script src="{{ url_for('static', filename='js/floorplan.js') }}?v=20261122f"></script>
+<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261122f"></script>
 {% endblock %}
