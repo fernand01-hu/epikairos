@@ -4,7 +4,7 @@
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122k">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122o">
 {% endblock %}
 
 {% block main_container_class %}container-fluid px-3 py-3{% endblock %}
@@ -114,46 +114,7 @@
 
 </div>
 
-<!-- Modal 1: Trouver une salle -->
-<div class="modal fade" id="findRoomModal" tabindex="-1" aria-labelledby="findRoomModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="findRoomModalLabel">Salles libres</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-            </div>
-            <div class="modal-body p-4">
-                <form id="quickRoomSearchForm">
-                    <div class="row g-2 align-items-end mb-3">
-                        <div class="col-sm-4">
-                            <label class="form-label small">Date</label>
-                            <input type="date" class="form-control form-control-sm" id="modalRoomDate" value="{{ today_date }}">
-                        </div>
-                        <div class="col-sm-3">
-                            <label class="form-label small">Heure Début</label>
-                            <input type="time" class="form-control form-control-sm" id="modalRoomStart" value="14:00">
-                        </div>
-                        <div class="col-sm-3">
-                            <label class="form-label small">Heure Fin</label>
-                            <input type="time" class="form-control form-control-sm" id="modalRoomEnd" value="16:00">
-                        </div>
-                        <div class="col-sm-2">
-                            <button type="submit" class="btn btn-primary btn-sm w-100">Chercher</button>
-                        </div>
-                    </div>
-                </form>
-
-                <div id="modalRoomsResults" class="mt-3">
-                    <div class="text-center py-4 text-muted small">
-                        Cliquez sur "Chercher" pour afficher la liste des salles disponibles.
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal 2: Détails du cours -->
+<!-- Course details -->
 <div class="modal fade" id="courseDetailModal" tabindex="-1" aria-labelledby="courseDetailModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -171,134 +132,9 @@
     </div>
 </div>
 
-<!-- Modal 3: Synchronisation Auriga -->
-<div class="modal fade" id="authSyncModal" tabindex="-1" aria-labelledby="authSyncModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-bottom">
-                <h5 class="modal-title" id="authSyncModalLabel">Synchroniser avec Auriga</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-            </div>
-            <div class="modal-body p-4">
-                <form id="modalLoginForm">
-                    <div class="mb-3">
-                        <label class="form-label small">Identifiant EPITA</label>
-                        <input type="text" class="form-control form-control-sm" id="modalUsername" placeholder="prenom.nom@epita.fr">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label small">Mot de passe</label>
-                        <div class="input-group input-group-sm">
-                            <input type="password" class="form-control" id="modalPassword" placeholder="••••••••" autocomplete="current-password">
-                            <button class="btn btn-outline-secondary password-toggle" type="button" data-target="modalPassword" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe"><i class="bi bi-eye"></i></button>
-                        </div>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label small">Date Début</label>
-                            <input type="date" class="form-control form-control-sm" id="modalSyncStart" value="{{ default_start }}">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label small">Date Fin</label>
-                            <input type="date" class="form-control form-control-sm" id="modalSyncEnd" value="{{ default_end }}">
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-sm w-100" id="btnModalSyncSubmit">
-                        Synchroniser mon emploi du temps
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal 4: Club calendar (create / edit) -->
-<div class="modal fade" id="calendarModal" tabindex="-1" aria-labelledby="calendarModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form id="calendarForm">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="calendarModalTitle">Nouveau calendrier</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div id="calendarFormError" class="alert alert-danger d-none mb-3"></div>
-                    <div class="mb-3">
-                        <label for="calendarNameInput" class="form-label">Nom</label>
-                        <input type="text" class="form-control" id="calendarNameInput" maxlength="80" placeholder="BDE, Club Robotique..." required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="calendarDescriptionInput" class="form-label">Description <span class="text-muted">(optionnel)</span></label>
-                        <textarea class="form-control" id="calendarDescriptionInput" rows="2" maxlength="500"></textarea>
-                    </div>
-                    <div>
-                        <span class="form-label d-block">Couleur</span>
-                        <div class="color-swatches" id="calendarColorSwatches"></div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-danger me-auto d-none" id="btnDeleteCalendar">Supprimer</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal 5: Club event (create / edit) -->
-<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form id="eventForm">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="eventModalTitle">Nouvel événement</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div id="eventFormError" class="alert alert-danger d-none mb-3"></div>
-                    <div class="mb-3">
-                        <label for="eventCalendarSelect" class="form-label">Calendrier</label>
-                        <select class="form-select" id="eventCalendarSelect" required></select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="eventTitleInput" class="form-label">Titre</label>
-                        <input type="text" class="form-control" id="eventTitleInput" maxlength="120" required>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-sm-4">
-                            <label for="eventDateInput" class="form-label">Date</label>
-                            <input type="date" class="form-control" id="eventDateInput" required>
-                        </div>
-                        <div class="col-6 col-sm-4">
-                            <label for="eventStartInput" class="form-label">Début</label>
-                            <input type="time" class="form-control" id="eventStartInput" required>
-                        </div>
-                        <div class="col-6 col-sm-4">
-                            <label for="eventEndInput" class="form-label">Fin</label>
-                            <input type="time" class="form-control" id="eventEndInput" required>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label for="eventLocationInput" class="form-label">Lieu <span class="text-muted">(optionnel)</span></label>
-                        <input type="text" class="form-control" id="eventLocationInput" maxlength="120">
-                    </div>
-                    <div>
-                        <label for="eventDescriptionInput" class="form-label">Description <span class="text-muted">(optionnel)</span></label>
-                        <textarea class="form-control" id="eventDescriptionInput" rows="3" maxlength="1000"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-sm btn-outline-danger me-auto d-none" id="btnDeleteEvent">Supprimer</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122i"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122o"></script>
 {% endblock %}

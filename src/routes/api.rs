@@ -272,7 +272,6 @@ pub struct ExportIcsPayload {
 #[derive(Deserialize)]
 pub struct CreateFeedPayload {
     pub username: Option<String>,
-    pub password: Option<String>,
     pub include_regex: Option<String>,
     pub exclude_regex: Option<String>,
     pub allowed_types: Option<Vec<String>>,
@@ -667,9 +666,6 @@ pub async fn create_feed_handler(
         }
     }
 
-    // New links never store a password: they stay current through the student's and
-    // their classmates' logins. Links made earlier keep theirs until deleted.
-    let password = String::new();
     let include_regex = payload.include_regex.filter(|s| !s.trim().is_empty());
     let exclude_regex = payload.exclude_regex.filter(|s| !s.trim().is_empty());
 
@@ -716,14 +712,7 @@ pub async fn create_feed_handler(
         .calendar_name
         .unwrap_or_else(|| "EpiKairos - EPITA Emploi du temps".to_string());
     let safe_cal_name = truncate_str(&cal_name, 120);
-    let initial_ics = if !payload.courses.is_empty() {
-        Some(generate_ics_from_courses(&payload.courses, safe_cal_name))
-    } else {
-        None
-    };
-
-    let has_credentials = !username.is_empty() && !password.is_empty();
-    let summary_username = if has_credentials { username.clone() } else { String::new() };
+    let initial_ics = Some(generate_ics_from_courses(&payload.courses, safe_cal_name));
 
     let pool = state.feed_pool.clone();
     let c_name = safe_cal_name.to_string();
@@ -739,10 +728,12 @@ pub async fn create_feed_handler(
         if count_feeds_for(&conn, &username).map_err(|e| e.to_string())? >= MAX_FEEDS_PER_USER {
             return Err(FEED_LIMIT_REACHED.to_string());
         }
+        // New links never store a password: they stay current through the student's
+        // and their classmates' logins. Older links keep theirs until deleted.
         create_feed(
             &conn,
             &username,
-            &password,
+            "",
             inc_r.as_deref(),
             exc_r.as_deref(),
             types.as_deref(),
@@ -774,24 +765,12 @@ pub async fn create_feed_handler(
     let (feed_url, webcal_url, subscription_url) =
         feed_links(&headers, &feed_id, include_regex.as_deref(), exclude_regex.as_deref(), hide_canc);
 
-    let filter_summary = serde_json::json!({
-        "include_regex": include_regex.unwrap_or_else(|| "Aucun".to_string()),
-        "exclude_regex": exclude_regex.unwrap_or_else(|| "Aucun".to_string()),
-        "hide_cancelled": hide_canc,
-        "allowed_courses_count": payload.allowed_courses.as_ref().map(|v| v.len()),
-        "total_courses": payload.courses.len(),
-        "sync_frequency": "1 à 2 fois par jour (toutes les 12h)",
-        "has_credentials": has_credentials,
-        "username": summary_username,
-    });
-
     Json(serde_json::json!({
         "success": true,
         "feed_id": feed_id,
         "feed_url": feed_url,
         "webcal_url": webcal_url,
         "subscription_url": subscription_url,
-        "filter_summary": filter_summary,
     }))
     .into_response()
 }

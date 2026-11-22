@@ -1,6 +1,6 @@
 /**
- * Zeus Classic UI Client Script - EPITA / 3IE Replica
- * Controls Group Treeview, Hourly Timetable Grid, Room Search, and ICS Generation
+ * EpiKairos - Planning: timetable of the selected groups and teachers.
+ * Sidebar with the group tree and the teacher list, weekly or daily grid.
  */
 
 let groupTreeData = null;
@@ -14,16 +14,6 @@ try {
 let currentCalendarDate = new Date();
 let currentViewMode = "week"; // "week" | "day"
 let activeCourses = [];
-let activeEvents = [];
-let communityCalendars = [];
-let canCreateCalendars = false;
-let selectedCalendarIds = null; // Set of ids, null until loaded
-
-// Club & association calendars are switched off in the UI for now.
-const EVENTS_ENABLED = false;
-const CALENDAR_STORAGE_KEY = "zeus_community_calendars";
-const CALENDAR_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#ec4899", "#64748b"];
-
 const HOUR_HEIGHT = 52; // Must match CSS --zeus-hour-height
 
 function escapeHtml(str) {
@@ -57,8 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnSearchTree = document.getElementById("btnSearchTree");
     const btnClearSearch = document.getElementById("btnClearSearch");
     const btnClearSelection = document.getElementById("btnClearSelection");
-    const btnGenerateIcs = document.getElementById("btnGenerateIcs");
-    const btnFindRoom = document.getElementById("btnFindRoom");
     const btnToggleGroupSection = document.getElementById("btnToggleGroupSection");
     const groupChevron = document.getElementById("groupChevron");
     const teacherListContainer = document.getElementById("teacherListContainer");
@@ -88,24 +76,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const gridBody = document.getElementById("gridBody");
 
     // Modals
-    const findRoomModalEl = document.getElementById("findRoomModal");
-    const findRoomModal = findRoomModalEl ? new bootstrap.Modal(findRoomModalEl) : null;
     const courseDetailModalEl = document.getElementById("courseDetailModal");
     const courseDetailModal = courseDetailModalEl ? new bootstrap.Modal(courseDetailModalEl) : null;
-    const authSyncModalEl = document.getElementById("authSyncModal");
-    const authSyncModal = authSyncModalEl ? new bootstrap.Modal(authSyncModalEl) : null;
-
-    // User profile display
-    const userDisplayName = document.getElementById("userDisplayName");
-    const savedCreds = localStorage.getItem("zeus_credentials");
-    if (savedCreds) {
-        try {
-            const parsed = JSON.parse(savedCreds);
-            if (parsed.username && userDisplayName) {
-                userDisplayName.textContent = parsed.username.split("@")[0];
-            }
-        } catch (e) {}
-    }
 
     // =========================================================================
     // 1. Date & Week Utilities
@@ -483,24 +455,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    async function fetchEvents() {
-        if (!EVENTS_ENABLED || !selectedCalendarIds || selectedCalendarIds.size === 0) {
-            activeEvents = [];
-            return;
-        }
-        const range = visibleWeekRange();
-        const ids = Array.from(selectedCalendarIds).join(",");
-        try {
-            const data = await apiJson(`/api/community/events?start=${range.start}&end=${range.end}&calendars=${ids}`);
-            activeEvents = data.events || [];
-        } catch (e) {
-            console.error("Error fetching community events", e);
-            activeEvents = [];
-        }
-    }
-
     async function fetchSchedule() {
-        await Promise.all([fetchCourses(), fetchEvents()]);
+        await fetchCourses();
         renderTimetableGrid();
     }
 
@@ -557,27 +513,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
         card.addEventListener("click", () => showCourseDetailModal(c));
-        return card;
-    }
-
-    function buildEventCard(ev) {
-        const card = document.createElement("div");
-        card.className = "zeus-event-card community-event";
-        card.style.setProperty("--t", ev.color);
-        card.innerHTML = `
-            <div class="zeus-event-title" title="${escapeHtml(ev.title)}">${escapeHtml(ev.title)}</div>
-            <div class="zeus-event-meta">
-                <span>${formatTime(ev.start)} - ${formatTime(ev.end)}</span><br>
-                <span>${escapeHtml(ev.calendar_name)}${ev.location ? " · " + escapeHtml(ev.location) : ""}</span>
-            </div>
-        `;
-        card.addEventListener("click", () => {
-            if (ev.can_edit) {
-                openEventModal(ev);
-            } else {
-                showEventDetailModal(ev);
-            }
-        });
         return card;
     }
 
@@ -646,9 +581,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 ...activeCourses
                     .filter(c => isSameDay(new Date(c.start), dayDate))
                     .map(c => ({ kind: "course", data: c, start: new Date(c.start), end: new Date(c.end) })),
-                ...activeEvents
-                    .filter(ev => isSameDay(new Date(ev.start), dayDate))
-                    .map(ev => ({ kind: "event", data: ev, start: new Date(ev.start), end: new Date(ev.end) })),
             ];
             assignLanes(dayItems);
 
@@ -661,7 +593,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     earliestCourseMinutes = startMin;
                 }
 
-                const card = item.kind === "course" ? buildCourseCard(item.data) : buildEventCard(item.data);
+                const card = buildCourseCard(item.data);
                 card.style.top = `${(startMin / 60) * HOUR_HEIGHT}px`;
                 card.style.height = `${Math.max((durationMin / 60) * HOUR_HEIGHT - 2, 24)}px`;
                 // Side-by-side layout when items overlap
@@ -810,450 +742,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     } catch (e) {}
 
-    if (btnFindRoom && findRoomModal) {
-        btnFindRoom.addEventListener("click", () => {
-            findRoomModal.show();
-        });
-    }
-
-    document.getElementById("quickRoomSearchForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const dateVal = document.getElementById("modalRoomDate").value;
-        const startVal = document.getElementById("modalRoomStart").value;
-        const endVal = document.getElementById("modalRoomEnd").value;
-        const resultsEl = document.getElementById("modalRoomsResults");
-
-        resultsEl.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Recherche...</div>`;
-
-        try {
-            const res = await fetch("/api/database/free-rooms", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ date: dateVal, start_time: startVal, end_time: endVal })
-            });
-            const data = await res.json();
-
-            let html = `
-                <div class="d-flex gap-2 mb-3">
-                    <span class="badge bg-success px-3 py-2 fs-6">${data.free_count} salles libres</span>
-                    <span class="badge bg-danger-subtle text-danger border border-danger px-3 py-2 fs-6">${data.occupied_count} occupées</span>
-                </div>
-                <div class="row g-2" style="max-height: 340px; overflow-y: auto;">
-            `;
-
-            (data.free_rooms || []).forEach(r => {
-                html += `
-                    <div class="col-sm-6">
-                        <div class="p-2 border bg-success-subtle border-success small">
-                            <strong class="text-success"><i class="bi bi-door-open me-1"></i>${escapeHtml(r.room_name)}</strong>
-                            <div class="text-muted" style="font-size:0.75rem;">${escapeHtml(r.free_until)}</div>
-                        </div>
-                    </div>
-                `;
-            });
-
-            html += "</div>";
-            resultsEl.innerHTML = html;
-        } catch (err) {
-            resultsEl.innerHTML = `<div class="text-danger small">Erreur: ${escapeHtml(err.message)}</div>`;
-        }
-    });
-
-    // Generate ICS download
-    if (btnGenerateIcs) {
-        btnGenerateIcs.addEventListener("click", async () => {
-            if (activeCourses.length === 0) {
-                alert("Aucun cours sélectionné. Cochez au moins un groupe dans l'arbre pour générer l'ICS.");
-                return;
-            }
-
-            try {
-                btnGenerateIcs.disabled = true;
-                btnGenerateIcs.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Génération...';
-
-                const res = await fetch("/api/export-ics", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        courses: activeCourses,
-                        calendar_name: "EpiKairos - Emploi du Temps EPITA"
-                    })
-                });
-
-                if (!res.ok) throw new Error("Erreur de téléchargement");
-
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.style.display = "none";
-                a.href = url;
-                a.download = "epikairos_planning.ics";
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-
-            } catch (err) {
-                alert(`Erreur : ${err.message}`);
-            } finally {
-                btnGenerateIcs.disabled = false;
-                btnGenerateIcs.innerHTML = "Générer un ICS";
-            }
-        });
-    }
-
-    // Auriga Sync Modal triggers
-    const userProfileBadge = document.getElementById("userProfileBadge");
-    if (userProfileBadge) {
-        userProfileBadge.addEventListener("click", () => {
-            authSyncModal.show();
-        });
-    }
-
-    const menuLoginTrigger = document.getElementById("menuLoginTrigger");
-    if (menuLoginTrigger) {
-        menuLoginTrigger.addEventListener("click", (e) => {
-            e.preventDefault();
-            authSyncModal.show();
-        });
-    }
-
-    document.getElementById("modalLoginForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const username = document.getElementById("modalUsername").value.trim();
-        const password = document.getElementById("modalPassword").value.trim();
-        const start_date = document.getElementById("modalSyncStart").value;
-        const end_date = document.getElementById("modalSyncEnd").value;
-        const btnSubmit = document.getElementById("btnModalSyncSubmit");
-
-        btnSubmit.disabled = true;
-        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Synchronisation...';
-
-        try {
-            const res = await fetch("/api/fetch-planning", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password, start_date, end_date, consent: true })
-            });
-            const data = await res.json();
-            if (!res.ok || !data.success) throw new Error(data.error || "Erreur de connexion");
-
-            localStorage.setItem("zeus_credentials", JSON.stringify({ username }));
-            if (userDisplayName) {
-                userDisplayName.textContent = username.split("@")[0];
-            }
-            authSyncModal.hide();
-            alert(`Synchronisation réussie ! ${data.courses.length} cours récupérés.`);
-            fetchSchedule();
-        } catch (err) {
-            alert(`Erreur : ${err.message}`);
-        } finally {
-            btnSubmit.disabled = false;
-            btnSubmit.innerHTML = "Synchroniser mon emploi du temps";
-        }
-    });
-
-    // =========================================================================
-    // 8. Sidebar tabs: Groupes / Événements
-    // =========================================================================
-    const tabGroupsBtn = document.getElementById("tabGroupsBtn");
-    const tabEventsBtn = document.getElementById("tabEventsBtn");
-    const groupsPanel = document.getElementById("groupsPanel");
-    const eventsPanel = document.getElementById("eventsPanel");
-
-    function showSidebarTab(tab) {
-        const isEvents = tab === "events";
-        groupsPanel.classList.toggle("d-none", isEvents);
-        eventsPanel.classList.toggle("d-none", !isEvents);
-        tabGroupsBtn.classList.toggle("active", !isEvents);
-        tabEventsBtn.classList.toggle("active", isEvents);
-        tabGroupsBtn.setAttribute("aria-selected", String(!isEvents));
-        tabEventsBtn.setAttribute("aria-selected", String(isEvents));
-        if (isEvents) setSidebarCollapsed(false);
-    }
-
-    if (tabGroupsBtn && tabEventsBtn && eventsPanel) {
-        tabGroupsBtn.addEventListener("click", () => showSidebarTab("groups"));
-        tabEventsBtn.addEventListener("click", () => showSidebarTab("events"));
-        if (window.location.hash === "#events") showSidebarTab("events");
-    }
-
-    // =========================================================================
-    // 9. Community calendars (clubs & associations)
-    // =========================================================================
-    const communityCalendarList = document.getElementById("communityCalendarList");
-    const moderatorActions = document.getElementById("moderatorActions");
-
-    const calendarModalEl = document.getElementById("calendarModal");
-    const calendarModal = new bootstrap.Modal(calendarModalEl);
-    const calendarForm = document.getElementById("calendarForm");
-    const calendarFormError = document.getElementById("calendarFormError");
-    const calendarNameInput = document.getElementById("calendarNameInput");
-    const calendarDescriptionInput = document.getElementById("calendarDescriptionInput");
-    const calendarColorSwatches = document.getElementById("calendarColorSwatches");
-    const btnDeleteCalendar = document.getElementById("btnDeleteCalendar");
-    let editingCalendar = null;
-
-    const eventModalEl = document.getElementById("eventModal");
-    const eventModal = new bootstrap.Modal(eventModalEl);
-    const eventForm = document.getElementById("eventForm");
-    const eventFormError = document.getElementById("eventFormError");
-    const eventCalendarSelect = document.getElementById("eventCalendarSelect");
-    const eventTitleInput = document.getElementById("eventTitleInput");
-    const eventDateInput = document.getElementById("eventDateInput");
-    const eventStartInput = document.getElementById("eventStartInput");
-    const eventEndInput = document.getElementById("eventEndInput");
-    const eventLocationInput = document.getElementById("eventLocationInput");
-    const eventDescriptionInput = document.getElementById("eventDescriptionInput");
-    const btnDeleteEvent = document.getElementById("btnDeleteEvent");
-    let editingEvent = null;
-
-    function saveSelectedCalendars() {
-        try {
-            localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(Array.from(selectedCalendarIds)));
-        } catch (e) {}
-    }
-
-    async function loadCommunityCalendars() {
-        try {
-            const data = await apiJson("/api/community/calendars");
-            communityCalendars = data.calendars || [];
-            canCreateCalendars = !!data.can_create;
-        } catch (err) {
-            communityCalendarList.innerHTML = `<div class="text-danger small p-2">${escapeHtml(err.message)}</div>`;
-            return;
-        }
-
-        const knownIds = new Set(communityCalendars.map(c => c.id));
-        let stored = null;
-        try {
-            stored = JSON.parse(localStorage.getItem(CALENDAR_STORAGE_KEY) || "null");
-        } catch (e) {}
-        // First visit: show every calendar so students discover club events
-        selectedCalendarIds = Array.isArray(stored)
-            ? new Set(stored.filter(id => knownIds.has(id)))
-            : new Set(knownIds);
-
-        moderatorActions.classList.toggle("d-none", !canCreateCalendars);
-        renderCalendarList();
-    }
-
-    function renderCalendarList() {
-        if (communityCalendars.length === 0) {
-            communityCalendarList.innerHTML = `<div class="small text-muted py-2">${canCreateCalendars ? "Aucun calendrier. Créez le premier ci-dessous." : "Aucun calendrier de club pour le moment."}</div>`;
-            return;
-        }
-        communityCalendarList.innerHTML = "";
-        communityCalendars.forEach(cal => {
-            const row = document.createElement("label");
-            row.className = "calendar-row";
-            row.innerHTML = `
-                <input type="checkbox" class="tree-checkbox" ${selectedCalendarIds.has(cal.id) ? "checked" : ""}>
-                <span class="calendar-dot"></span>
-                <span class="calendar-row-text">
-                    <span class="calendar-row-name">${escapeHtml(cal.name)}</span>
-                    <span class="calendar-row-meta">${cal.event_count} événement${cal.event_count > 1 ? "s" : ""} · ${escapeHtml(cal.owner)}</span>
-                </span>
-                ${cal.can_edit ? `<button type="button" class="btn btn-sm btn-link icon-btn calendar-edit-btn" title="Modifier" aria-label="Modifier ${escapeHtml(cal.name)}"><i class="bi bi-pencil"></i></button>` : ""}
-            `;
-            row.querySelector(".calendar-dot").style.setProperty("--dot", cal.color);
-            row.querySelector("input").addEventListener("change", (e) => {
-                if (e.target.checked) selectedCalendarIds.add(cal.id);
-                else selectedCalendarIds.delete(cal.id);
-                saveSelectedCalendars();
-                fetchSchedule();
-            });
-            const editBtn = row.querySelector(".calendar-edit-btn");
-            if (editBtn) {
-                editBtn.addEventListener("click", (e) => {
-                    e.preventDefault();
-                    openCalendarModal(cal);
-                });
-            }
-            communityCalendarList.appendChild(row);
-        });
-    }
-
-    // --- Calendar modal ------------------------------------------------------
-    function renderColorSwatches(selected) {
-        calendarColorSwatches.innerHTML = "";
-        CALENDAR_COLORS.forEach(color => {
-            const id = `swatch_${color.slice(1)}`;
-            const wrapper = document.createElement("span");
-            wrapper.innerHTML = `
-                <input type="radio" class="btn-check" name="calendarColor" id="${id}" value="${color}" ${color === selected ? "checked" : ""}>
-                <label class="color-swatch" for="${id}" title="${color}"></label>
-            `;
-            wrapper.querySelector("label").style.setProperty("--dot", color);
-            calendarColorSwatches.appendChild(wrapper);
-        });
-    }
-
-    function openCalendarModal(cal) {
-        editingCalendar = cal || null;
-        calendarFormError.classList.add("d-none");
-        document.getElementById("calendarModalTitle").textContent = cal ? "Modifier le calendrier" : "Nouveau calendrier";
-        calendarNameInput.value = cal ? cal.name : "";
-        calendarDescriptionInput.value = cal ? cal.description : "";
-        const usedColors = new Set(communityCalendars.map(c => c.color));
-        renderColorSwatches(cal ? cal.color : (CALENDAR_COLORS.find(c => !usedColors.has(c)) || CALENDAR_COLORS[0]));
-        btnDeleteCalendar.classList.toggle("d-none", !cal);
-        calendarModal.show();
-    }
-
-    document.getElementById("btnNewCalendar")?.addEventListener("click", () => openCalendarModal(null));
-
-    calendarForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const color = (calendarForm.querySelector("input[name=calendarColor]:checked") || {}).value || CALENDAR_COLORS[0];
-        const body = JSON.stringify({
-            name: calendarNameInput.value,
-            description: calendarDescriptionInput.value,
-            color,
-        });
-        try {
-            if (editingCalendar) {
-                await apiJson(`/api/community/calendars/${editingCalendar.id}`, { method: "PUT", body });
-            } else {
-                const data = await apiJson("/api/community/calendars", { method: "POST", body });
-                selectedCalendarIds.add(data.id);
-                saveSelectedCalendars();
-            }
-            calendarModal.hide();
-            await loadCommunityCalendars();
-            fetchSchedule();
-        } catch (err) {
-            calendarFormError.textContent = err.message;
-            calendarFormError.classList.remove("d-none");
-        }
-    });
-
-    btnDeleteCalendar.addEventListener("click", async () => {
-        if (!editingCalendar) return;
-        if (!confirm(`Supprimer « ${editingCalendar.name} » et ses ${editingCalendar.event_count} événement(s) ?`)) return;
-        try {
-            await apiJson(`/api/community/calendars/${editingCalendar.id}`, { method: "DELETE" });
-            calendarModal.hide();
-            await loadCommunityCalendars();
-            fetchSchedule();
-        } catch (err) {
-            calendarFormError.textContent = err.message;
-            calendarFormError.classList.remove("d-none");
-        }
-    });
-
-    // --- Event modal ---------------------------------------------------------
-    function openEventModal(ev) {
-        const editable = communityCalendars.filter(c => c.can_edit);
-        if (editable.length === 0) {
-            alert("Créez d'abord un calendrier pour y ajouter des événements.");
-            openCalendarModal(null);
-            return;
-        }
-        editingEvent = ev || null;
-        eventFormError.classList.add("d-none");
-        document.getElementById("eventModalTitle").textContent = ev ? "Modifier l'événement" : "Nouvel événement";
-
-        eventCalendarSelect.innerHTML = editable
-            .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
-            .join("");
-
-        if (ev) {
-            eventCalendarSelect.value = String(ev.calendar_id);
-            eventTitleInput.value = ev.title;
-            eventDateInput.value = ev.start_local.slice(0, 10);
-            eventStartInput.value = ev.start_local.slice(11, 16);
-            eventEndInput.value = ev.end_local.slice(11, 16);
-            eventLocationInput.value = ev.location;
-            eventDescriptionInput.value = ev.description;
-        } else {
-            const today = new Date();
-            const inWeek = getMonday(currentCalendarDate) <= today && today < new Date(getMonday(currentCalendarDate).getTime() + 7 * 864e5);
-            eventTitleInput.value = "";
-            eventDateInput.value = toLocalDateStr(inWeek ? today : currentCalendarDate);
-            eventStartInput.value = "18:00";
-            eventEndInput.value = "20:00";
-            eventLocationInput.value = "";
-            eventDescriptionInput.value = "";
-        }
-        btnDeleteEvent.classList.toggle("d-none", !ev);
-        eventModal.show();
-    }
-
-    document.getElementById("btnNewEvent")?.addEventListener("click", () => openEventModal(null));
-
-    eventForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const calendarId = Number(eventCalendarSelect.value);
-        const date = eventDateInput.value;
-        const body = JSON.stringify({
-            calendar_id: calendarId,
-            title: eventTitleInput.value,
-            start: `${date}T${eventStartInput.value}`,
-            end: `${date}T${eventEndInput.value}`,
-            location: eventLocationInput.value,
-            description: eventDescriptionInput.value,
-        });
-        try {
-            if (editingEvent) {
-                await apiJson(`/api/community/events/${editingEvent.id}`, { method: "PUT", body });
-            } else {
-                await apiJson(`/api/community/calendars/${calendarId}/events`, { method: "POST", body });
-            }
-            eventModal.hide();
-            // Make sure the moderator sees what they just published
-            if (!selectedCalendarIds.has(calendarId)) {
-                selectedCalendarIds.add(calendarId);
-                saveSelectedCalendars();
-            }
-            currentCalendarDate = new Date(`${date}T12:00`);
-            await loadCommunityCalendars();
-            fetchSchedule();
-        } catch (err) {
-            eventFormError.textContent = err.message;
-            eventFormError.classList.remove("d-none");
-        }
-    });
-
-    btnDeleteEvent.addEventListener("click", async () => {
-        if (!editingEvent) return;
-        if (!confirm(`Supprimer « ${editingEvent.title} » ?`)) return;
-        try {
-            await apiJson(`/api/community/events/${editingEvent.id}`, { method: "DELETE" });
-            eventModal.hide();
-            await loadCommunityCalendars();
-            fetchSchedule();
-        } catch (err) {
-            eventFormError.textContent = err.message;
-            eventFormError.classList.remove("d-none");
-        }
-    });
-
-    function showEventDetailModal(ev) {
-        document.getElementById("courseDetailTitle").textContent = ev.title;
-        document.getElementById("courseDetailBody").innerHTML = `
-            <div class="mb-3 d-flex align-items-center gap-2">
-                <span class="calendar-dot" style="--dot: ${escapeHtml(ev.color)}"></span>
-                <span class="fw-semibold">${escapeHtml(ev.calendar_name)}</span>
-            </div>
-            <dl class="row mb-0 small">
-                <dt class="col-sm-4 text-muted">Date</dt>
-                <dd class="col-sm-8">${new Date(ev.start).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</dd>
-                <dt class="col-sm-4 text-muted">Horaires</dt>
-                <dd class="col-sm-8">${formatTime(ev.start)} - ${formatTime(ev.end)}</dd>
-                ${ev.location ? `<dt class="col-sm-4 text-muted">Lieu</dt><dd class="col-sm-8">${escapeHtml(ev.location)}</dd>` : ""}
-            </dl>
-            ${ev.description ? `<p class="small mt-3 mb-0" style="white-space: pre-line;">${escapeHtml(ev.description)}</p>` : ""}
-        `;
-        courseDetailModal.show();
-    }
-
-    // Initial Load
-    if (EVENTS_ENABLED) {
-        loadCommunityCalendars().then(() => fetchSchedule());
-    } else {
-        fetchSchedule();
-    }
+    // Initial Load (the group tree loads the schedule once ready)
     loadGroupTree();
     loadTeachers();
 

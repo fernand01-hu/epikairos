@@ -492,57 +492,13 @@
 }
 
 /* ==========================================================================
-   Sidebar panels (Groupes / Événements)
+   Sidebar panel
    ========================================================================== */
 .zeus-panel {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
-}
-
-.calendar-row {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 5px 4px;
-    border-radius: var(--radius-xs);
-    cursor: pointer;
-    user-select: none;
-}
-
-.calendar-row:hover {
-    background-color: var(--surface-2);
-}
-
-.calendar-row-text {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-width: 0;
-}
-
-.calendar-row-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.calendar-row-meta {
-    font-size: 11px;
-    color: var(--text-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.calendar-row .icon-btn {
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
 }
 
 /* Teacher list (Planning sidebar) */

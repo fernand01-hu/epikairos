@@ -1,12 +1,11 @@
 /**
- * Auriga Calendar Web Application Client
- * Calendar & filter UI
+ * EpiKairos - Mon planning: week grid, subject filters, .ics export and the
+ * subscription links panel. Courses come from the last login (localStorage).
  */
 
 let allCourses = [];
 let visibleCourses = [];
 let selectedCourseIds = new Set();
-let userCredentials = { username: "", password: "", access_token: "" };
 let currentCalendarDate = new Date();
 
 function escapeHtml(str) {
@@ -23,14 +22,6 @@ function escapeHtml(str) {
 const HOUR_PX = 56;
 
 document.addEventListener("DOMContentLoaded", () => {
-    // DOM Elements - Login & Main UI
-    const loginForm = document.getElementById("loginForm");
-    const loginBtn = document.getElementById("loginBtn");
-    const loginSpinner = document.getElementById("loginSpinner");
-    const loginIcon = document.getElementById("loginIcon");
-    const alertBox = document.getElementById("alertBox");
-    const alertMessage = document.getElementById("alertMessage");
-    const planningSection = document.getElementById("planningSection");
 
     // Filter Elements
     const hideCancelledSwitch = document.getElementById("hideCancelledSwitch");
@@ -131,19 +122,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // Notifications Helper
-    // =========================================================================
-    function showAlert(msg) {
-        alertMessage.textContent = msg;
-        alertBox.classList.remove("d-none");
-        alertBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-
-    function hideAlert() {
-        alertBox.classList.add("d-none");
-    }
-
-    // =========================================================================
     // Auto-load Saved Courses from localStorage (for /personal page)
     // =========================================================================
     const savedCoursesJson = localStorage.getItem("zeus_courses");
@@ -154,8 +132,6 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             allCourses = JSON.parse(savedCoursesJson) || [];
             selectedCourseIds = new Set(allCourses.map(c => c.id));
-            const savedCreds = localStorage.getItem("zeus_credentials");
-            if (savedCreds) userCredentials = JSON.parse(savedCreds);
 
             if (planningWorkspace) {
                 planningWorkspace.classList.remove("d-none");
@@ -184,109 +160,6 @@ document.addEventListener("DOMContentLoaded", () => {
         if (noDataAlert) {
             noDataAlert.classList.remove("d-none");
         }
-    }
-
-    // =========================================================================
-    // 1. Auriga Login & Fetch Planning (if login form exists on page)
-    // =========================================================================
-    if (loginForm) {
-        loginForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            hideAlert();
-
-            const tokenInput = document.getElementById("tokenInput").value.trim();
-            const username = document.getElementById("usernameInput").value.trim();
-            const password = document.getElementById("passwordInput").value.trim();
-            const startDate = document.getElementById("startDateInput").value.trim();
-            const endDate = document.getElementById("endDateInput").value.trim();
-
-            const isTokenActive = document.getElementById("tab-token-btn")?.classList.contains("active");
-
-            if (isTokenActive || (tokenInput && !username)) {
-                if (!tokenInput) {
-                    showAlert("Veuillez coller votre jeton d'accès (access_token).");
-                    return;
-                }
-            } else {
-                if (!username || !password) {
-                    showAlert("Veuillez renseigner votre identifiant et mot de passe.");
-                    return;
-                }
-            }
-
-            userCredentials = { username, password, access_token: tokenInput };
-
-            if (loginBtn) loginBtn.disabled = true;
-            if (loginSpinner) loginSpinner.classList.remove("d-none");
-            if (loginIcon) loginIcon.classList.add("d-none");
-
-            const payload = {
-                start_date: startDate,
-                end_date: endDate,
-                consent: true
-            };
-            if (isTokenActive || (tokenInput && !password)) {
-                payload.access_token = tokenInput;
-            } else {
-                payload.username = username;
-                payload.password = password;
-            }
-
-            try {
-                const res = await fetch("/api/fetch-planning", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await res.json();
-                if (!res.ok || !data.success) {
-                    throw new Error(data.error || `Erreur serveur (${res.status})`);
-                }
-
-                allCourses = data.courses || [];
-                selectedCourseIds = new Set(allCourses.map(c => c.id));
-
-                localStorage.setItem("zeus_courses", JSON.stringify(allCourses));
-                localStorage.setItem("zeus_stats", JSON.stringify(data.stats || {}));
-                localStorage.setItem("zeus_credentials", JSON.stringify({ username: userCredentials.username || "" }));
-
-                const now = new Date();
-                if (allCourses.length > 0) {
-                    const firstCourseDate = new Date(allCourses[0].start);
-                    const lastCourseDate = new Date(allCourses[allCourses.length - 1].start);
-                    if (now >= firstCourseDate && now <= lastCourseDate) {
-                        currentCalendarDate = new Date();
-                    } else {
-                        currentCalendarDate = new Date(firstCourseDate);
-                    }
-                } else {
-                    currentCalendarDate = new Date();
-                }
-
-                renderTypeFilterButtons(allCourses);
-
-                if (planningSection) {
-                    planningSection.classList.remove("d-none");
-                    planningSection.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-                if (planningWorkspace) {
-                    planningWorkspace.classList.remove("d-none");
-                }
-                if (noDataAlert) {
-                    noDataAlert.classList.add("d-none");
-                }
-
-                applyFilters();
-
-            } catch (err) {
-                showAlert(`Impossible de récupérer votre emploi du temps : ${err.message}`);
-            } finally {
-                loginBtn.disabled = false;
-                loginSpinner.classList.add("d-none");
-                loginIcon.classList.remove("d-none");
-            }
-        });
     }
 
     // =========================================================================
@@ -603,7 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Keyboard navigation (Left / Right arrow keys)
     document.addEventListener("keydown", (e) => {
         if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
-        if (planningSection.classList.contains("d-none")) return;
+        if (e.altKey || e.ctrlKey || e.metaKey || document.querySelector(".modal.show")) return;
 
         if (e.key === "ArrowLeft") {
             currentCalendarDate.setDate(currentCalendarDate.getDate() - 7);

@@ -1,5 +1,5 @@
 /**
- * EpiKairos admin panel: moderator roles and club calendars overview.
+ * EpiKairos admin panel: users, moderator roles and club calendars.
  */
 
 function escapeHtml(str) {
