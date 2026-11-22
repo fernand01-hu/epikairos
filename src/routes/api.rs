@@ -108,6 +108,27 @@ pub fn extract_client_ip(
     }
 }
 
+/// "https" when the request reached a TLS proxy in front of the app (Cloudflare
+/// Tunnel, Caddy...), which reports it in X-Forwarded-Proto; "http" otherwise.
+pub fn request_scheme(headers: &HeaderMap) -> &'static str {
+    let forwarded_https = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .map(|v| v.trim().eq_ignore_ascii_case("https"))
+        .unwrap_or(false);
+    let cf_https = headers
+        .get("cf-visitor")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("\"https\""))
+        .unwrap_or(false);
+    if forwarded_https || cf_https {
+        "https"
+    } else {
+        "http"
+    }
+}
+
 /// Resolves a safe host header using ALLOWED_HOSTS and SERVER_DOMAIN whitelists.
 pub fn resolve_safe_host(headers: &HeaderMap) -> String {
     let raw_host = headers
@@ -709,6 +730,7 @@ pub async fn create_feed_handler(
     let feed_url = format!("/feed/{}.ics{}", feed_id, query_str);
     let safe_host = resolve_safe_host(&headers);
     let webcal_url = format!("webcal://{}{}", safe_host, feed_url);
+    let subscription_url = format!("{}://{}{}", request_scheme(&headers), safe_host, feed_url);
 
     let filter_summary = serde_json::json!({
         "include_regex": include_regex.unwrap_or_else(|| "Aucun".to_string()),
@@ -726,6 +748,7 @@ pub async fn create_feed_handler(
         "feed_id": feed_id,
         "feed_url": feed_url,
         "webcal_url": webcal_url,
+        "subscription_url": subscription_url,
         "filter_summary": filter_summary,
     }))
     .into_response()

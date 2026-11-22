@@ -140,19 +140,19 @@
 
                 <div id="feedModalContent" class="d-none">
                     <div class="mb-3">
-                        <label class="form-label" for="feedUrlInput">Webcal (recommandé)</label>
+                        <label class="form-label" for="feedHttpsUrlInput">Lien d'abonnement (Google Calendar)</label>
                         <div class="input-group">
-                            <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
-                            <button class="btn btn-primary" type="button" id="copyFeedUrlBtn">Copier</button>
+                            <input type="text" class="form-control font-monospace small" id="feedHttpsUrlInput" readonly>
+                            <button class="btn btn-primary" type="button" id="copyHttpsFeedUrlBtn">Copier</button>
+                            <a href="#" class="btn btn-outline-secondary" id="testFeedUrlBtn" target="_blank" rel="noopener" title="Ouvrir le fichier .ics">Ouvrir</a>
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label" for="feedHttpsUrlInput">HTTPS / .ics</label>
+                        <label class="form-label" for="feedUrlInput">Webcal (Apple Calendar, Outlook)</label>
                         <div class="input-group">
-                            <input type="text" class="form-control font-monospace small" id="feedHttpsUrlInput" readonly>
-                            <button class="btn btn-outline-secondary" type="button" id="copyHttpsFeedUrlBtn">Copier</button>
-                            <a href="#" class="btn btn-outline-secondary" id="testFeedUrlBtn" target="_blank" rel="noopener" title="Ouvrir le fichier .ics">Ouvrir</a>
+                            <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copyFeedUrlBtn">Copier</button>
                         </div>
                     </div>
 
@@ -163,7 +163,7 @@
                         <ol class="mb-0 ps-3">
                             <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a> sur ordinateur.</li>
                             <li>À côté de « Autres agendas », cliquez sur <strong>+</strong> puis « À partir de l'URL ».</li>
-                            <li>Collez le lien Webcal et validez.</li>
+                            <li>Collez le lien d'abonnement et validez.</li>
                         </ol>
                     </div>
                 </div>
@@ -174,5 +174,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122j"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122k"></script>
 {% endblock %}

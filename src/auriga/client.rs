@@ -525,6 +525,9 @@ pub fn generate_ics_from_courses(courses: &[Course], calendar_name: &str) -> Str
     let clean_cal_name = calendar_name.replace(['\r', '\n'], " ");
     lines.push(fold_line(&format!("X-WR-CALNAME:{}", escape_ics_text(&clean_cal_name)), 75));
     lines.push("X-WR-TIMEZONE:Europe/Paris".to_string());
+    // Ask subscribed calendar apps to re-download twice a day (RFC 7986 + Outlook)
+    lines.push("REFRESH-INTERVAL;VALUE=DURATION:PT12H".to_string());
+    lines.push("X-PUBLISHED-TTL:PT12H".to_string());
 
     for c in courses {
         let clean_id: String = c

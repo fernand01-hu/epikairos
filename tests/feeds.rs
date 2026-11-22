@@ -22,10 +22,16 @@ fn sample_courses() -> serde_json::Value {
 }
 
 async fn create_feed(app: &TestApp, body: serde_json::Value, host: &str) -> TestResponse {
+    create_feed_via(app, body, host, None).await
+}
+
+async fn create_feed_via(app: &TestApp, body: serde_json::Value, host: &str, forwarded_proto: Option<&str>) -> TestResponse {
+    let mut req = Request::builder().method("POST").uri("/api/create-feed");
+    if let Some(proto) = forwarded_proto {
+        req = req.header("x-forwarded-proto", proto);
+    }
     app.send(
-        Request::builder()
-            .method("POST")
-            .uri("/api/create-feed")
+        req
             .header(header::HOST, host)
             .header(header::COOKIE, session_cookie(USER))
             .header(header::CONTENT_TYPE, "application/json")
@@ -45,6 +51,8 @@ fn ics_is_rfc5545_shaped() {
     assert!(ics.trim_end().ends_with("END:VCALENDAR"));
     assert_eq!(ics.matches("BEGIN:VEVENT").count(), 3);
     assert!(ics.contains("X-WR-CALNAME:Test"));
+    assert!(ics.contains("\r\nREFRESH-INTERVAL;VALUE=DURATION:PT12H\r\n"));
+    assert!(ics.contains("\r\nX-PUBLISHED-TTL:PT12H\r\n"));
     for line in ics.split("\r\n") {
         assert!(line.len() <= 75, "line longer than 75 octets: {line}");
         assert!(!line.contains('\n') && !line.contains('\r'));
@@ -111,6 +119,27 @@ async fn feed_link_uses_the_host_the_browser_used() {
     assert!(webcal.starts_with("webcal://176.174.155.8:5000/feed/"), "{webcal}");
     assert!(webcal.ends_with(".ics?hide_cancelled=1"));
     assert!(!webcal.contains("localhost"));
+}
+
+#[tokio::test]
+async fn subscription_link_is_https_behind_the_tunnel() {
+    let app = TestApp::new();
+    let body = serde_json::json!({ "courses": sample_courses() });
+
+    // Through Cloudflare Tunnel: https on the public domain
+    let data = create_feed_via(&app, body.clone(), "epikairos.org", Some("https")).await.json();
+    let link = data["subscription_url"].as_str().unwrap();
+    assert!(link.starts_with("https://epikairos.org/feed/") && link.ends_with(".ics"), "{link}");
+    assert!(data["webcal_url"].as_str().unwrap().starts_with("webcal://epikairos.org/feed/"));
+
+    // Direct access on the IP: plain http, still an absolute link
+    let data = create_feed_via(&app, body, "176.174.155.8:5000", None).await.json();
+    let link = data["subscription_url"].as_str().unwrap();
+    assert!(link.starts_with("http://176.174.155.8:5000/feed/"), "{link}");
+
+    // The served path is the same feed on both addresses
+    let path = link.trim_start_matches("http://176.174.155.8:5000");
+    assert_eq!(app.get(path, None).await.status, StatusCode::OK);
 }
 
 #[tokio::test]

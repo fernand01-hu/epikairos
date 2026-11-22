@@ -800,8 +800,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             if (feedUrlInput) feedUrlInput.value = data.webcal_url;
-            if (feedHttpsUrlInput) feedHttpsUrlInput.value = data.feed_url;
-            if (testFeedUrlBtn) testFeedUrlBtn.href = data.feed_url;
+            if (feedHttpsUrlInput) feedHttpsUrlInput.value = data.subscription_url || data.feed_url;
+            if (testFeedUrlBtn) testFeedUrlBtn.href = data.subscription_url || data.feed_url;
 
             feedModalSpinner.classList.add("d-none");
             feedModalContent.classList.remove("d-none");
