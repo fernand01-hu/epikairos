@@ -18,43 +18,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const freeRoomsBadge = document.getElementById("freeRoomsBadge");
     const occupiedRoomsBadge = document.getElementById("occupiedRoomsBadge");
     const searchIntervalLabel = document.getElementById("searchIntervalLabel");
-    const freeFilteredCount = document.getElementById("freeFilteredCount");
-    const occupiedFilteredCount = document.getElementById("occupiedFilteredCount");
     const roomsLoading = document.getElementById("roomsLoading");
     const roomsInitialPrompt = document.getElementById("roomsInitialPrompt");
 
-    const freeRoomsSection = document.getElementById("freeRoomsSection");
-    const freeRoomsGrid = document.getElementById("freeRoomsGrid");
-    const occupiedRoomsSection = document.getElementById("occupiedRoomsSection");
-    const occupiedRoomsGrid = document.getElementById("occupiedRoomsGrid");
 
     const floorPlanSection = document.getElementById("floorPlanSection");
     const floorPlanContainer = document.getElementById("floorPlanContainer");
     const floorPlanDetails = document.getElementById("floorPlanDetails");
     const offPlanCard = document.getElementById("offPlanCard");
     const offPlanList = document.getElementById("offPlanList");
-    const roomsResultsContainer = document.getElementById("roomsResultsContainer");
 
     let lastData = null;
     let selectedRoom = null;
-
-    function readStoredView() {
-        if (location.hash === "#plan") return "plan";
-        if (location.hash === "#liste") return "list";
-        try { return localStorage.getItem("roomsView") || "plan"; } catch (e) { return "plan"; }
-    }
-    let currentView = readStoredView();
-    const viewRadio = document.querySelector(`input[name="roomsView"][value="${currentView}"]`);
-    if (viewRadio) viewRadio.checked = true;
-
-    document.querySelectorAll('input[name="roomsView"]').forEach(radio => {
-        radio.addEventListener("change", () => {
-            currentView = radio.value;
-            try { localStorage.setItem("roomsView", currentView); } catch (e) { /* private mode */ }
-            history.replaceState(null, "", currentView === "plan" ? "#plan" : "#liste");
-            if (lastData) renderView(lastData, currentFilter());
-        });
-    });
 
     function currentFilter() {
         return roomFilterInput ? roomFilterInput.value.trim().toLowerCase() : "";
@@ -143,8 +118,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         roomsLoading.classList.remove("d-none");
         roomsInitialPrompt.classList.add("d-none");
-        freeRoomsSection.classList.add("d-none");
-        occupiedRoomsSection.classList.add("d-none");
         resultsSummaryBar.classList.add("d-none");
         floorPlanSection.classList.add("d-none");
 
@@ -178,100 +151,6 @@ document.addEventListener("DOMContentLoaded", () => {
         executeSearch();
     });
 
-    function calculateRemainingBadge(nextCourse, searchEndTime) {
-        if (!nextCourse || !nextCourse.start) {
-            return `<span class="room-until">Libre jusqu'au soir</span>`;
-        }
-        return `<span class="room-until">Libre jusqu'à ${escapeHtml(nextCourse.start)}</span>`;
-    }
-
-    function renderCards(data, filterQuery = "") {
-        const freeRooms = (data.free_rooms || []).filter(r => {
-            if (!filterQuery) return true;
-            return (r.room_name || "").toLowerCase().includes(filterQuery);
-        });
-
-        const occupiedRooms = (data.occupied_rooms || []).filter(r => {
-            if (!filterQuery) return true;
-            const roomMatch = (r.room_name || "").toLowerCase().includes(filterQuery);
-            const courseTitle = ((r.current_course && r.current_course.title) || "").toLowerCase();
-            return roomMatch || courseTitle.includes(filterQuery);
-        });
-
-        // Free Rooms
-        freeRoomsGrid.innerHTML = "";
-        if (freeRooms.length > 0) {
-            freeRoomsSection.classList.remove("d-none");
-            if (freeFilteredCount) {
-                freeFilteredCount.textContent = `${freeRooms.length} affichée(s)`;
-            }
-
-            freeRooms.forEach(r => {
-                const col = document.createElement("div");
-                col.className = "col-md-6 col-lg-4";
-
-                const remainingBadge = calculateRemainingBadge(r.next_course, data.end_time);
-
-                const nextInfo = r.next_course
-                    ? `<div class="room-meta">Prochain cours : ${escapeHtml(r.next_course.title)} (${escapeHtml(r.next_course.start)} - ${escapeHtml(r.next_course.end)})</div>`
-                    : '<div class="room-meta">Aucun autre cours aujourd\'hui</div>';
-
-                col.innerHTML = `
-                    <div class="room-card is-free">
-                        <div class="d-flex align-items-center justify-content-between gap-2">
-                            <span class="room-name"><span class="room-dot"></span>${escapeHtml(r.room_name)}</span>
-                            ${remainingBadge}
-                        </div>
-                        ${nextInfo}
-                    </div>
-                `;
-                freeRoomsGrid.appendChild(col);
-            });
-        } else {
-            freeRoomsSection.classList.remove("d-none");
-            if (freeFilteredCount) {
-                freeFilteredCount.textContent = "0 salle";
-            }
-            freeRoomsGrid.innerHTML = `
-                <div class="col-12 text-center py-4 text-muted small">
-                    ${filterQuery ? "Aucune salle libre ne correspond à votre filtre." : "Aucune salle libre répertoriée sur ce créneau."}
-                </div>
-            `;
-        }
-
-        // Occupied Rooms
-        occupiedRoomsGrid.innerHTML = "";
-        if (occupiedRooms.length > 0) {
-            occupiedRoomsSection.classList.remove("d-none");
-            if (occupiedFilteredCount) {
-                occupiedFilteredCount.textContent = `${occupiedRooms.length} affichée(s)`;
-            }
-
-            occupiedRooms.forEach(r => {
-                const col = document.createElement("div");
-                col.className = "col-md-6 col-lg-4";
-
-                const c = r.current_course || {};
-                const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.join(", ") : "-";
-                const groupsStr = c.groups && c.groups.length > 0 ? c.groups.join(", ") : "-";
-
-                col.innerHTML = `
-                    <div class="room-card is-busy">
-                        <div class="d-flex align-items-center justify-content-between gap-2">
-                            <span class="room-name"><span class="room-dot"></span>${escapeHtml(r.room_name)}</span>
-                            <span class="room-until">Jusqu'à ${escapeHtml(c.end || "-")}</span>
-                        </div>
-                        <div class="room-meta text-body">${escapeHtml(c.title || "Cours")}</div>
-                        <div class="room-meta">${escapeHtml(teachersStr)} · ${escapeHtml(groupsStr)}</div>
-                    </div>
-                `;
-                occupiedRoomsGrid.appendChild(col);
-            });
-        } else {
-            occupiedRoomsSection.classList.add("d-none");
-        }
-    }
-
     function renderResults(data, filterQuery = "") {
         resultsSummaryBar.classList.remove("d-none");
         freeRoomsBadge.textContent = `${data.free_count} salles libres`;
@@ -282,14 +161,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function renderView(data, filterQuery = "") {
-        const showPlan = currentView === "plan" && window.FloorPlan;
-        floorPlanSection.classList.toggle("d-none", !showPlan);
-        roomsResultsContainer.classList.toggle("d-none", showPlan);
-        if (showPlan) {
-            renderPlan(data, filterQuery);
-        } else {
-            renderCards(data, filterQuery);
-        }
+        floorPlanSection.classList.remove("d-none");
+        renderPlan(data, filterQuery);
     }
 
     // -------------------------------------------------------------------------

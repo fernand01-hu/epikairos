@@ -10,7 +10,6 @@ use tower_cookies::{Cookie, Cookies};
 
 use crate::auriga::get_default_school_year_range;
 use crate::community::lookup_role;
-use crate::db::get_database_stats;
 use crate::session::verify_session;
 use crate::state::AppState;
 use crate::templates::create_session_value;
@@ -48,34 +47,9 @@ pub async fn session_context(state: &AppState, cookies: &Cookies) -> minijinja::
     create_session_value(logged_in, username.as_deref(), role.map(|r| r.as_str()))
 }
 
-pub async fn dashboard_handler(
-    State(state): State<AppState>,
-    cookies: Cookies,
-) -> Result<Html<String>, StatusCode> {
-    let pool = state.db_pool.clone();
-    let stats = tokio::task::spawn_blocking(move || {
-        let conn = pool.get().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        get_database_stats(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-    })
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)??;
-
-    let session_val = session_context(&state, &cookies).await;
-
-    let tmpl = state
-        .jinja
-        .get_template("dashboard.html")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let rendered = tmpl
-        .render(minijinja::context! {
-            stats => stats,
-            active_page => "dashboard",
-            session => session_val,
-        })
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Html(rendered))
+/// The old landing page was removed: `/` and `/dashboard` go straight to the planning.
+pub async fn dashboard_handler() -> Redirect {
+    Redirect::to("/personal")
 }
 
 pub async fn old_zeus_handler(

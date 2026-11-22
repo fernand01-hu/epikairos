@@ -25,12 +25,11 @@ class TestFlaskApp(unittest.TestCase):
         self.assertEqual(unauth_res.status_code, 302)
         self.assertIn("/login", unauth_res.headers.get("Location", ""))
 
-        # Authenticated: accesses dashboard
+        # Authenticated: the landing page is gone, / redirects to the planning
         self.login_client()
         res = self.client.get("/")
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Auriga", res.data)
-        self.assertIn(b"EPITA", res.data)
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("/personal", res.headers.get("Location", ""))
 
     def test_health_route(self):
         res = self.client.get("/health")
@@ -189,15 +188,11 @@ class TestFlaskApp(unittest.TestCase):
 
     def test_multi_page_routes(self):
         self.login_client()
-        # Accueil Dashboard on /
-        res = self.client.get("/")
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b"s\xc3\xa9ances index\xc3\xa9es", res.data)
-
-        # Collaborative Dashboard on /dashboard
-        res = self.client.get("/dashboard")
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b"s\xc3\xa9ances index\xc3\xa9es", res.data)
+        # / and /dashboard redirect to the planning
+        for path in ("/", "/dashboard"):
+            res = self.client.get(path)
+            self.assertEqual(res.status_code, 302)
+            self.assertIn("/personal", res.headers.get("Location", ""))
 
         # Old Zeus page on /old-zeus
         res = self.client.get("/old-zeus")
@@ -350,7 +345,7 @@ class TestFlaskApp(unittest.TestCase):
 
     def test_dark_mode_and_pwa_markup(self):
         self.login_client()
-        res = self.client.get("/")
+        res = self.client.get("/personal")
         self.assertEqual(res.status_code, 200)
         html = res.data.decode("utf-8")
         self.assertIn('data-bs-theme="light"', html)
@@ -400,7 +395,7 @@ class TestFlaskApp(unittest.TestCase):
 
     def test_navbar_cleanups(self):
         self.login_client("fernand.huttois")
-        res = self.client.get("/")
+        res = self.client.get("/personal")
         self.assertEqual(res.status_code, 200)
         html = res.data.decode("utf-8")
 

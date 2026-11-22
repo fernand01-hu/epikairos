@@ -42,7 +42,7 @@ pub fn create_template_env() -> Environment<'static> {
             }
 
             match endpoint.as_str() {
-                "dashboard" => Ok("/dashboard".to_string()),
+                "dashboard" => Ok("/personal".to_string()),
                 "login_page" => {
                     let logged_out: Option<String> = kwargs.get("logged_out").ok().flatten();
                     if let Some(lo) = logged_out {

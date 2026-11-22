@@ -175,13 +175,8 @@ def require_auriga_login():
 @app.route("/")
 @app.route("/dashboard")
 def dashboard():
-    """Dashboard view of the collaborative database (Accueil)."""
-    stats = database.get_database_stats()
-    return render_template(
-        "dashboard.html",
-        stats=stats,
-        active_page="dashboard",
-    )
+    """The landing page was removed: send users straight to their planning."""
+    return redirect("/personal")
 
 
 @app.route("/old-zeus")
