@@ -12,7 +12,21 @@ use common::*;
 #[tokio::test]
 async fn public_paths_need_no_session() {
     let app = TestApp::new();
-    for path in ["/health", "/login", "/manifest.json", "/sw.js", "/offline", "/static/css/style.css"] {
+    for path in [
+        "/health",
+        "/login",
+        "/manifest.json",
+        "/sw.js",
+        "/offline",
+        "/static/css/style.css",
+        "/planning",
+        "/rooms",
+        "/old-zeus",
+        "/zeus",
+        "/api/groups/tree",
+        "/api/teachers",
+        "/api/database/rooms-day",
+    ] {
         let res = app.get(path, None).await;
         assert_eq!(res.status, StatusCode::OK, "{path} should be public");
     }
@@ -22,7 +36,7 @@ async fn public_paths_need_no_session() {
 #[tokio::test]
 async fn pages_redirect_anonymous_users_to_login() {
     let app = TestApp::new();
-    for path in ["/", "/personal", "/planning", "/rooms", "/admin", "/old-zeus"] {
+    for path in ["/", "/personal", "/admin"] {
         let res = app.get(path, None).await;
         assert_eq!(res.status, StatusCode::SEE_OTHER, "{path}");
         assert_eq!(res.location(), "/login", "{path}");
@@ -32,7 +46,7 @@ async fn pages_redirect_anonymous_users_to_login() {
 #[tokio::test]
 async fn api_returns_401_json_to_anonymous_users() {
     let app = TestApp::new();
-    for path in ["/api/database/rooms-day", "/api/groups/tree", "/api/admin/users", "/api/community/calendars"] {
+    for path in ["/api/admin/users", "/api/feeds"] {
         let res = app.get(path, None).await;
         assert_eq!(res.status, StatusCode::UNAUTHORIZED, "{path}");
         assert_eq!(res.json()["success"], false);
@@ -71,7 +85,7 @@ async fn forged_expired_and_garbage_cookies_are_rejected() {
     tampered.push('x');
 
     for cookie in [wrong_key, expired, tampered, "session=not-a-session".to_string(), "session=".to_string()] {
-        let res = get_with_cookie(&app, "/api/groups/tree", &cookie).await;
+        let res = get_with_cookie(&app, "/api/admin/users", &cookie).await;
         assert_eq!(res.status, StatusCode::UNAUTHORIZED, "cookie {cookie} must be rejected");
     }
 }

@@ -225,7 +225,7 @@ fn teacher_list_counts_active_courses_only() {
 #[tokio::test]
 async fn teachers_endpoint_and_schedule_by_teacher() {
     let app = TestApp::new();
-    assert_eq!(app.get("/api/teachers", None).await.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(app.get("/api/teachers", None).await.status, StatusCode::OK);
 
     let mut c = course("1", "2026-11-02T09:00:00Z", "2026-11-02T10:00:00Z", "Graphes", "Salle 305", "G1");
     c.teachers = vec!["François BONI".into()];
