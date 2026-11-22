@@ -15,16 +15,17 @@
     --text: #18181b;
     --text-2: #52525b;
     --text-3: #a1a1aa;
-    --accent: #2563eb;
-    --accent-hover: #1d4ed8;
-    --accent-soft: rgba(37, 99, 235, 0.08);
+    --accent: #18181b;
+    --accent-hover: #3f3f46;
+    --accent-soft: rgba(24, 24, 27, 0.06);
     --on-accent: #ffffff;
+    --accent-rgb: 24, 24, 27;
     --ok: #16a34a;
     --danger: #dc2626;
 
-    --radius: 12px;
-    --radius-sm: 8px;
-    --radius-xs: 6px;
+    --radius: 0;
+    --radius-sm: 0;
+    --radius-xs: 0;
 
     /* Course types: used only as a thin bar and a small label */
     --type-cm: #3b82f6;
@@ -47,10 +48,11 @@
     --text: #f4f4f5;
     --text-2: #a1a1aa;
     --text-3: #71717a;
-    --accent: #3b82f6;
-    --accent-hover: #60a5fa;
-    --accent-soft: rgba(59, 130, 246, 0.14);
-    --on-accent: #ffffff;
+    --accent: #f4f4f5;
+    --accent-hover: #d4d4d8;
+    --accent-soft: rgba(244, 244, 245, 0.08);
+    --on-accent: #18181b;
+    --accent-rgb: 244, 244, 245;
     --ok: #22c55e;
     --danger: #f87171;
 }
@@ -69,10 +71,11 @@
     --bs-border-color-translucent: var(--border);
     --bs-heading-color: var(--text);
     --bs-link-color: var(--accent);
-    --bs-link-color-rgb: 37, 99, 235;
+    --bs-link-color-rgb: var(--accent-rgb);
     --bs-link-hover-color: var(--accent-hover);
     --bs-primary: var(--accent);
-    --bs-primary-rgb: 37, 99, 235;
+    --bs-primary-rgb: var(--accent-rgb);
+    --bs-border-radius-pill: 0;
     --bs-border-radius: var(--radius-sm);
     --bs-border-radius-sm: var(--radius-xs);
     --bs-border-radius-lg: var(--radius);
@@ -1192,4 +1195,36 @@ i.bi[class*="text-"] {
     border: 1px solid var(--border);
     border-radius: 999px;
     background: var(--surface);
+}
+
+
+/* ==========================================================================
+   Flat & square: no rounded corners, no shadows, anywhere.
+   Kept as one blunt override so new markup can't reintroduce them.
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+    border-radius: 0 !important;
+}
+
+*:not(.form-control):not(.form-select) {
+    box-shadow: none !important;
+}
+
+.form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+    border-color: var(--accent);
+    box-shadow: none !important;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+a {
+    text-underline-offset: 2px;
 }

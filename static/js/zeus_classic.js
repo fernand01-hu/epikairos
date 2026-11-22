@@ -751,7 +751,7 @@ document.addEventListener("DOMContentLoaded", () => {
             (data.free_rooms || []).forEach(r => {
                 html += `
                     <div class="col-sm-6">
-                        <div class="p-2 border rounded bg-success-subtle border-success small">
+                        <div class="p-2 border bg-success-subtle border-success small">
                             <strong class="text-success"><i class="bi bi-door-open me-1"></i>${r.room_name}</strong>
                             <div class="text-muted" style="font-size:0.75rem;">${r.free_until}</div>
                         </div>

@@ -1,6 +1,6 @@
 /**
  * Auriga Calendar Web Application Client
- * Complete Calendar & Regex Filter UI
+ * Calendar & filter UI
  */
 
 let allCourses = [];
@@ -31,8 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const planningSection = document.getElementById("planningSection");
 
     // Filter Elements
-    const includeRegexInput = document.getElementById("includeRegexInput");
-    const excludeRegexInput = document.getElementById("excludeRegexInput");
     const hideCancelledSwitch = document.getElementById("hideCancelledSwitch");
     const typeButtonGroup = document.getElementById("typeButtonGroup");
     const selectAllTypesBtn = document.getElementById("selectAllTypesBtn");
@@ -405,39 +403,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // 3. Realtime Regex & Filter Application
+    // 3. Filter application
     // =========================================================================
     function applyFilters() {
-        const includeVal = includeRegexInput.value.trim();
-        const excludeVal = excludeRegexInput.value.trim();
         const hideCancelled = hideCancelledSwitch.checked;
 
         // Collect checked course names (chips without .unchecked)
         const activeChipElements = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
         const activeCourses = activeChipElements.map(cb => cb.dataset.course).filter(Boolean);
         const hasCourseFilters = document.querySelectorAll(".type-filter-chip").length > 0;
-
-        let includePattern = null;
-        let excludePattern = null;
-
-        includeRegexInput.classList.remove("is-invalid");
-        excludeRegexInput.classList.remove("is-invalid");
-
-        if (includeVal) {
-            try {
-                includePattern = new RegExp(includeVal, "i");
-            } catch (e) {
-                includeRegexInput.classList.add("is-invalid");
-            }
-        }
-
-        if (excludeVal) {
-            try {
-                excludePattern = new RegExp(excludeVal, "i");
-            } catch (e) {
-                excludeRegexInput.classList.add("is-invalid");
-            }
-        }
 
         visibleCourses = allCourses.filter(c => {
             if (hideCancelled && c.is_cancelled) {
@@ -451,16 +425,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
             }
 
-            const text = c.searchable_text || "";
-
-            if (includePattern && !includePattern.test(text)) {
-                return false;
-            }
-
-            if (excludePattern && excludePattern.test(text)) {
-                return false;
-            }
-
             return true;
         });
 
@@ -470,22 +434,6 @@ document.addEventListener("DOMContentLoaded", () => {
         updateSelectedCounter();
     }
 
-    // Presets buttons
-    document.querySelectorAll(".preset-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const target = btn.dataset.target;
-            const val = btn.dataset.val;
-            if (target === "include") {
-                includeRegexInput.value = val;
-            } else if (target === "exclude") {
-                excludeRegexInput.value = val;
-            }
-            applyFilters();
-        });
-    });
-
-    includeRegexInput.addEventListener("input", applyFilters);
-    excludeRegexInput.addEventListener("input", applyFilters);
     hideCancelledSwitch.addEventListener("change", applyFilters);
 
     // =========================================================================
@@ -615,7 +563,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
                 <div class="fw-semibold fs-5">Aucun cours cette semaine</div>
                 <div class="small text-muted mt-1">Utilisez les flèches <strong>&larr;</strong> et <strong>&rarr;</strong> ci-dessus pour naviguer dans votre calendrier.</div>
-                <button type="button" class="btn btn-sm btn-outline-primary mt-3 rounded-pill fw-semibold" id="jumpToClosestCourseBtn">
+                <button type="button" class="btn btn-sm btn-outline-primary mt-3 fw-semibold" id="jumpToClosestCourseBtn">
                     <i class="bi bi-arrow-right-circle me-1"></i> Aller à la semaine avec des cours
                 </button>
             `;
@@ -968,8 +916,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Collect filters from DOM
-        const includeRegex = includeRegexInput ? includeRegexInput.value.trim() : "";
-        const excludeRegex = excludeRegexInput ? excludeRegexInput.value.trim() : "";
         const hideCancelled = hideCancelledSwitch ? hideCancelledSwitch.checked : false;
 
         const allChips = Array.from(document.querySelectorAll(".type-filter-chip"));
@@ -989,8 +935,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span class="text-end text-truncate">${value}</span>
                 </div>`;
             feedFiltersBadges.innerHTML = [
-                row("Inclure", includeRegex ? `<code>${escapeHtml(includeRegex)}</code>` : "Tous les cours"),
-                row("Exclure", excludeRegex ? `<code>${escapeHtml(excludeRegex)}</code>` : "Aucun"),
                 row("Matières", isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : `Toutes (${allChips.length})`),
                 row("Cours annulés", hideCancelled ? "Masqués" : "Inclus"),
                 row("Séances", `${payloadCourses.length}`),
@@ -1005,8 +949,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({
                     username: username,
                     password: password,
-                    include_regex: includeRegex,
-                    exclude_regex: excludeRegex,
                     allowed_courses: allowedCoursesToSend,
                     hide_cancelled: hideCancelled,
                     courses: payloadCourses
@@ -1030,7 +972,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="text-danger small mb-3">
                     <i class="bi bi-exclamation-circle me-1"></i> Erreur : ${escapeHtml(err.message)}
                 </div>
-                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" id="retryFeedBtn">
+                <button type="button" class="btn btn-sm btn-outline-primary px-3" id="retryFeedBtn">
                     <i class="bi bi-arrow-clockwise me-1"></i> Réessayer
                 </button>
             `;

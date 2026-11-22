@@ -27,29 +27,7 @@
 
     <!-- Filters -->
     <div class="card p-4 mb-3">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label for="includeRegexInput" class="form-label">Inclure (regex)</label>
-                <input type="text" class="form-control font-monospace" id="includeRegexInput" placeholder="ALGO|MATH ou ^\[CM\]">
-                <div class="d-flex flex-wrap gap-1 mt-2">
-                    <button type="button" class="btn btn-xs btn-outline-secondary preset-btn" data-target="include" data-val="^\[CM\]">CM</button>
-                    <button type="button" class="btn btn-xs btn-outline-secondary preset-btn" data-target="include" data-val="^\[TD\]">TD</button>
-                    <button type="button" class="btn btn-xs btn-outline-secondary preset-btn" data-target="include" data-val="EXAM|Partiel">Examens</button>
-                    <button type="button" class="btn btn-xs btn-link preset-btn" data-target="include" data-val="">Effacer</button>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <label for="excludeRegexInput" class="form-label">Exclure (regex)</label>
-                <input type="text" class="form-control font-monospace" id="excludeRegexInput" placeholder="Anglais|Sport">
-                <div class="d-flex flex-wrap gap-1 mt-2">
-                    <button type="button" class="btn btn-xs btn-outline-secondary preset-btn" data-target="exclude" data-val="Anglais">Anglais</button>
-                    <button type="button" class="btn btn-xs btn-outline-secondary preset-btn" data-target="exclude" data-val="Soutenance">Soutenances</button>
-                    <button type="button" class="btn btn-xs btn-link preset-btn" data-target="exclude" data-val="">Effacer</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="border-top mt-4 pt-3">
+        <div>
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
                 <div class="d-flex align-items-center gap-2">
                     <span class="section-label">Matières</span>
@@ -57,7 +35,7 @@
                     <span class="text-muted small">·</span>
                     <button type="button" class="btn btn-link btn-xs p-0" id="deselectAllTypesBtn">Aucune</button>
                 </div>
-                <div class="form-check form-switch mb-0">
+                <div class="form-check mb-0">
                     <input class="form-check-input" type="checkbox" id="hideCancelledSwitch" checked>
                     <label class="form-check-label small" for="hideCancelledSwitch">Masquer les cours annulés</label>
                 </div>
@@ -166,7 +144,7 @@
                     <button type="button" class="btn btn-xs btn-outline-secondary" id="changeFeedCredsBtn">Modifier</button>
                 </div>
 
-                <div id="feedCredentialsPrompt" class="border rounded-3 p-3 mb-3 d-none">
+                <div id="feedCredentialsPrompt" class="border p-3 mb-3 d-none">
                     <div class="small fw-semibold mb-1">Identifiants Auriga <span class="text-muted fw-normal">(optionnel)</span></div>
                     <p class="small text-muted mb-2">
                         Permettent au serveur de rafraîchir votre emploi du temps. Sans eux, le lien reprend les cours chargés actuellement.
@@ -227,5 +205,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261024"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122d"></script>
 {% endblock %}
