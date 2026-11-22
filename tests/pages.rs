@@ -138,3 +138,15 @@ async fn removed_api_endpoints_are_gone() {
         assert_eq!(res.status, StatusCode::NOT_FOUND, "{path}");
     }
 }
+
+#[tokio::test]
+async fn service_worker_leaves_other_origins_alone() {
+    // Over HTTPS the worker controls the page; if it intercepted the Bootstrap CDN
+    // its connect-src 'self' CSP would block the CSS and JS (broken page on iPhone).
+    let app = TestApp::new();
+    let res = app.get("/sw.js", None).await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(res.header("cache-control").contains("no-cache"));
+    assert!(res.body.contains("url.origin !== self.location.origin"));
+    assert!(!res.body.contains("cdn.jsdelivr.net"), "CDN files must not be precached by the worker");
+}

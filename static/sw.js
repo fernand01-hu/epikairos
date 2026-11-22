@@ -3,18 +3,14 @@
  * Version: 1.1.0
  */
 
-const CACHE_NAME = 'epikairos-shell-v5';
+const CACHE_NAME = 'epikairos-shell-v6';
 const CORE_ASSETS = [
-    '/',
     '/manifest.json',
     '/static/css/style.css',
     '/static/icons/icon-192.png',
     '/static/icons/icon-512.png',
     '/static/icons/favicon.svg',
-    '/offline',
-    'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css',
-    'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css',
-    'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js'
+    '/offline'
 ];
 
 // Install: Pre-cache app shell and core assets
@@ -48,8 +44,10 @@ self.addEventListener('fetch', (event) => {
     const request = event.request;
     const url = new URL(request.url);
 
-    // Skip non-GET requests and browser extensions
-    if (request.method !== 'GET' || !url.protocol.startsWith('http')) {
+    // Only handle this site's own GET requests. Other origins (the Bootstrap CDN)
+    // go straight to the browser: the worker's own CSP (connect-src 'self') would
+    // block them, and the page's CSP already allows them.
+    if (request.method !== 'GET' || url.origin !== self.location.origin) {
         return;
     }
 
