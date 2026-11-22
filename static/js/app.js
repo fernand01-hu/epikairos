@@ -689,189 +689,188 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // =========================================================================
-    // 8. Live Google Calendar Feed URL Modal
+    // 8. Subscription links panel (3 links per account)
     // =========================================================================
     const feedModalEl = document.getElementById("feedModal");
     const feedModal = feedModalEl ? new bootstrap.Modal(feedModalEl) : null;
-    const feedModalSpinner = document.getElementById("feedModalSpinner");
-    const feedModalContent = document.getElementById("feedModalContent");
-    const feedUrlInput = document.getElementById("feedUrlInput");
-    const feedHttpsUrlInput = document.getElementById("feedHttpsUrlInput");
-    const copyFeedUrlBtn = document.getElementById("copyFeedUrlBtn");
-    const copyHttpsFeedUrlBtn = document.getElementById("copyHttpsFeedUrlBtn");
-    const testFeedUrlBtn = document.getElementById("testFeedUrlBtn");
-    const copyFeedback = document.getElementById("copyFeedback");
+    const feedList = document.getElementById("feedList");
+    const feedCount = document.getElementById("feedCount");
+    const feedAlert = document.getElementById("feedAlert");
     const feedFiltersBadges = document.getElementById("feedFiltersBadges");
-    const feedCredentialsStatus = document.getElementById("feedCredentialsStatus");
-    const feedAccountBadge = document.getElementById("feedAccountBadge");
-    const changeFeedCredsBtn = document.getElementById("changeFeedCredsBtn");
-    const feedCredentialsPrompt = document.getElementById("feedCredentialsPrompt");
-    const modalUsernameInput = document.getElementById("modalUsernameInput");
-    const modalPasswordInput = document.getElementById("modalPasswordInput");
-    const regenerateFeedWithCredsBtn = document.getElementById("regenerateFeedWithCredsBtn");
+    const createFeedBtn = document.getElementById("createFeedBtn");
+    const createFeedHint = document.getElementById("createFeedHint");
+    const copyFeedback = document.getElementById("copyFeedback");
+    let feedMax = 3;
 
-    function escapeHtml(str) {
-        if (!str) return "";
-        return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    function showFeedError(message) {
+        if (!feedAlert) return;
+        feedAlert.textContent = message;
+        feedAlert.classList.toggle("d-none", !message);
     }
 
-    async function generateCalendarFeed(credsOverride = null) {
-        if (!feedModalSpinner || !feedModalContent) return;
+    async function feedApi(url, options = {}) {
+        const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...options });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) throw new Error(data.error || `Erreur serveur (${res.status})`);
+        return data;
+    }
 
-        feedModalSpinner.classList.remove("d-none");
-        feedModalContent.classList.add("d-none");
-        if (copyFeedback) copyFeedback.classList.add("d-none");
-        feedModalSpinner.innerHTML = `
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Génération du lien...</span>
-            </div>
-            <div class="small text-muted mt-2">Génération du lien sécurisé avec vos filtres...</div>
-        `;
-
-        // Refresh credentials from localStorage if available
-        const savedCreds = localStorage.getItem("zeus_credentials");
-        if (savedCreds) {
-            try { userCredentials = JSON.parse(savedCreds); } catch (e) {}
-        }
-
-        const username = credsOverride?.username !== undefined
-            ? credsOverride.username
-            : (userCredentials?.username || "");
-        const password = credsOverride?.password !== undefined
-            ? credsOverride.password
-            : (userCredentials?.password || "");
-
-        // Manage credentials UI status
-        if (username && password) {
-            if (feedCredentialsStatus) feedCredentialsStatus.classList.remove("d-none");
-            if (feedAccountBadge) feedAccountBadge.textContent = username;
-            if (feedCredentialsPrompt) feedCredentialsPrompt.classList.add("d-none");
-        } else {
-            if (feedCredentialsStatus) feedCredentialsStatus.classList.add("d-none");
-            if (feedCredentialsPrompt) feedCredentialsPrompt.classList.remove("d-none");
-            if (modalUsernameInput && !modalUsernameInput.value && username) {
-                modalUsernameInput.value = username;
-            }
-        }
-
-        // Collect filters from DOM
-        const hideCancelled = hideCancelledSwitch ? hideCancelledSwitch.checked : false;
-
+    /** Courses and filters currently shown on the page, as sent to the server. */
+    function currentFeedSettings() {
         const allChips = Array.from(document.querySelectorAll(".type-filter-chip"));
         const activeChips = Array.from(document.querySelectorAll(".type-filter-chip:not(.unchecked)"));
-        const checkedCourses = activeChips.map(cb => cb.dataset.course).filter(Boolean);
         const isCourseFiltered = allChips.length > 0 && activeChips.length < allChips.length;
-        const allowedCoursesToSend = isCourseFiltered ? checkedCourses : null;
+        const selected = visibleCourses.filter(c => selectedCourseIds.has(c.id));
+        return {
+            allowed_courses: isCourseFiltered ? activeChips.map(c => c.dataset.course).filter(Boolean) : null,
+            hide_cancelled: hideCancelledSwitch ? hideCancelledSwitch.checked : false,
+            courses: selected.length ? selected : (visibleCourses.length ? visibleCourses : allCourses),
+            subjectsLabel: isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : `Toutes (${allChips.length})`,
+        };
+    }
 
-        const coursesToExport = visibleCourses.filter(c => selectedCourseIds.has(c.id));
-        const payloadCourses = coursesToExport.length > 0 ? coursesToExport : (visibleCourses.length > 0 ? visibleCourses : allCourses);
+    function renderFilterSummary() {
+        if (!feedFiltersBadges) return;
+        const s = currentFeedSettings();
+        const row = (label, value) => `
+            <div class="col-sm-4 d-flex justify-content-between gap-2 border-bottom py-1">
+                <span class="text-muted">${label}</span>
+                <span class="text-end">${value}</span>
+            </div>`;
+        feedFiltersBadges.innerHTML = [
+            row("Matières", escapeHtml(s.subjectsLabel)),
+            row("Cours annulés", s.hide_cancelled ? "Masqués" : "Inclus"),
+            row("Séances", String(s.courses.length)),
+        ].join("");
+    }
 
-        // Display active filter verification badges
-        if (feedFiltersBadges) {
-            const row = (label, value) => `
-                <div class="col-sm-6 d-flex justify-content-between gap-2 border-bottom py-1">
-                    <span class="text-muted">${label}</span>
-                    <span class="text-end text-truncate">${value}</span>
+    function formatFeedDate(seconds) {
+        if (!seconds) return "";
+        return new Date(seconds * 1000).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+    }
+
+    function renderFeeds(feeds) {
+        if (feedCount) feedCount.textContent = `${feeds.length} / ${feedMax}`;
+        if (createFeedBtn) createFeedBtn.disabled = feeds.length >= feedMax;
+        if (createFeedHint) {
+            createFeedHint.textContent = feeds.length > feedMax
+                ? `Vous avez ${feeds.length} liens pour un maximum de ${feedMax} : supprimez ceux que vous n'utilisez plus.`
+                : feeds.length === feedMax
+                    ? "Maximum atteint : supprimez un lien ou mettez à jour un lien existant."
+                    : "";
+        }
+        if (!feedList) return;
+        if (feeds.length === 0) {
+            feedList.innerHTML = '<div class="small text-muted">Aucun lien pour le moment.</div>';
+            return;
+        }
+        feedList.innerHTML = feeds.map(f => {
+            const details = [
+                `Créé le ${escapeHtml(formatFeedDate(f.created_at))}`,
+                f.subjects === null ? "toutes les matières" : `${f.subjects} matière${f.subjects > 1 ? "s" : ""}`,
+                f.hide_cancelled ? "annulés masqués" : "annulés inclus",
+            ].join(" · ");
+            return `
+                <div class="feed-item border p-3" data-id="${escapeHtml(f.id)}">
+                    <div class="d-flex justify-content-between flex-wrap gap-2 small mb-2">
+                        <span>${details}</span>
+                        ${f.auto_refresh ? '<span class="text-muted">Actualisation auto (mot de passe enregistré)</span>' : ""}
+                    </div>
+                    <div class="input-group input-group-sm mb-2">
+                        <input type="text" class="form-control font-monospace" readonly value="${escapeHtml(f.subscription_url)}" aria-label="Lien d'abonnement">
+                        <button type="button" class="btn btn-primary" data-copy="${escapeHtml(f.subscription_url)}">Copier</button>
+                        <a class="btn btn-outline-secondary" href="${escapeHtml(f.subscription_url)}" target="_blank" rel="noopener">Ouvrir</a>
+                    </div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-copy="${escapeHtml(f.webcal_url)}">Copier le lien webcal</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-update>Mettre à jour avec mes filtres actuels</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-delete>Supprimer</button>
+                    </div>
                 </div>`;
-            feedFiltersBadges.innerHTML = [
-                row("Matières", isCourseFiltered ? `${activeChips.length} / ${allChips.length}` : `Toutes (${allChips.length})`),
-                row("Cours annulés", hideCancelled ? "Masqués" : "Inclus"),
-                row("Séances", `${payloadCourses.length}`),
-                row("Mise à jour", "Toutes les 12 h"),
-            ].join("");
-        }
+        }).join("");
+    }
 
+    async function loadFeeds() {
+        showFeedError("");
+        renderFilterSummary();
         try {
-            const res = await fetch("/api/create-feed", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    username: username,
-                    password: password,
-                    allowed_courses: allowedCoursesToSend,
-                    hide_cancelled: hideCancelled,
-                    courses: payloadCourses
-                })
-            });
-
-            const data = await res.json();
-            if (!res.ok || !data.success) {
-                throw new Error(data.error || "Impossible de générer le lien de flux.");
-            }
-
-            if (feedUrlInput) feedUrlInput.value = data.webcal_url;
-            if (feedHttpsUrlInput) feedHttpsUrlInput.value = data.subscription_url || data.feed_url;
-            if (testFeedUrlBtn) testFeedUrlBtn.href = data.subscription_url || data.feed_url;
-
-            feedModalSpinner.classList.add("d-none");
-            feedModalContent.classList.remove("d-none");
-
+            const data = await feedApi("/api/feeds");
+            feedMax = data.max || 3;
+            renderFeeds(data.feeds || []);
         } catch (err) {
-            feedModalSpinner.innerHTML = `
-                <div class="text-danger small mb-3">
-                    <i class="bi bi-exclamation-circle me-1"></i> Erreur : ${escapeHtml(err.message)}
-                </div>
-                <button type="button" class="btn btn-sm btn-outline-primary px-3" id="retryFeedBtn">
-                    <i class="bi bi-arrow-clockwise me-1"></i> Réessayer
-                </button>
-            `;
-            document.getElementById("retryFeedBtn")?.addEventListener("click", () => generateCalendarFeed());
+            if (feedList) feedList.innerHTML = "";
+            showFeedError(err.message);
         }
+    }
+
+    async function copyText(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            const tmp = document.createElement("textarea");
+            tmp.value = text;
+            document.body.appendChild(tmp);
+            tmp.select();
+            document.execCommand("copy");
+            tmp.remove();
+        }
+        if (copyFeedback) {
+            copyFeedback.classList.remove("d-none");
+            setTimeout(() => copyFeedback.classList.add("d-none"), 3000);
+        }
+    }
+
+    if (feedList) {
+        feedList.addEventListener("click", async (e) => {
+            const btn = e.target.closest("button");
+            if (!btn) return;
+            const item = btn.closest(".feed-item");
+            if (btn.dataset.copy) {
+                copyText(btn.dataset.copy);
+                return;
+            }
+            if (!item) return;
+            const id = item.dataset.id;
+            showFeedError("");
+            try {
+                if (btn.hasAttribute("data-update")) {
+                    btn.disabled = true;
+                    const { subjectsLabel, ...settings } = currentFeedSettings();
+                    await feedApi(`/api/feeds/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(settings) });
+                    btn.textContent = "Mis à jour";
+                    setTimeout(loadFeeds, 1200);
+                } else if (btn.hasAttribute("data-delete")) {
+                    if (!confirm("Supprimer ce lien ? Les agendas abonnés ne seront plus mis à jour.")) return;
+                    await feedApi(`/api/feeds/${encodeURIComponent(id)}`, { method: "DELETE" });
+                    loadFeeds();
+                }
+            } catch (err) {
+                btn.disabled = false;
+                showFeedError(err.message);
+            }
+        });
+    }
+
+    if (createFeedBtn) {
+        createFeedBtn.addEventListener("click", async () => {
+            showFeedError("");
+            createFeedBtn.disabled = true;
+            try {
+                const { subjectsLabel, ...settings } = currentFeedSettings();
+                await feedApi("/api/create-feed", { method: "POST", body: JSON.stringify(settings) });
+                await loadFeeds();
+            } catch (err) {
+                showFeedError(err.message);
+                createFeedBtn.disabled = false;
+            }
+        });
     }
 
     if (openFeedModalBtn && feedModal) {
         openFeedModalBtn.addEventListener("click", () => {
             feedModal.show();
-            generateCalendarFeed();
+            loadFeeds();
         });
-    }
-
-    if (changeFeedCredsBtn) {
-        changeFeedCredsBtn.addEventListener("click", () => {
-            if (feedCredentialsPrompt) feedCredentialsPrompt.classList.remove("d-none");
-            if (feedCredentialsStatus) feedCredentialsStatus.classList.add("d-none");
-        });
-    }
-
-    if (regenerateFeedWithCredsBtn) {
-        regenerateFeedWithCredsBtn.addEventListener("click", () => {
-            const userVal = modalUsernameInput ? modalUsernameInput.value.trim() : "";
-            const passVal = modalPasswordInput ? modalPasswordInput.value.trim() : "";
-            if (!userVal || !passVal) {
-                alert("Veuillez renseigner votre identifiant et votre mot de passe Auriga.");
-                return;
-            }
-            userCredentials.username = userVal;
-            userCredentials.password = passVal;
-            localStorage.setItem("zeus_credentials", JSON.stringify({ username: userVal }));
-            generateCalendarFeed({ username: userVal, password: passVal });
-        });
-    }
-
-    async function copyToClipboard(inputElement) {
-        if (!inputElement || !inputElement.value) return;
-        try {
-            await navigator.clipboard.writeText(inputElement.value);
-            if (copyFeedback) {
-                copyFeedback.classList.remove("d-none");
-                setTimeout(() => copyFeedback.classList.add("d-none"), 4000);
-            }
-        } catch {
-            inputElement.select();
-            document.execCommand("copy");
-            if (copyFeedback) {
-                copyFeedback.classList.remove("d-none");
-                setTimeout(() => copyFeedback.classList.add("d-none"), 4000);
-            }
-        }
-    }
-
-    if (copyFeedUrlBtn) {
-        copyFeedUrlBtn.addEventListener("click", () => copyToClipboard(feedUrlInput));
-    }
-
-    if (copyHttpsFeedUrlBtn) {
-        copyHttpsFeedUrlBtn.addEventListener("click", () => copyToClipboard(feedHttpsUrlInput));
     }
 
 });

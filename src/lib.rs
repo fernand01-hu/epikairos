@@ -88,6 +88,11 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/export-ics", post(routes::api::export_ics_handler))
         .route("/api/create-feed", post(routes::api::create_feed_handler))
+        .route("/api/feeds", get(routes::api::list_feeds_handler))
+        .route(
+            "/api/feeds/:id",
+            put(routes::api::update_feed_handler).delete(routes::api::delete_feed_handler),
+        )
         .route("/feed/:feed_id", get(routes::api::serve_feed_handler))
         // Admin panel & community calendars
         .route("/api/admin/users", get(routes::community::admin_list_users_handler))

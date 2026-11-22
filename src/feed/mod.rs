@@ -410,8 +410,8 @@ pub fn claim_feed_refresh(
 /// Number of subscription links an account already owns (names compared without case).
 pub fn count_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite::Result<i64> {
     conn.query_row(
-        "SELECT COUNT(*) FROM feeds WHERE username = ?1 COLLATE NOCASE",
-        params![username.trim()],
+        &format!("SELECT COUNT(*) FROM feeds WHERE {OWNER_MATCH}"),
+        params![login_key(username)],
         |r| r.get(0),
     )
 }
@@ -468,6 +468,104 @@ pub fn merge_shared_courses(personal: Vec<Course>, shared: Vec<Course>) -> Vec<C
     let mut merged: Vec<Course> = by_id.into_values().collect();
     merged.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| a.id.cmp(&b.id)));
     merged
+}
+
+/// SQL condition matching an account's links: same login without case, with or
+/// without "@domain" (links made with a password kept the typed name).
+const OWNER_MATCH: &str = "(lower(username) = ?1 OR lower(username) LIKE ?1 || '@%')";
+
+fn login_key(username: &str) -> String {
+    username.trim().split('@').next().unwrap_or("").to_lowercase()
+}
+
+/// What the "Lien d'abonnement" panel shows about one link. No secrets.
+#[derive(Debug, Clone, Serialize)]
+pub struct FeedSummary {
+    pub feed_id: String,
+    pub created_at: f64,
+    pub last_used_at: f64,
+    pub hide_cancelled: bool,
+    pub include_regex: Option<String>,
+    pub exclude_regex: Option<String>,
+    /// Number of subjects kept, None when every subject is included
+    pub subjects: Option<usize>,
+    /// A password is stored (older links), so the server refreshes it every 12 h
+    pub auto_refresh: bool,
+}
+
+/// The account's links, newest first.
+pub fn list_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite::Result<Vec<FeedSummary>> {
+    let key = login_key(username);
+    if key.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn.prepare(&format!(
+        "SELECT feed_id, created_at, COALESCE(last_cached_at, 0), COALESCE(hide_cancelled, 0),
+                include_regex, exclude_regex, allowed_courses, encrypted_password != ''
+         FROM feeds WHERE {OWNER_MATCH} ORDER BY created_at DESC"
+    ))?;
+    let rows = stmt
+        .query_map(params![key], |r| {
+            let allowed: Option<String> = r.get(6)?;
+            let non_empty = |v: Option<String>| v.filter(|s| !s.trim().is_empty());
+            Ok(FeedSummary {
+                feed_id: r.get(0)?,
+                created_at: r.get::<_, Option<f64>>(1)?.unwrap_or(0.0),
+                last_used_at: r.get(2)?,
+                hide_cancelled: r.get::<_, i64>(3)? != 0,
+                include_regex: non_empty(r.get(4)?),
+                exclude_regex: non_empty(r.get(5)?),
+                subjects: match allowed.as_deref() {
+                    None | Some("") => None,
+                    Some("__EMPTY__") => Some(0),
+                    Some(list) => Some(list.split('\t').filter(|s| !s.trim().is_empty()).count()),
+                },
+                auto_refresh: r.get(7)?,
+            })
+        })?
+        .filter_map(Result::ok)
+        .collect();
+    Ok(rows)
+}
+
+/// True when the link belongs to that account.
+pub fn feed_owned_by(conn: &rusqlite::Connection, feed_id: &str, username: &str) -> rusqlite::Result<bool> {
+    let key = login_key(username);
+    if key.is_empty() {
+        return Ok(false);
+    }
+    let n: i64 = conn.query_row(
+        &format!("SELECT COUNT(*) FROM feeds WHERE {OWNER_MATCH} AND feed_id = ?2"),
+        params![key, feed_id],
+        |r| r.get(0),
+    )?;
+    Ok(n == 1)
+}
+
+/// Replaces a link's courses and filters, keeping its address (and any stored password).
+pub fn update_feed_settings(
+    conn: &rusqlite::Connection,
+    feed_id: &str,
+    allowed_courses: Option<&[String]>,
+    hide_cancelled: bool,
+    courses: &[Course],
+) -> rusqlite::Result<()> {
+    let allowed = match allowed_courses {
+        None => String::new(),
+        Some([]) => "__EMPTY__".to_string(),
+        Some(list) => list.join("\t"),
+    };
+    conn.execute(
+        "UPDATE feeds SET allowed_courses = ?1, hide_cancelled = ?2, cached_courses_json = ?3,
+                include_regex = NULL, exclude_regex = NULL, last_cached_ics = ''
+         WHERE feed_id = ?4",
+        params![allowed, hide_cancelled as i64, serde_json::to_string(courses).unwrap_or_default(), feed_id],
+    )?;
+    Ok(())
+}
+
+pub fn delete_feed(conn: &rusqlite::Connection, feed_id: &str) -> rusqlite::Result<bool> {
+    Ok(conn.execute("DELETE FROM feeds WHERE feed_id = ?1", params![feed_id])? > 0)
 }
 
 #[cfg(test)]

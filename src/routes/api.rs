@@ -25,7 +25,7 @@ const DEFAULT_FEED_CACHE_DURATION: f64 = 43200.0; // 12 hours
 /// Minimum delay between Auriga attempts for a feed that has no courses yet.
 const FEED_RETRY_INTERVAL: f64 = 600.0;
 /// Subscription links one account may own.
-pub const MAX_FEEDS_PER_USER: i64 = 20;
+pub const MAX_FEEDS_PER_USER: i64 = 3;
 const FEED_LIMIT_REACHED: &str = "feed-limit-reached";
 
 /// Feed cache lifetime in seconds, overridable with `FEED_CACHE_DURATION`.
@@ -186,6 +186,48 @@ pub fn resolve_safe_host(headers: &HeaderMap) -> String {
     } else {
         default_fallback
     }
+}
+
+/// Path, webcal:// and http(s):// addresses of a subscription link.
+pub fn feed_links(
+    headers: &HeaderMap,
+    feed_id: &str,
+    include: Option<&str>,
+    exclude: Option<&str>,
+    hide_cancelled: bool,
+) -> (String, String, String) {
+    let mut query = Vec::new();
+    if let Some(inc) = include {
+        query.push(format!("include={}", urlencoding::encode(inc)));
+    }
+    if let Some(exc) = exclude {
+        query.push(format!("exclude={}", urlencoding::encode(exc)));
+    }
+    if hide_cancelled {
+        query.push("hide_cancelled=1".to_string());
+    }
+    let query = if query.is_empty() { String::new() } else { format!("?{}", query.join("&")) };
+    let path = format!("/feed/{}.ics{}", feed_id, query);
+    let host = resolve_safe_host(headers);
+    (
+        path.clone(),
+        format!("webcal://{}{}", host, path),
+        format!("{}://{}{}", request_scheme(headers), host, path),
+    )
+}
+
+/// The logged-in account name, if any.
+fn session_username(state: &AppState, cookies: &Cookies) -> Option<String> {
+    cookies
+        .get("session")
+        .and_then(|c| verify_session(c.value(), &state.secret_key))
+        .filter(|s| s.logged_in)
+        .and_then(|s| s.username)
+        .filter(|u| !u.trim().is_empty())
+}
+
+fn json_status(status: StatusCode, message: &str) -> Response {
+    (status, Json(serde_json::json!({ "success": false, "error": message }))).into_response()
 }
 
 #[derive(Deserialize)]
@@ -625,7 +667,9 @@ pub async fn create_feed_handler(
         }
     }
 
-    let password = payload.password.unwrap_or_default().trim().to_string();
+    // New links never store a password: they stay current through the student's and
+    // their classmates' logins. Links made earlier keep theirs until deleted.
+    let password = String::new();
     let include_regex = payload.include_regex.filter(|s| !s.trim().is_empty());
     let exclude_regex = payload.exclude_regex.filter(|s| !s.trim().is_empty());
 
@@ -657,12 +701,12 @@ pub async fn create_feed_handler(
         }
     }
 
-    if payload.courses.is_empty() && (username.is_empty() || password.is_empty()) {
+    if payload.courses.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
                 "success": false,
-                "error": "Veuillez renseigner vos identifiants Auriga ou vous assurer que votre planning contient des cours."
+                "error": "Aucun cours à mettre dans le lien. Rechargez votre planning depuis Auriga."
             })),
         )
             .into_response();
@@ -719,7 +763,7 @@ pub async fn create_feed_handler(
                 StatusCode::TOO_MANY_REQUESTS,
                 Json(serde_json::json!({
                     "success": false,
-                    "error": format!("Vous avez déjà {} liens d'abonnement. Réutilisez un lien existant.", MAX_FEEDS_PER_USER)
+                    "error": format!("Vous avez déjà {} liens d'abonnement, le maximum. Supprimez-en un ou mettez à jour un lien existant.", MAX_FEEDS_PER_USER)
                 })),
             )
                 .into_response();
@@ -727,27 +771,8 @@ pub async fn create_feed_handler(
         _ => return internal_error(),
     };
 
-    let mut query_params = Vec::new();
-    if let Some(ref inc) = include_regex {
-        query_params.push(format!("include={}", urlencoding::encode(inc)));
-    }
-    if let Some(ref exc) = exclude_regex {
-        query_params.push(format!("exclude={}", urlencoding::encode(exc)));
-    }
-    if hide_canc {
-        query_params.push("hide_cancelled=1".to_string());
-    }
-
-    let query_str = if !query_params.is_empty() {
-        format!("?{}", query_params.join("&"))
-    } else {
-        String::new()
-    };
-
-    let feed_url = format!("/feed/{}.ics{}", feed_id, query_str);
-    let safe_host = resolve_safe_host(&headers);
-    let webcal_url = format!("webcal://{}{}", safe_host, feed_url);
-    let subscription_url = format!("{}://{}{}", request_scheme(&headers), safe_host, feed_url);
+    let (feed_url, webcal_url, subscription_url) =
+        feed_links(&headers, &feed_id, include_regex.as_deref(), exclude_regex.as_deref(), hide_canc);
 
     let filter_summary = serde_json::json!({
         "include_regex": include_regex.unwrap_or_else(|| "Aucun".to_string()),
@@ -769,6 +794,120 @@ pub async fn create_feed_handler(
         "filter_summary": filter_summary,
     }))
     .into_response()
+}
+
+// -----------------------------------------------------------------------------
+// Subscription link panel: GET /api/feeds, PUT and DELETE /api/feeds/:id
+// -----------------------------------------------------------------------------
+pub async fn list_feeds_handler(State(state): State<AppState>, cookies: Cookies, headers: HeaderMap) -> Response {
+    let Some(user) = session_username(&state, &cookies) else {
+        return json_status(StatusCode::UNAUTHORIZED, "Authentification requise.");
+    };
+    let pool = state.feed_pool.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        list_feeds_for(&conn, &user).map_err(|e| e.to_string())
+    })
+    .await;
+    let Ok(Ok(feeds)) = res else { return internal_error() };
+    let feeds: Vec<_> = feeds
+        .into_iter()
+        .map(|f| {
+            let (_, webcal_url, subscription_url) =
+                feed_links(&headers, &f.feed_id, f.include_regex.as_deref(), f.exclude_regex.as_deref(), f.hide_cancelled);
+            serde_json::json!({
+                "id": f.feed_id,
+                "created_at": f.created_at,
+                "last_used_at": f.last_used_at,
+                "hide_cancelled": f.hide_cancelled,
+                "subjects": f.subjects,
+                "auto_refresh": f.auto_refresh,
+                "subscription_url": subscription_url,
+                "webcal_url": webcal_url,
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "success": true, "feeds": feeds, "max": MAX_FEEDS_PER_USER })).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct UpdateFeedPayload {
+    pub allowed_courses: Option<Vec<String>>,
+    #[serde(default)]
+    pub hide_cancelled: bool,
+    #[serde(default)]
+    pub courses: Vec<Course>,
+}
+
+fn valid_feed_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+pub async fn update_feed_handler(
+    State(state): State<AppState>,
+    cookies: Cookies,
+    headers: HeaderMap,
+    Path(feed_id): Path<String>,
+    Json(payload): Json<UpdateFeedPayload>,
+) -> Response {
+    let Some(user) = session_username(&state, &cookies) else {
+        return json_status(StatusCode::UNAUTHORIZED, "Authentification requise.");
+    };
+    if !valid_feed_id(&feed_id) {
+        return json_status(StatusCode::NOT_FOUND, "Lien introuvable.");
+    }
+    if payload.courses.is_empty() {
+        return json_status(StatusCode::BAD_REQUEST, "Aucun cours à mettre dans le lien. Rechargez votre planning depuis Auriga.");
+    }
+    let pool = state.feed_pool.clone();
+    let id = feed_id.clone();
+    let hide = payload.hide_cancelled;
+    let res = tokio::task::spawn_blocking(move || -> Result<bool, String> {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        if !feed_owned_by(&conn, &id, &user).map_err(|e| e.to_string())? {
+            return Ok(false);
+        }
+        update_feed_settings(&conn, &id, payload.allowed_courses.as_deref(), hide, &payload.courses)
+            .map_err(|e| e.to_string())?;
+        Ok(true)
+    })
+    .await;
+    match res {
+        Ok(Ok(true)) => {
+            let (_, webcal_url, subscription_url) = feed_links(&headers, &feed_id, None, None, hide);
+            Json(serde_json::json!({ "success": true, "subscription_url": subscription_url, "webcal_url": webcal_url })).into_response()
+        }
+        // Someone else's link answers like a missing one
+        Ok(Ok(false)) => json_status(StatusCode::NOT_FOUND, "Lien introuvable."),
+        _ => internal_error(),
+    }
+}
+
+pub async fn delete_feed_handler(
+    State(state): State<AppState>,
+    cookies: Cookies,
+    Path(feed_id): Path<String>,
+) -> Response {
+    let Some(user) = session_username(&state, &cookies) else {
+        return json_status(StatusCode::UNAUTHORIZED, "Authentification requise.");
+    };
+    if !valid_feed_id(&feed_id) {
+        return json_status(StatusCode::NOT_FOUND, "Lien introuvable.");
+    }
+    let pool = state.feed_pool.clone();
+    let res = tokio::task::spawn_blocking(move || -> Result<bool, String> {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        if !feed_owned_by(&conn, &feed_id, &user).map_err(|e| e.to_string())? {
+            return Ok(false);
+        }
+        delete_feed(&conn, &feed_id).map_err(|e| e.to_string())
+    })
+    .await;
+    match res {
+        Ok(Ok(true)) => Json(serde_json::json!({ "success": true })).into_response(),
+        Ok(Ok(false)) => json_status(StatusCode::NOT_FOUND, "Lien introuvable."),
+        _ => internal_error(),
+    }
 }
 
 // -----------------------------------------------------------------------------

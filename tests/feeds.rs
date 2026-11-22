@@ -199,13 +199,14 @@ async fn unknown_and_malformed_feed_ids() {
     assert_eq!(app.get(&format!("/feed/{long}.ics"), None).await.status, StatusCode::BAD_REQUEST);
 }
 
-#[tokio::test]
-async fn feed_ids_are_long_and_unique() {
-    let app = TestApp::new();
+#[test]
+fn feed_ids_are_long_and_unique() {
+    setup_env();
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    feed::init_db(&conn).unwrap();
     let mut ids = std::collections::HashSet::new();
-    for _ in 0..20 {
-        let data = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await.json();
-        let id = data["feed_id"].as_str().unwrap().to_string();
+    for i in 0..50 {
+        let id = feed::create_feed(&conn, &format!("user{i}"), "", None, None, None, None, false, "Cal", None, None).unwrap();
         assert!(id.len() >= 20 && id.chars().all(|c| c.is_ascii_alphanumeric()), "{id}");
         assert!(ids.insert(id));
     }
@@ -297,7 +298,7 @@ async fn an_account_cannot_create_unlimited_feeds() {
     }
     let res = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await;
     assert_eq!(res.status, StatusCode::TOO_MANY_REQUESTS);
-    assert!(res.json()["error"].as_str().unwrap().contains("Réutilisez"));
+    assert!(res.json()["error"].as_str().unwrap().contains("Supprimez-en un"));
 }
 
 #[tokio::test]
@@ -392,4 +393,89 @@ fn merge_prefers_the_shared_version_and_keeps_personal_only_courses() {
     let merged = feed::merge_shared_courses(personal, shared);
     let names: Vec<&str> = merged.iter().map(|c| c.course_name.as_str()).collect();
     assert_eq!(names, ["Earlier", "New title", "Option"], "sorted by start");
+}
+
+// --- subscription links panel ------------------------------------------------------
+
+async fn as_user(app: &TestApp, method: &str, path: &str, user: &str, body: Option<serde_json::Value>) -> TestResponse {
+    let m = axum::http::Method::from_bytes(method.as_bytes()).unwrap();
+    app.request(m, path, Some(user), body).await
+}
+
+#[tokio::test]
+async fn new_links_never_store_a_password() {
+    let app = TestApp::new();
+    let res = create_feed(&app, serde_json::json!({ "username": USER, "password": "hunter2", "courses": sample_courses() }), "localhost:5000").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let id = res.json()["feed_id"].as_str().unwrap().to_string();
+    let conn = app.state.feed_pool.get().unwrap();
+    let stored: String = conn.query_row("SELECT encrypted_password FROM feeds WHERE feed_id = ?1", [&id], |r| r.get(0)).unwrap();
+    assert_eq!(stored, "");
+}
+
+#[tokio::test]
+async fn panel_lists_only_my_links_with_their_addresses() {
+    let app = TestApp::new();
+    create_feed(&app, serde_json::json!({ "courses": sample_courses(), "hide_cancelled": true, "allowed_courses": ["Algorithmique"] }), "localhost:5000").await;
+    {
+        let conn = app.state.feed_pool.get().unwrap();
+        feed::create_feed(&conn, "bob.durand", "", None, None, None, None, false, "Cal", None, None).unwrap();
+        // An older link of mine made with a password and the "@epita.fr" form
+        feed::create_feed(&conn, "Alice.Martin@epita.fr", "pw", None, None, None, None, false, "Cal", None, None).unwrap();
+    }
+    let data = app.get("/api/feeds", Some(USER)).await.json();
+    let feeds = data["feeds"].as_array().unwrap();
+    assert_eq!(feeds.len(), 2, "bob's link is not listed");
+    assert_eq!(data["max"], 3);
+    let newest = feeds.iter().find(|f| f["auto_refresh"] == false).unwrap();
+    assert_eq!(newest["subjects"], 1);
+    assert_eq!(newest["hide_cancelled"], true);
+    assert!(newest["subscription_url"].as_str().unwrap().contains("/feed/"));
+    assert!(newest["webcal_url"].as_str().unwrap().starts_with("webcal://"));
+    assert!(feeds.iter().any(|f| f["auto_refresh"] == true), "older password link flagged");
+    assert_eq!(app.get("/api/feeds", None).await.status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn links_can_be_updated_in_place_and_deleted_by_their_owner_only() {
+    let app = TestApp::new();
+    let created = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await.json();
+    let id = created["feed_id"].as_str().unwrap().to_string();
+    let feed_path = format!("/feed/{id}.ics");
+
+    // Someone else can neither change nor delete it (answers like a missing link)
+    let update = serde_json::json!({ "courses": [course("z", "2027-03-01T08:00:00Z", "2027-03-01T09:00:00Z", "Hack", "", "")] });
+    assert_eq!(as_user(&app, "PUT", &format!("/api/feeds/{id}"), "bob.durand", Some(update.clone())).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(as_user(&app, "DELETE", &format!("/api/feeds/{id}"), "bob.durand", None).await.status, StatusCode::NOT_FOUND);
+
+    // The owner updates it: same address, new courses and filters
+    let mine = serde_json::json!({
+        "courses": [course("n", "2027-03-01T08:00:00Z", "2027-03-01T09:00:00Z", "Nouveau", "Salle 301", "")],
+        "hide_cancelled": true
+    });
+    let res = as_user(&app, "PUT", &format!("/api/feeds/{id}"), USER, Some(mine)).await;
+    assert_eq!(res.status, StatusCode::OK, "{}", res.body);
+    assert!(res.json()["subscription_url"].as_str().unwrap().contains(&id), "same link");
+    let body = app.get(&feed_path, None).await.body;
+    assert!(body.contains("Nouveau") && !body.contains("Algorithmique"));
+
+    // Then deletes it
+    assert_eq!(as_user(&app, "DELETE", &format!("/api/feeds/{id}"), USER, None).await.status, StatusCode::OK);
+    assert_eq!(app.get(&feed_path, None).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(as_user(&app, "DELETE", &format!("/api/feeds/{id}"), USER, None).await.status, StatusCode::NOT_FOUND);
+    assert_eq!(as_user(&app, "DELETE", "/api/feeds/bad%20id", USER, None).await.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn deleting_a_link_frees_a_slot() {
+    let app = TestApp::new();
+    let mut ids = Vec::new();
+    for _ in 0..3 {
+        ids.push(create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await.json()["feed_id"].as_str().unwrap().to_string());
+    }
+    let full = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await;
+    assert_eq!(full.status, StatusCode::TOO_MANY_REQUESTS);
+    as_user(&app, "DELETE", &format!("/api/feeds/{}", ids[0]), USER, None).await;
+    let again = create_feed(&app, serde_json::json!({ "courses": sample_courses() }), "localhost:5000").await;
+    assert_eq!(again.status, StatusCode::OK);
 }

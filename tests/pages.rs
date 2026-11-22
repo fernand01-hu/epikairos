@@ -158,7 +158,9 @@ async fn password_fields_can_be_revealed_and_theme_has_an_auto_mode() {
     assert!(login.contains(r#"data-target="passwordInput""#), "eye button on the login page");
     assert!(login.contains("bi-circle-half"), "theme button starts in automatic mode");
     assert!(login.contains("prefers-color-scheme: dark"));
-    for (page, field) in [("/personal", "modalPasswordInput"), ("/planning", "modalPassword")] {
+    // The subscription popup no longer asks for a password (links never store one)
+    assert!(!app.get("/personal", Some("alice.martin")).await.body.contains("modalPasswordInput"));
+    for (page, field) in [("/planning", "modalPassword")] {
         let body = app.get(page, Some("alice.martin")).await.body;
         assert!(body.contains(&format!(r#"data-target="{field}""#)), "{page}");
     }

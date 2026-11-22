@@ -88,87 +88,47 @@
 
 </div>
 
-<!-- Modal: calendar subscription feed -->
+<!-- Modal: subscription links panel -->
 <div class="modal fade" id="feedModal" tabindex="-1" aria-labelledby="feedModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="feedModalLabel">Lien d'abonnement</h5>
+                <h5 class="modal-title" id="feedModalLabel">Liens d'abonnement</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
             </div>
             <div class="modal-body p-4">
                 <p class="text-muted small mb-3">
-                    Google Calendar, Apple Calendar ou Outlook se synchronisent avec ce lien une à deux fois par jour, en appliquant vos filtres.
+                    Google Calendar, Apple Calendar ou Outlook relisent votre lien une à deux fois par jour. Il se met à jour quand vous ou un camarade de votre groupe vous connectez à EpiKairos.
                 </p>
 
-                <div class="mb-3" id="feedActiveFiltersCard">
-                    <div class="section-label mb-2">Filtres appliqués</div>
-                    <div class="row g-2 small" id="feedFiltersBadges">
+                <div id="feedAlert" class="alert alert-danger small py-2 d-none" role="alert"></div>
+
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="section-label">Vos liens</span>
+                    <span class="small text-muted" id="feedCount"></span>
+                </div>
+                <div id="feedList" class="d-flex flex-column gap-2 mb-4">
+                    <div class="small text-muted">Chargement...</div>
+                </div>
+
+                <div class="border-top pt-3">
+                    <div class="section-label mb-2">Nouveau lien</div>
+                    <div class="row g-2 small mb-3" id="feedFiltersBadges">
                         <!-- Populated by app.js -->
                     </div>
+                    <button type="button" class="btn btn-sm btn-primary" id="createFeedBtn">Créer un lien avec mes filtres actuels</button>
+                    <div class="form-text" id="createFeedHint"></div>
                 </div>
 
-                <div id="feedCredentialsStatus" class="alert alert-success py-2 px-3 small d-flex align-items-center justify-content-between mb-3 d-none">
-                    <span>Mise à jour automatique avec le compte <strong id="feedAccountBadge"></strong>.</span>
-                    <button type="button" class="btn btn-xs btn-outline-secondary" id="changeFeedCredsBtn">Modifier</button>
-                </div>
+                <div id="copyFeedback" class="small text-success mt-3 d-none">Lien copié.</div>
 
-                <div id="feedCredentialsPrompt" class="border p-3 mb-3 d-none">
-                    <div class="small fw-semibold mb-1">Identifiants Auriga <span class="text-muted fw-normal">(optionnel)</span></div>
-                    <p class="small text-muted mb-2">
-                        Avec eux, le serveur met le lien à jour tout seul toutes les 12 h. Sans eux, le lien se met à jour quand vous ou un camarade de votre groupe se connecte à EpiKairos.
-                    </p>
-                    <div class="row g-2 mb-2">
-                        <div class="col-sm-6">
-                            <input type="text" class="form-control form-control-sm" id="modalUsernameInput" placeholder="prenom.nom@epita.fr">
-                        </div>
-                        <div class="col-sm-6">
-                            <div class="input-group input-group-sm">
-                                <input type="password" class="form-control" id="modalPasswordInput" placeholder="Mot de passe" autocomplete="current-password">
-                                <button class="btn btn-outline-secondary password-toggle" type="button" data-target="modalPasswordInput" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe"><i class="bi bi-eye"></i></button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="regenerateFeedWithCredsBtn">Mettre à jour le lien</button>
-                    </div>
-                </div>
-
-                <div id="feedModalSpinner" class="text-center py-4">
-                    <div class="spinner-border spinner-border-sm text-muted" role="status">
-                        <span class="visually-hidden">Génération du lien...</span>
-                    </div>
-                    <div class="small text-muted mt-2">Génération du lien...</div>
-                </div>
-
-                <div id="feedModalContent" class="d-none">
-                    <div class="mb-3">
-                        <label class="form-label" for="feedHttpsUrlInput">Lien d'abonnement (Google Calendar)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control font-monospace small" id="feedHttpsUrlInput" readonly>
-                            <button class="btn btn-primary" type="button" id="copyHttpsFeedUrlBtn">Copier</button>
-                            <a href="#" class="btn btn-outline-secondary" id="testFeedUrlBtn" target="_blank" rel="noopener" title="Ouvrir le fichier .ics">Ouvrir</a>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label" for="feedUrlInput">Webcal (Apple Calendar, Outlook)</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control font-monospace small" id="feedUrlInput" readonly>
-                            <button class="btn btn-outline-secondary" type="button" id="copyFeedUrlBtn">Copier</button>
-                        </div>
-                    </div>
-
-                    <div id="copyFeedback" class="small text-success mb-3 d-none">Lien copié.</div>
-
-                    <div class="small text-muted">
-                        <div class="fw-semibold text-body mb-1">Ajouter à Google Calendar</div>
-                        <ol class="mb-0 ps-3">
-                            <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a> sur ordinateur.</li>
-                            <li>À côté de « Autres agendas », cliquez sur <strong>+</strong> puis « À partir de l'URL ».</li>
-                            <li>Collez le lien d'abonnement et validez.</li>
-                        </ol>
-                    </div>
+                <div class="small text-muted mt-3">
+                    <div class="fw-semibold text-body mb-1">Ajouter à Google Calendar</div>
+                    <ol class="mb-0 ps-3">
+                        <li>Ouvrez <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Calendar</a> sur ordinateur.</li>
+                        <li>À côté de « Autres agendas », cliquez sur <strong>+</strong> puis « À partir de l'URL ».</li>
+                        <li>Collez le lien et validez.</li>
+                    </ol>
                 </div>
             </div>
         </div>
@@ -177,5 +137,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122k"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122n"></script>
 {% endblock %}
