@@ -2216,3 +2216,56 @@ mod tests {
         assert!(g_idx);
     }
 }
+
+/// Every room with its non-cancelled courses on `target_date` (YYYY-MM-DD),
+/// sorted by start time. Powers the floor plan's day view.
+pub fn query_rooms_day(conn: &Connection, target_date: &str) -> rusqlite::Result<serde_json::Value> {
+    let target_d = safe_truncate(target_date, 10).to_string();
+
+    let mut c_stmt = conn.prepare(
+        "SELECT c.id, c.course_name, c.activity_type, c.start_time_str, c.end_time_str, cr.room_id
+         FROM courses c
+         JOIN course_rooms cr ON c.id = cr.course_id
+         WHERE c.date_str = ?1 AND c.is_cancelled = 0
+         ORDER BY c.start_time_str ASC;",
+    )?;
+    let day_courses: Vec<(String, String, String, String, String, i64)> = c_stmt
+        .query_map(params![target_d], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))
+        })?
+        .filter_map(Result::ok)
+        .collect();
+
+    let mut course_ids: Vec<String> = day_courses.iter().map(|c| c.0.clone()).collect();
+    course_ids.sort();
+    course_ids.dedup();
+    let (teacher_map, group_map) = if course_ids.is_empty() {
+        (HashMap::new(), HashMap::new())
+    } else {
+        (
+            fetch_course_teachers_batched(conn, &course_ids)?,
+            fetch_course_groups_batched(conn, &course_ids)?,
+        )
+    };
+
+    let mut by_room: HashMap<i64, Vec<serde_json::Value>> = HashMap::new();
+    for (id, name, kind, start, end, room_id) in &day_courses {
+        by_room.entry(*room_id).or_default().push(json!({
+            "title": name,
+            "type": kind,
+            "start": start,
+            "end": end,
+            "teachers": teacher_map.get(id).cloned().unwrap_or_default(),
+            "groups": group_map.get(id).cloned().unwrap_or_default(),
+        }));
+    }
+
+    let mut r_stmt = conn.prepare("SELECT id, name FROM rooms ORDER BY name COLLATE NOCASE ASC")?;
+    let rooms: Vec<serde_json::Value> = r_stmt
+        .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?
+        .filter_map(Result::ok)
+        .map(|(id, name)| json!({ "name": name, "courses": by_room.remove(&id).unwrap_or_default() }))
+        .collect();
+
+    Ok(json!({ "date": target_d, "rooms": rooms }))
+}

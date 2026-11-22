@@ -1,42 +1,29 @@
 /**
- * EpiKairos - Free Rooms Finder & Live Classroom Search
+ * EpiKairos - Salles libres: floor plan with each room's status for a day.
+ *
+ * Status compares the room's courses with the current time of day:
+ *   busy  a course is running now
+ *   soon  free, but a course starts in less than an hour
+ *   free  otherwise
+ * Picking another day keeps the current time of day as the reference.
  */
 
 document.addEventListener("DOMContentLoaded", () => {
-    const roomsRoot = document.getElementById("roomsRoot");
-    const roomSearchForm = document.getElementById("roomSearchForm");
-    const roomDateInput = document.getElementById("roomDateInput");
-    const roomStartTimeInput = document.getElementById("roomStartTimeInput");
-    const roomEndTimeInput = document.getElementById("roomEndTimeInput");
-    const nowBtn = document.getElementById("nowBtn");
-    const heroInstantNowBtn = document.getElementById("heroInstantNowBtn");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const roomFilterInput = document.getElementById("roomFilterInput");
-    const searchRoomsBtn = document.getElementById("searchRoomsBtn");
-
-    const resultsSummaryBar = document.getElementById("resultsSummaryBar");
-    const freeRoomsBadge = document.getElementById("freeRoomsBadge");
-    const occupiedRoomsBadge = document.getElementById("occupiedRoomsBadge");
-    const searchIntervalLabel = document.getElementById("searchIntervalLabel");
-    const roomsLoading = document.getElementById("roomsLoading");
-    const roomsInitialPrompt = document.getElementById("roomsInitialPrompt");
-
-
-    const floorPlanSection = document.getElementById("floorPlanSection");
-    const floorPlanContainer = document.getElementById("floorPlanContainer");
-    const floorPlanDetails = document.getElementById("floorPlanDetails");
+    const planContainer = document.getElementById("floorPlanContainer");
+    const details = document.getElementById("floorPlanDetails");
+    const dayBtn = document.getElementById("dayBtn");
+    const dayInput = document.getElementById("dayInput");
+    const dayClock = document.getElementById("dayClock");
     const offPlanCard = document.getElementById("offPlanCard");
     const offPlanList = document.getElementById("offPlanList");
 
-    let lastData = null;
-    let selectedRoom = null;
-
-    function currentFilter() {
-        return roomFilterInput ? roomFilterInput.value.trim().toLowerCase() : "";
-    }
+    const SOON_MINUTES = 60;
+    let rooms = [];          // [{ name, courses: [{title,type,start,end,teachers,groups}] }]
+    let selectedRoom = null; // "301"
+    let loadedDate = null;
 
     function escapeHtml(str) {
-        if (!str) return "";
+        if (str === null || str === undefined) return "";
         return String(str)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
@@ -45,208 +32,160 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(/'/g, "&#039;");
     }
 
-    function setNow() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, "0");
-        const day = String(now.getDate()).padStart(2, "0");
-        roomDateInput.value = `${year}-${month}-${day}`;
+    function pad(n) { return String(n).padStart(2, "0"); }
 
-        const startH = String(now.getHours()).padStart(2, "0");
-        const startM = String(now.getMinutes()).padStart(2, "0");
-
-        const endD = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-        const endH = String(endD.getHours()).padStart(2, "0");
-        const endM = String(endD.getMinutes()).padStart(2, "0");
-
-        roomStartTimeInput.value = `${startH}:${startM}`;
-        roomEndTimeInput.value = `${endH}:${endM}`;
+    function todayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
-    if (nowBtn) {
-        nowBtn.addEventListener("click", () => {
-            setNow();
-            executeSearch();
-        });
+    function nowMinutes() {
+        const d = new Date();
+        return d.getHours() * 60 + d.getMinutes();
     }
 
-    if (heroInstantNowBtn) {
-        heroInstantNowBtn.addEventListener("click", () => {
-            setNow();
-            executeSearch();
-        });
+    function toMinutes(hhmm) {
+        const [h, m] = String(hhmm || "").split(":").map(Number);
+        return Number.isFinite(h) ? h * 60 + (m || 0) : null;
     }
 
-    if (refreshBtn) {
-        refreshBtn.addEventListener("click", () => {
-            executeSearch();
-        });
+    function formatDay(dateStr) {
+        if (dateStr === todayStr()) return "Aujourd'hui";
+        const [y, m, d] = dateStr.split("-").map(Number);
+        const label = new Date(y, m - 1, d).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+        return label.charAt(0).toUpperCase() + label.slice(1);
     }
 
-    // Preset buttons (Matinée, Midi, Après-midi, Soirée)
-    document.querySelectorAll(".slot-preset-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            roomStartTimeInput.value = btn.dataset.start;
-            roomEndTimeInput.value = btn.dataset.end;
-            executeSearch();
-        });
-    });
+    /** Status of one room at the reference minute. */
+    function roomStatus(room, ref) {
+        const courses = room.courses || [];
+        const current = courses.find(c => toMinutes(c.start) <= ref && ref < toMinutes(c.end));
+        if (current) return { state: "busy", current, note: `→ ${current.end}` };
 
-    // Real-time client-side filter
-    if (roomFilterInput) {
-        roomFilterInput.addEventListener("input", () => {
-            if (lastData) {
-                renderView(lastData, currentFilter());
-            }
-        });
-    }
-
-    async function executeSearch() {
-        const date = roomDateInput.value;
-        const startTime = roomStartTimeInput.value;
-        const endTime = roomEndTimeInput.value;
-
-        if (!date || !startTime || !endTime) {
-            alert("Veuillez renseigner la date et les horaires.");
-            return;
+        const next = courses.find(c => toMinutes(c.start) > ref);
+        if (next && toMinutes(next.start) - ref < SOON_MINUTES) {
+            return { state: "soon", next, note: `à ${next.start}` };
         }
-
-        if (startTime >= endTime) {
-            alert("L'heure de début doit être antérieure à l'heure de fin.");
-            return;
-        }
-
-        roomsLoading.classList.remove("d-none");
-        roomsInitialPrompt.classList.add("d-none");
-        resultsSummaryBar.classList.add("d-none");
-        floorPlanSection.classList.add("d-none");
-
-        try {
-            const res = await fetch("/api/database/free-rooms", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    date: date,
-                    start_time: startTime,
-                    end_time: endTime,
-                })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "Erreur de recherche");
-
-            lastData = data;
-            const filterQuery = roomFilterInput ? roomFilterInput.value.trim().toLowerCase() : "";
-            renderResults(data, filterQuery);
-
-        } catch (err) {
-            alert(`Erreur : ${err.message}`);
-        } finally {
-            roomsLoading.classList.add("d-none");
-        }
-    }
-
-    roomSearchForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        executeSearch();
-    });
-
-    function renderResults(data, filterQuery = "") {
-        resultsSummaryBar.classList.remove("d-none");
-        freeRoomsBadge.textContent = `${data.free_count} salles libres`;
-        occupiedRoomsBadge.textContent = `${data.occupied_count} salles occupées`;
-        searchIntervalLabel.textContent = `Créneau : ${data.date} de ${data.start_time} à ${data.end_time}`;
-
-        renderView(data, filterQuery);
-    }
-
-    function renderView(data, filterQuery = "") {
-        floorPlanSection.classList.remove("d-none");
-        renderPlan(data, filterQuery);
+        return { state: "free", next, note: "" };
     }
 
     // -------------------------------------------------------------------------
-    // Floor plan view
+    // Rendering
     // -------------------------------------------------------------------------
-    function findEntry(data, number) {
-        const match = r => window.FloorPlan.roomNumber(r.room_name) === number;
-        const free = (data.free_rooms || []).find(match);
-        if (free) return { status: "free", room: free };
-        const busy = (data.occupied_rooms || []).find(match);
-        if (busy) return { status: "busy", room: busy };
-        return null;
-    }
+    function render() {
+        const ref = nowMinutes();
+        const states = {};
+        rooms.forEach(room => {
+            const n = window.FloorPlan.roomNumber(room.name);
+            if (n) states[n] = { ...roomStatus(room, ref), name: room.name };
+        });
 
-    function renderPlan(data, filterQuery) {
-        window.FloorPlan.render(floorPlanContainer, data, {
-            filter: filterQuery,
+        window.FloorPlan.render(planContainer, {
+            states,
             selected: selectedRoom,
-            onSelect: (def) => {
-                selectedRoom = def.id;
-                renderPlan(data, currentFilter());
-                const g = floorPlanContainer.querySelector(`[data-room="${def.id}"]`);
+            onSelect: (id) => {
+                selectedRoom = id;
+                render();
+                const g = planContainer.querySelector(`[data-room="${id}"]`);
                 if (g) g.focus({ preventScroll: true });
             },
         });
-        renderDetails(data);
-        renderOffPlan(data, filterQuery);
+
+        dayBtn.textContent = formatDay(dayInput.value);
+        dayClock.textContent = `Statut calculé à ${pad(Math.floor(ref / 60))}:${pad(ref % 60)}`;
+        renderDetails(ref);
+        renderOffPlan(ref);
     }
 
-    function renderDetails(data) {
+    function renderDetails(ref) {
         if (!selectedRoom) {
-            floorPlanDetails.innerHTML = '<div class="small text-muted">Cliquez sur une salle pour voir son occupation.</div>';
+            details.innerHTML = '<div class="small text-muted">Cliquez sur une salle pour voir ses cours de la journée.</div>';
             return;
         }
-        const entry = findEntry(data, selectedRoom);
-        if (!entry) {
-            floorPlanDetails.innerHTML = `
+        const room = rooms.find(r => window.FloorPlan.roomNumber(r.name) === selectedRoom);
+        if (!room) {
+            details.innerHTML = `
                 <div class="fp-detail-title"><span class="room-dot is-unknown"></span>Salle ${escapeHtml(selectedRoom)}</div>
-                <div class="small text-muted mt-1">Aucun cours de cette salle n'est connu d'EpiKairos. Elle apparaîtra dès qu'un étudiant aura synchronisé un planning qui l'utilise.</div>`;
+                <div class="small text-muted mt-1">Aucune donnée pour cette salle.</div>`;
             return;
         }
-        const r = entry.room;
-        if (entry.status === "free") {
-            const until = r.next_course && r.next_course.start ? `jusqu'à ${escapeHtml(r.next_course.start)}` : "jusqu'au soir";
-            const next = r.next_course
-                ? `<div class="fp-detail-row"><span class="text-muted">Prochain cours</span><span>${escapeHtml(r.next_course.title)}</span><span class="text-muted">${escapeHtml(r.next_course.start)} – ${escapeHtml(r.next_course.end)}</span></div>`
-                : '<div class="small text-muted mt-2">Aucun autre cours ce jour-là.</div>';
-            floorPlanDetails.innerHTML = `
-                <div class="fp-detail-title"><span class="room-dot"></span>${escapeHtml(r.room_name)}</div>
-                <div class="fp-detail-status is-free">Libre ${until}</div>
-                ${next}`;
+
+        const status = roomStatus(room, ref);
+        let statusLine;
+        if (status.state === "busy") {
+            statusLine = `Occupée jusqu'à ${escapeHtml(status.current.end)}`;
+        } else if (status.state === "soon") {
+            statusLine = `Libre, cours à ${escapeHtml(status.next.start)}`;
         } else {
-            const c = r.current_course || {};
-            const teachers = c.teachers && c.teachers.length ? c.teachers.join(", ") : "—";
-            const groups = c.groups && c.groups.length ? c.groups.join(", ") : "—";
-            floorPlanDetails.innerHTML = `
-                <div class="fp-detail-title"><span class="room-dot is-busy"></span>${escapeHtml(r.room_name)}</div>
-                <div class="fp-detail-status is-busy">Occupée ${c.start ? `de ${escapeHtml(c.start)} ` : ""}jusqu'à ${escapeHtml(c.end || "—")}</div>
-                <div class="fp-detail-row"><span class="text-muted">Cours</span><span>${escapeHtml(c.title || "Cours")}</span></div>
-                <div class="fp-detail-row"><span class="text-muted">Enseignants</span><span>${escapeHtml(teachers)}</span></div>
-                <div class="fp-detail-row"><span class="text-muted">Groupes</span><span>${escapeHtml(groups)}</span></div>`;
+            statusLine = status.next ? `Libre jusqu'à ${escapeHtml(status.next.start)}` : "Libre jusqu'au soir";
         }
+
+        const courses = room.courses || [];
+        const list = courses.length === 0
+            ? '<div class="small text-muted">Aucun cours ce jour-là.</div>'
+            : courses.map(c => {
+                const isNow = c === status.current;
+                const isPast = toMinutes(c.end) <= ref;
+                const people = [c.teachers && c.teachers.join(", "), c.groups && c.groups.join(", ")].filter(Boolean).join(" · ");
+                return `
+                    <div class="fp-course${isNow ? " is-now" : ""}${isPast ? " is-past" : ""}">
+                        <div class="fp-course-time">${escapeHtml(c.start)} – ${escapeHtml(c.end)}</div>
+                        <div class="fp-course-title">${escapeHtml(c.title || "Cours")}</div>
+                        ${people ? `<div class="fp-course-meta">${escapeHtml(people)}</div>` : ""}
+                    </div>`;
+            }).join("");
+
+        details.innerHTML = `
+            <div class="fp-detail-title"><span class="room-dot is-${status.state}"></span>${escapeHtml(room.name)}</div>
+            <div class="fp-detail-status is-${status.state}">${statusLine}</div>
+            <div class="section-label mb-1">${escapeHtml(formatDay(dayInput.value))}</div>
+            ${list}`;
     }
 
-    function renderOffPlan(data, filterQuery) {
-        const rooms = window.FloorPlan.offPlanRooms(data)
-            .filter(e => !filterQuery || (e.room.room_name || "").toLowerCase().includes(filterQuery));
-        offPlanCard.classList.toggle("d-none", rooms.length === 0);
-        offPlanList.innerHTML = rooms.map(e => {
-            const hint = e.status === "free"
-                ? (e.room.next_course ? `Libre jusqu'à ${e.room.next_course.start}` : "Libre jusqu'au soir")
-                : `Occupée jusqu'à ${(e.room.current_course || {}).end || "—"}`;
-            return `<span class="fp-chip is-${e.status}" title="${escapeHtml(hint)}"><span class="room-dot${e.status === "busy" ? " is-busy" : ""}"></span>${escapeHtml(e.room.room_name)}</span>`;
+    function renderOffPlan(ref) {
+        const others = rooms.filter(r => !window.FloorPlan.isOnPlan(r.name));
+        offPlanCard.classList.toggle("d-none", others.length === 0);
+        offPlanList.innerHTML = others.map(room => {
+            const s = roomStatus(room, ref);
+            return `<span class="fp-chip"><span class="room-dot is-${s.state}"></span>${escapeHtml(room.name)}</span>`;
         }).join("");
     }
 
-    // Check if ?now=1 was passed or page opened with is_now
-    const urlParams = new URLSearchParams(window.location.search);
-    const isNowRequested = urlParams.get("now") === "1" || (roomsRoot && roomsRoot.dataset.isNow === "1");
-
-    if (isNowRequested) {
-        setNow();
+    // -------------------------------------------------------------------------
+    // Data
+    // -------------------------------------------------------------------------
+    async function load(date) {
+        try {
+            const res = await fetch(`/api/database/rooms-day?date=${encodeURIComponent(date)}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || `Erreur serveur (${res.status})`);
+            rooms = data.rooms || [];
+            loadedDate = date;
+            render();
+        } catch (err) {
+            planContainer.innerHTML = `<div class="small text-danger p-4">Impossible de charger les salles : ${escapeHtml(err.message)}</div>`;
+        }
     }
 
-    // Auto-search on page load
-    executeSearch();
+    dayBtn.addEventListener("click", () => {
+        if (typeof dayInput.showPicker === "function") {
+            try { dayInput.showPicker(); return; } catch (e) { /* fall through */ }
+        }
+        dayInput.focus();
+        dayInput.click();
+    });
+
+    dayInput.addEventListener("change", () => {
+        if (!dayInput.value) dayInput.value = todayStr();
+        load(dayInput.value);
+    });
+
+    // Recompute colors every minute; reload data every 5 minutes.
+    setInterval(() => {
+        if (loadedDate && dayInput.value === loadedDate) render();
+    }, 60 * 1000);
+    setInterval(() => load(dayInput.value), 5 * 60 * 1000);
+
+    dayInput.value = todayStr();
+    load(dayInput.value);
 });

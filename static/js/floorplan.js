@@ -80,26 +80,14 @@
         return node;
     }
 
-    /** Builds { "301": {status, data}, ... } from a free-rooms API response. */
-    function indexStatuses(data) {
-        const map = {};
-        (data.free_rooms || []).forEach(r => {
-            const n = roomNumber(r.room_name);
-            if (n) map[n] = { status: "free", room: r };
-        });
-        (data.occupied_rooms || []).forEach(r => {
-            const n = roomNumber(r.room_name);
-            if (n) map[n] = { status: "busy", room: r };
-        });
-        return map;
-    }
+    const STATE_LABELS = { free: "libre", soon: "prise dans moins d'une heure", busy: "occupée", unknown: "pas de données" };
 
     /**
      * Renders the plan into `container`.
-     * onSelect(roomDef, entry|null) fires when a room is clicked or activated by keyboard.
+     * states: { "301": { state: "free"|"soon"|"busy", name, note }, ... } — rooms
+     * missing from it are drawn as "no data". onSelect(roomId) fires on click/Enter.
      */
-    function render(container, data, { filter = "", selected = null, onSelect } = {}) {
-        const statuses = indexStatuses(data || {});
+    function render(container, { states = {}, selected = null, onSelect } = {}) {
         const svg = el("svg", {
             viewBox: "15 0 1595 950",
             class: "floorplan-svg",
@@ -110,40 +98,32 @@
         svg.appendChild(el("path", { d: OUTLINE, class: "fp-outline" }));
 
         ROOMS.forEach(def => {
-            const entry = statuses[def.id] || null;
-            let state = "unknown";
-            if (def.kind === "office") state = "office";
-            else if (entry) state = entry.status;
-
-            const name = entry ? entry.room.room_name : `Salle ${def.id}`;
-            const matches = !filter || name.toLowerCase().includes(filter) || (def.label || "").toLowerCase().includes(filter)
-                || (entry && entry.status === "busy" && ((entry.room.current_course || {}).title || "").toLowerCase().includes(filter));
+            const entry = states[def.id] || null;
+            const office = def.kind === "office";
+            const state = office ? "office" : (entry ? entry.state : "unknown");
 
             const g = el("g", {
-                class: `fp-room is-${state}${matches ? "" : " is-dimmed"}${selected === def.id ? " is-selected" : ""}`,
+                class: `fp-room is-${state}${selected === def.id ? " is-selected" : ""}`,
                 "data-room": def.id,
             });
-            if (state !== "office") {
+            if (!office) {
                 g.setAttribute("tabindex", "0");
                 g.setAttribute("role", "button");
-                const stateLabel = { free: "libre", busy: "occupée", unknown: "pas de données" }[state];
-                g.setAttribute("aria-label", `${name}, ${stateLabel}`);
+                g.setAttribute("aria-label", `${entry ? entry.name : "Salle " + def.id}, ${STATE_LABELS[state]}`);
             }
 
             g.appendChild(el("polygon", { points: def.pts }));
             const [cx, cy] = centroid(def.pts);
-            const small = def.kind === "office";
-            g.appendChild(el("text", { x: cx, y: cy - (def.label && !small ? 8 : 0), class: small ? "fp-num fp-num-sm" : "fp-num" }, def.id));
-            if (def.label && !small) {
+            g.appendChild(el("text", { x: cx, y: cy - (def.label && !office ? 8 : 0), class: office ? "fp-num fp-num-sm" : "fp-num" }, def.id));
+            if (def.label && !office) {
                 g.appendChild(el("text", { x: cx, y: cy + 16, class: "fp-sub" }, def.label));
             }
-            if (entry && entry.status === "busy" && !small) {
-                const until = (entry.room.current_course || {}).end;
-                if (until) g.appendChild(el("text", { x: cx, y: cy + (def.label ? 36 : 22), class: "fp-sub fp-until" }, `→ ${until}`));
+            if (entry && entry.note && !office) {
+                g.appendChild(el("text", { x: cx, y: cy + (def.label ? 36 : 22), class: `fp-sub fp-note is-${state}` }, entry.note));
             }
 
-            if (state !== "office" && onSelect) {
-                const activate = () => onSelect(def, entry);
+            if (!office && onSelect) {
+                const activate = () => onSelect(def.id);
                 g.addEventListener("click", activate);
                 g.addEventListener("keydown", e => {
                     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); activate(); }
@@ -155,13 +135,9 @@
         container.replaceChildren(svg);
     }
 
-    /** Rooms returned by the API that are not drawn on this floor's plan. */
-    function offPlanRooms(data) {
-        const out = [];
-        (data.free_rooms || []).forEach(r => { if (!PLAN_IDS.has(roomNumber(r.room_name))) out.push({ status: "free", room: r }); });
-        (data.occupied_rooms || []).forEach(r => { if (!PLAN_IDS.has(roomNumber(r.room_name))) out.push({ status: "busy", room: r }); });
-        return out;
+    function isOnPlan(roomName) {
+        return PLAN_IDS.has(roomNumber(roomName));
     }
 
-    window.FloorPlan = { render, offPlanRooms, roomNumber };
+    window.FloorPlan = { render, roomNumber, isOnPlan };
 })();

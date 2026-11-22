@@ -1080,6 +1080,8 @@ i.bi[class*="text-"] {
     --fp-free-stroke: #16a34a;
     --fp-busy: rgba(220, 38, 38, 0.13);
     --fp-busy-stroke: #dc2626;
+    --fp-soon: rgba(234, 179, 8, 0.22);
+    --fp-soon-stroke: #ca8a04;
     --fp-unknown: #d4d4d8;
 }
 
@@ -1088,6 +1090,8 @@ i.bi[class*="text-"] {
     --fp-free-stroke: #22c55e;
     --fp-busy: rgba(248, 113, 113, 0.18);
     --fp-busy-stroke: #f87171;
+    --fp-soon: rgba(250, 204, 21, 0.2);
+    --fp-soon-stroke: #facc15;
     --fp-unknown: #3f3f46;
 }
 
@@ -1129,10 +1133,13 @@ i.bi[class*="text-"] {
 .fp-num { font-size: 26px; font-weight: 700; }
 .fp-num-sm { font-size: 15px; font-weight: 600; fill: var(--text-3) !important; }
 .fp-sub { font-size: 14px; fill: var(--text-2) !important; }
-.fp-until { font-weight: 600; fill: var(--fp-busy-stroke) !important; }
+.fp-note { font-weight: 600; }
+.fp-note.is-busy { fill: var(--fp-busy-stroke) !important; }
+.fp-note.is-soon { fill: var(--fp-soon-stroke) !important; }
 
 .fp-room.is-free polygon { fill: var(--fp-free); stroke: var(--fp-free-stroke); }
 .fp-room.is-busy polygon { fill: var(--fp-busy); stroke: var(--fp-busy-stroke); }
+.fp-room.is-soon polygon { fill: var(--fp-soon); stroke: var(--fp-soon-stroke); }
 .fp-room.is-unknown polygon { fill: var(--fp-unknown); stroke: var(--border-strong); }
 .fp-room.is-unknown text { fill: var(--text-3) !important; }
 .fp-room.is-office polygon { fill: var(--fp-unknown); stroke: var(--border-strong); }
@@ -1155,6 +1162,7 @@ i.bi[class*="text-"] {
 }
 .fp-swatch.is-free { background: var(--fp-free); border-color: var(--fp-free-stroke); }
 .fp-swatch.is-busy { background: var(--fp-busy); border-color: var(--fp-busy-stroke); }
+.fp-swatch.is-soon { background: var(--fp-soon); border-color: var(--fp-soon-stroke); }
 .fp-swatch.is-unknown { background: var(--fp-unknown); border-color: var(--border-strong); }
 
 .fp-details { min-height: 120px; }
@@ -1173,6 +1181,7 @@ i.bi[class*="text-"] {
 }
 .fp-detail-status.is-free { color: var(--ok); }
 .fp-detail-status.is-busy { color: var(--danger); }
+.fp-detail-status.is-soon { color: var(--fp-soon-stroke); }
 
 .fp-detail-row {
     display: flex;
@@ -1184,6 +1193,7 @@ i.bi[class*="text-"] {
 .fp-detail-row .text-muted { font-size: 0.75rem; }
 
 .room-dot.is-busy { background-color: var(--danger); }
+.room-dot.is-soon { background-color: var(--fp-soon-stroke); }
 .room-dot.is-unknown { background-color: var(--text-3); }
 
 .fp-chip {
@@ -1228,3 +1238,24 @@ i.bi[class*="text-"] {
 a {
     text-underline-offset: 2px;
 }
+
+/* Day picker: the native date input sits under the button so showPicker() anchors there */
+.fp-day-picker { position: relative; }
+.fp-day-picker input[type="date"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.fp-course {
+    padding: 0.45rem 0 0.45rem 0.6rem;
+    border-left: 2px solid var(--border-strong);
+    margin-bottom: 0.35rem;
+    font-size: 0.8125rem;
+}
+.fp-course.is-now { border-left-color: var(--fp-busy-stroke); background: var(--fp-busy); }
+.fp-course.is-past { opacity: 0.5; }
+.fp-course-time { font-size: 0.75rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.fp-course-title { font-weight: 600; }
+.fp-course-meta { font-size: 0.75rem; color: var(--text-2); }

@@ -113,6 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/api/database/free-rooms",
             post(routes::api::db_free_rooms_handler),
         )
+        .route("/api/database/rooms-day", get(routes::api::db_rooms_day_handler))
         .route("/api/groups/tree", get(routes::api::groups_tree_handler))
         .route(
             "/api/groups/schedule",

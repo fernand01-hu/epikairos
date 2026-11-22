@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use chrono_tz::Europe::Paris;
 use regex::Regex;
 use serde::Deserialize;
@@ -625,6 +625,37 @@ pub async fn db_free_rooms_handler(
     let res = tokio::task::spawn_blocking(move || {
         let conn = pool.get().map_err(|e| e.to_string())?;
         query_free_rooms(&conn, &target_date, &start_time, &end_time).map_err(|e| e.to_string())
+    })
+    .await;
+
+    match res {
+        Ok(Ok(result)) => Json(result).into_response(),
+        _ => internal_error(),
+    }
+}
+
+// -----------------------------------------------------------------------------
+// GET /api/database/rooms-day?date=YYYY-MM-DD
+// -----------------------------------------------------------------------------
+#[derive(Deserialize)]
+pub struct RoomsDayQuery {
+    pub date: Option<String>,
+}
+
+pub async fn db_rooms_day_handler(
+    State(state): State<AppState>,
+    Query(query): Query<RoomsDayQuery>,
+) -> Response {
+    let today = Utc::now().with_timezone(&Paris).format("%Y-%m-%d").to_string();
+    let date = query
+        .date
+        .filter(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok())
+        .unwrap_or(today);
+
+    let pool = state.db_pool.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        query_rooms_day(&conn, &date).map_err(|e| e.to_string())
     })
     .await;
 
