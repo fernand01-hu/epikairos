@@ -108,6 +108,13 @@ pub async fn login_handler(
     Ok(Html(rendered))
 }
 
+/// Logging out needs a POST from the site's own button: the session cookie is
+/// SameSite=Lax, so other sites cannot send that POST with it, and a plain link
+/// or image pointing at /logout no longer logs anyone out.
+pub async fn logout_page_handler() -> Redirect {
+    Redirect::to("/personal")
+}
+
 pub async fn logout_handler(cookies: Cookies) -> Redirect {
     let mut cookie = Cookie::new("session", "");
     cookie.set_path("/");

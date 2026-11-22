@@ -91,12 +91,22 @@ async fn swapping_the_payload_breaks_the_signature() {
 #[tokio::test]
 async fn logout_clears_the_session_cookie() {
     let app = TestApp::new();
-    let res = app.get("/logout", Some("alice.martin")).await;
+    let res = app.request(axum::http::Method::POST, "/logout", Some("alice.martin"), None).await;
     assert_eq!(res.status, StatusCode::SEE_OTHER);
     assert_eq!(res.location(), "/login?logged_out=1");
     let cookie = res.header("set-cookie");
     assert!(cookie.starts_with("session=;"), "cookie should be emptied: {cookie}");
     assert!(cookie.contains("Max-Age=0") || cookie.to_lowercase().contains("expires="));
+}
+
+#[tokio::test]
+async fn a_plain_link_to_logout_does_not_log_out() {
+    // <img src="https://epikairos.org/logout"> on another site sends a GET
+    let app = TestApp::new();
+    let res = app.get("/logout", Some("alice.martin")).await;
+    assert!(res.status.is_redirection());
+    assert_eq!(res.location(), "/personal");
+    assert!(res.header("set-cookie").is_empty(), "session untouched");
 }
 
 #[tokio::test]
@@ -145,6 +155,8 @@ async fn security_headers_are_set_on_every_response() {
         let csp = res.header("content-security-policy");
         assert!(csp.contains("default-src 'self'"));
         assert!(csp.contains("frame-ancestors 'self'"));
+        let scripts = csp.split(';').find(|d| d.trim().starts_with("script-src")).unwrap();
+        assert!(!scripts.contains("unsafe-inline"), "inline scripts are blocked: {scripts}");
     }
 }
 
@@ -197,4 +209,27 @@ async fn crawlers_are_kept_out_of_the_whole_site() {
     for res in [app.get("/login", None).await, app.get("/personal", Some("alice.martin")).await, app.get("/health", None).await] {
         assert_eq!(res.header("x-robots-tag"), "noindex, nofollow, noarchive");
     }
+}
+
+#[tokio::test]
+async fn pages_have_no_inline_scripts_or_handlers() {
+    // Required by the CSP without 'unsafe-inline' for scripts
+    let app = TestApp::new();
+    for (page, user) in [("/login", None), ("/offline", None), ("/personal", Some("alice.martin")), ("/planning", Some("alice.martin")), ("/rooms", Some("alice.martin")), ("/admin", Some(ADMIN))] {
+        let body = app.get(page, user).await.body;
+        for chunk in body.split("<script").skip(1) {
+            let tag_end = chunk.find('>').unwrap();
+            assert!(chunk[..tag_end].contains("src="), "{page} has an inline <script>");
+        }
+        for handler in [" onclick=", " onload=", " onsubmit=", " onchange=", "javascript:"] {
+            assert!(!body.contains(handler), "{page} uses {handler}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn https_mode_sends_hsts_only_when_enabled() {
+    // The test environment runs without SESSION_COOKIE_SECURE
+    let app = TestApp::new();
+    assert!(app.get("/login", None).await.header("strict-transport-security").is_empty());
 }

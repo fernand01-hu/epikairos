@@ -6,25 +6,7 @@
     <title>{% block title %}EpiKairos — Emploi du Temps EPITA{% endblock %}</title>
 
     <!-- Early Theme Detection (Zero-Flicker) -->
-    <script>
-        (function() {
-            try {
-                // 'light' or 'dark' is a fixed choice; anything else follows the device.
-                const savedTheme = localStorage.getItem('theme');
-                const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const theme = (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : (systemDark ? 'dark' : 'light');
-                document.documentElement.setAttribute('data-bs-theme', theme);
-            } catch (e) {}
-            // Older versions stored the Auriga password here: keep only the login name.
-            try {
-                const creds = JSON.parse(localStorage.getItem('zeus_credentials') || 'null');
-                if (creds && (creds.password || creds.access_token)) {
-                    localStorage.setItem('zeus_credentials', JSON.stringify({ username: creds.username || '' }));
-                }
-                localStorage.removeItem('zeus_consent');
-            } catch (e) {}
-        })();
-    </script>
+    <script src="/static/js/theme-early.js?v=20261122p"></script>
 
     <!-- PWA & Mobile Capabilities -->
     <link rel="manifest" href="/manifest.json">
@@ -81,7 +63,11 @@
                             <li><a class="dropdown-item" href="/personal">Mon planning</a></li>
                             <li><a class="dropdown-item" href="/login">Recharger les cours</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="/logout">Se déconnecter</a></li>
+                            <li>
+                                <form method="post" action="/logout" class="m-0">
+                                    <button type="submit" class="dropdown-item text-danger">Se déconnecter</button>
+                                </form>
+                            </li>
                         </ul>
                     </div>
                     {% else %}
@@ -109,84 +95,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- PWA & Theme Scripts -->
-    <script>
-        // Progressive Web App Service Worker Registration
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js', { scope: '/' })
-                    .catch(err => console.debug('[PWA] SW register error:', err));
-            });
-        }
-
-        // Theme: Auto (follows the device) -> Light -> Dark -> Auto
-        (function() {
-            const toggleBtn = document.getElementById('themeToggleBtn');
-            const icon = document.getElementById('themeIcon');
-            const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-            const MODES = {
-                auto: { icon: 'bi bi-circle-half', label: 'Thème : automatique' },
-                light: { icon: 'bi bi-sun', label: 'Thème : clair' },
-                dark: { icon: 'bi bi-moon', label: 'Thème : sombre' },
-            };
-            const NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
-
-            function readMode() {
-                try {
-                    const saved = localStorage.getItem('theme');
-                    return saved === 'light' || saved === 'dark' ? saved : 'auto';
-                } catch (e) {
-                    return 'auto';
-                }
-            }
-
-            function apply(mode) {
-                const theme = mode === 'auto' ? (media && media.matches ? 'dark' : 'light') : mode;
-                document.documentElement.setAttribute('data-bs-theme', theme);
-                if (icon) icon.className = MODES[mode].icon;
-                if (toggleBtn) {
-                    toggleBtn.title = MODES[mode].label;
-                    toggleBtn.setAttribute('aria-label', MODES[mode].label);
-                }
-                window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: theme, mode: mode } }));
-            }
-
-            let mode = readMode();
-            apply(mode);
-
-            if (toggleBtn) {
-                toggleBtn.addEventListener('click', () => {
-                    mode = NEXT[mode];
-                    try {
-                        if (mode === 'auto') localStorage.removeItem('theme');
-                        else localStorage.setItem('theme', mode);
-                    } catch (e) {}
-                    apply(mode);
-                });
-            }
-
-            // In auto mode, follow the device live (e.g. iPhone switching to dark at sunset)
-            if (media) {
-                const onChange = () => { if (mode === 'auto') apply('auto'); };
-                if (media.addEventListener) media.addEventListener('change', onChange);
-                else if (media.addListener) media.addListener(onChange);
-            }
-        })();
-
-        // Show / hide password fields
-        document.addEventListener('click', (e) => {
-            const btn = e.target.closest('.password-toggle');
-            if (!btn) return;
-            const input = document.getElementById(btn.dataset.target);
-            if (!input) return;
-            const show = input.type === 'password';
-            input.type = show ? 'text' : 'password';
-            const label = show ? 'Masquer le mot de passe' : 'Afficher le mot de passe';
-            btn.setAttribute('aria-pressed', String(show));
-            btn.setAttribute('aria-label', label);
-            btn.title = label;
-            btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
-        });
-    </script>
+    <script src="/static/js/site.js?v=20261122p"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

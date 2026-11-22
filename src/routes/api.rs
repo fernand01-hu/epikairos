@@ -76,36 +76,35 @@ pub fn truncate_string(s: &mut String, max_bytes: usize) {
     s.truncate(boundary);
 }
 
-/// Extracts client IP for rate limiting with trusted proxy support and IP validation.
+/// Client IP for rate limiting. Forwarded headers are only believed when
+/// `trusted_proxy` is on AND the connection itself comes from this machine
+/// (the Cloudflare tunnel connects through localhost); anyone else reaching the
+/// port directly cannot pick their own IP.
 pub fn extract_client_ip(
     headers: &HeaderMap,
     connect_info: Option<&axum::extract::ConnectInfo<std::net::SocketAddr>>,
     trusted_proxy: bool,
 ) -> String {
-    if trusted_proxy {
-        let xff_ip = headers
-            .get("x-forwarded-for")
+    let peer = connect_info.map(|ci| ci.0.ip());
+    let from_local_proxy = peer.map(|ip| ip.is_loopback()).unwrap_or(true);
+    let header_ip = |name: &str, last: bool| {
+        headers
+            .get(name)
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.rsplit(',').next().map(|s| s.trim()))
-            .filter(|s| s.parse::<std::net::IpAddr>().is_ok())
-            .map(|s| s.to_string());
-
-        let x_real_ip = headers
-            .get("x-real-ip")
-            .and_then(|v| v.to_str().ok())
+            .and_then(|s| if last { s.rsplit(',').next() } else { Some(s) })
             .map(|s| s.trim())
             .filter(|s| s.parse::<std::net::IpAddr>().is_ok())
-            .map(|s| s.to_string());
-
-        xff_ip
-            .or(x_real_ip)
-            .or_else(|| connect_info.map(|ci| ci.0.ip().to_string()))
-            .unwrap_or_else(|| "127.0.0.1".to_string())
-    } else {
-        connect_info
-            .map(|ci| ci.0.ip().to_string())
-            .unwrap_or_else(|| "127.0.0.1".to_string())
+            .map(|s| s.to_string())
+    };
+    if trusted_proxy && from_local_proxy {
+        if let Some(ip) = header_ip("cf-connecting-ip", false)
+            .or_else(|| header_ip("x-forwarded-for", true))
+            .or_else(|| header_ip("x-real-ip", false))
+        {
+            return ip;
+        }
     }
+    peer.map(|ip| ip.to_string()).unwrap_or_else(|| "127.0.0.1".to_string())
 }
 
 /// "https" when the request reached a TLS proxy in front of the app (Cloudflare
@@ -1232,6 +1231,15 @@ mod tests {
         // When trusted_proxy is false, ignore forwarded headers
         let ip3 = extract_client_ip(&headers, None, false);
         assert_eq!(ip3, "127.0.0.1");
+
+        // Cloudflare's header wins when the tunnel connects from localhost
+        headers.insert("cf-connecting-ip", "192.0.2.7".parse().unwrap());
+        let local = axum::extract::ConnectInfo("127.0.0.1:40000".parse::<std::net::SocketAddr>().unwrap());
+        assert_eq!(extract_client_ip(&headers, Some(&local), true), "192.0.2.7");
+
+        // A direct connection from elsewhere cannot choose its IP with headers
+        let lan = axum::extract::ConnectInfo("192.168.1.50:51234".parse::<std::net::SocketAddr>().unwrap());
+        assert_eq!(extract_client_ip(&headers, Some(&lan), true), "192.168.1.50");
     }
 
     #[test]

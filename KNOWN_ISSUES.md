@@ -2,53 +2,37 @@
 
 Points restants, classés du plus important au moins important. Mis à jour le 22 novembre 2026.
 
+Réglés récemment : passage en HTTPS et fermeture du port 5000, en-tête HSTS, adresse IP des visiteurs impossible à falsifier, déconnexion par formulaire (un lien vers `/logout` ne déconnecte plus), politique CSP sans scripts inline, scan automatique des dépendances (`.github/workflows/ci.yml`), nom de compte admin vérifié.
+
 ## Sécurité
 
-### 1. Le port 5000 est encore ouvert en HTTP
-
-Le site passe par `https://epikairos.org` (tunnel Cloudflare), mais l'ancienne adresse `http://176.174.155.8:5000` répond toujours, sans chiffrement, pour les anciens liens d'abonnement. Sur ce port, quelqu'un peut aussi contourner la limite de tentatives de connexion en falsifiant son adresse IP.
-
-**À faire :** quand plus personne n'utilise les anciens liens, ajouter `HOST=127.0.0.1` au service et fermer le port 5000 sur la box. Ensuite, ajouter l'en-tête `Strict-Transport-Security`.
-
-### 2. Une session volée reste valable 30 jours
+### 1. Une session volée reste valable 30 jours
 
 La déconnexion supprime seulement le cookie dans le navigateur ; le serveur ne garde pas de liste des sessions.
 
 **À faire :** stocker un identifiant de session côté serveur (table `sessions`) pour pouvoir révoquer, et raccourcir la durée.
 
-### 3. La politique CSP autorise les scripts inline
-
-`script-src 'unsafe-inline'` est nécessaire parce que `base.html` et `login.html` contiennent des scripts inline.
-
-**À faire :** déplacer ces scripts dans `static/js/` puis retirer `'unsafe-inline'`.
-
-### 4. Les dépendances n'ont pas été scannées automatiquement
-
-**À faire :** `cargo install cargo-audit && cargo audit`, idéalement dans une GitHub Action.
-
-### 5. Des anciens liens gardent un mot de passe chiffré
+### 2. Des anciens liens gardent un mot de passe chiffré
 
 Les liens créés avant l'arrêt de l'enregistrement des mots de passe gardent le leur, chiffré avec `.server_secret`. Celui qui contrôle le serveur peut le déchiffrer.
 
 **À faire :** supprimer les anciens liens inutilisés depuis le panneau des liens d'abonnement.
 
-### 6. La déconnexion passe par un lien GET
+### 3. L'application écoute encore sur toutes les interfaces
 
-N'importe quel site peut déconnecter un utilisateur avec une simple image pointant vers `/logout`. Gênant, pas dangereux.
+Le port 5000 est fermé sur la box, mais l'application répond encore en HTTP aux appareils du réseau local. Ils ne peuvent plus fausser leur adresse IP (seul le tunnel, qui se connecte en local, est cru), mais leurs échanges ne sont pas chiffrés.
+
+**À faire :** ajouter `Environment=HOST=127.0.0.1` dans `/etc/systemd/system/epikairos.service.d/https.conf`, puis `sudo systemctl daemon-reload && sudo systemctl restart epikairos`.
 
 ## Données
 
-### 7. Le compte admin dépend du nom renvoyé par Auriga
-
-La session prend le nom `preferred_username` du jeton Keycloak, pas le nom saisi. Si ce n'est pas `fernand.huttois`, le lien Admin disparaît ; adapter alors `ADMIN_USERS`.
-
-### 8. Les cours ne sont jamais supprimés
+### 4. Les cours ne sont jamais supprimés
 
 Un cours retiré d'Auriga reste dans `school.db`, et donc dans les liens mis à jour par les camarades. Les cours annulés sont gardés avec `is_cancelled = 1` et masqués.
 
 **À faire :** nettoyer les cours qu'aucune connexion récente n'a confirmés.
 
-### 9. Restes d'anciennes fonctionnalités dans `school.db`
+### 5. Restes d'anciennes fonctionnalités dans `school.db`
 
 - Table `recurring_courses` et colonnes `courses.recurring_id` / `courses.pattern_key` : plus lues ni écrites.
 - Colonnes `rooms.building` et `rooms.floor` : jamais remplies.

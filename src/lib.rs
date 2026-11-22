@@ -62,7 +62,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/old-zeus", get(routes::web::old_zeus_handler))
         .route("/zeus", get(routes::web::old_zeus_handler))
         .route("/login", get(routes::web::login_handler))
-        .route("/logout", get(routes::web::logout_handler))
+        .route(
+            "/logout",
+            get(routes::web::logout_page_handler).post(routes::web::logout_handler),
+        )
         .route("/personal", get(routes::web::personal_handler))
         .route("/my-calendar", get(routes::web::personal_handler))
         .route("/custom-calendar", get(routes::web::custom_calendar_handler))
