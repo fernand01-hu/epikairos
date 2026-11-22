@@ -17,6 +17,7 @@
 const TIMEOUT_MS = 15000;
 const DOWN_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530]);
 const CONTACT_EMAIL = "fernand.huttois@gmail.com";
+const CONTACT_DISCORD = "fernandhu_92257";
 const STATUS_CACHE_SECONDS = 60;   // UptimeRobot free API: 10 requests a minute
 
 export default {
@@ -165,8 +166,8 @@ function page(status) {
   <p class="muted">The site is temporarily down and will be back as soon as possible. Your subscription links are safe: your calendar keeps the courses it already has.</p>
   ${statusBlock(status)}
   <div class="contact">
-    <p>Un problème ou une question ? Contactez-moi sur Discord, ou par e-mail : <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
-    <p class="muted">Questions? Reach me on Discord or by email at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+    <p>Un problème ou une question ? Contactez-moi sur Discord (<strong>${CONTACT_DISCORD}</strong>), ou par e-mail : <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+    <p class="muted">Questions? Reach me on Discord (<strong>${CONTACT_DISCORD}</strong>) or by email at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
   </div>
   <p class="muted small">Cette page se recharge toute seule chaque minute.</p>
 </main>
