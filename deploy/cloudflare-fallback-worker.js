@@ -46,11 +46,20 @@ async function unavailable(request, env, ctx) {
     if (env.FALLBACK_URL) {
         return Response.redirect(env.FALLBACK_URL, 302);
     }
+
+    // Language: ?lang= (the FR/EN button), else the site's own "lang" cookie, else the browser
+    const asked = url.searchParams.get("lang");
+    const cookieLang = (request.headers.get("Cookie") || "").match(/(?:^|;\s*)lang=(fr|en)\b/);
+    const browserEn = /^en\b/i.test(request.headers.get("Accept-Language") || "");
+    const lang = asked === "en" || asked === "fr" ? asked : cookieLang ? cookieLang[1] : browserEn ? "en" : "fr";
+    const out = new Headers({ ...headers, "Content-Type": "text/html; charset=utf-8" });
+    if (asked === "en" || asked === "fr") {
+        // Same cookie as the site's button, so the choice carries over when the site is back
+        out.append("Set-Cookie", `lang=${asked}; Path=/; Max-Age=31536000; SameSite=Lax; Secure`);
+    }
+
     const status = env.UPTIMEROBOT_KEY ? await monitorStatus(env.UPTIMEROBOT_KEY, ctx) : null;
-    return new Response(page(status), {
-        status: 503,
-        headers: { ...headers, "Content-Type": "text/html; charset=utf-8" },
-    });
+    return new Response(page(status, lang, url.pathname), { status: 503, headers: out });
 }
 
 /**
@@ -103,6 +112,35 @@ async function monitorStatus(key, ctx) {
     }
 }
 
+const TEXT = {
+    fr: {
+        locale: "fr-FR",
+        title: "EpiKairos — temporairement hors ligne",
+        badge: "Temporairement hors ligne",
+        intro: "Le site revient dès que possible. Vos liens d'abonnement continuent de fonctionner : votre agenda garde les cours déjà reçus.",
+        downSince: "Hors ligne depuis",
+        uptime7: "Disponibilité sur 7 jours",
+        uptime30: "Disponibilité sur 30 jours",
+        contact: "Une question ?",
+        email: "E-mail",
+        footer: "Page mise à jour chaque minute · données UptimeRobot",
+        switchTo: "en", switchLabel: "EN", switchTitle: "Passer en anglais",
+    },
+    en: {
+        locale: "en-GB",
+        title: "EpiKairos — temporarily down",
+        badge: "Temporarily down",
+        intro: "The site will be back as soon as possible. Your subscription links keep working: your calendar keeps the courses it already has.",
+        downSince: "Down since",
+        uptime7: "Uptime over 7 days",
+        uptime30: "Uptime over 30 days",
+        contact: "Questions?",
+        email: "Email",
+        footer: "Page refreshed every minute · data from UptimeRobot",
+        switchTo: "fr", switchLabel: "FR", switchTitle: "Switch to French",
+    },
+};
+
 function parisTime(unixSeconds, locale) {
     return new Intl.DateTimeFormat(locale, {
         timeZone: "Europe/Paris",
@@ -115,61 +153,71 @@ function percent(value) {
     return Number.isFinite(n) ? `${n.toFixed(2)} %` : null;
 }
 
-function statusBlock(status) {
+function statusBlock(status, t) {
     if (!status) return "";
     const rows = [];
-    if (status.downSince) {
-        rows.push(`<li><span>Hors ligne depuis <em>· Down since</em></span><strong>${parisTime(status.downSince, "fr-FR")}</strong></li>`);
-    }
+    if (status.downSince) rows.push([t.downSince, parisTime(status.downSince, t.locale)]);
     const u7 = percent(status.uptime7), u30 = percent(status.uptime30);
-    if (u7) rows.push(`<li><span>Disponibilité 7 jours <em>· 7-day uptime</em></span><strong>${u7}</strong></li>`);
-    if (u30) rows.push(`<li><span>Disponibilité 30 jours <em>· 30-day uptime</em></span><strong>${u30}</strong></li>`);
+    if (u7) rows.push([t.uptime7, u7]);
+    if (u30) rows.push([t.uptime30, u30]);
     if (!rows.length) return "";
-    return `<ul class="status">${rows.join("")}</ul><p class="muted small">Source : UptimeRobot, vérifié toutes les 5 minutes.</p>`;
+    return `<ul class="status">${rows.map(([k, v]) => `<li><span>${k}</span><strong>${v}</strong></li>`).join("")}</ul>`;
 }
 
-function page(status) {
+function page(status, lang, path) {
+    const t = TEXT[lang] || TEXT.fr;
+    const here = encodeURI(path || "/");
     return `<!doctype html>
-<html lang="fr">
+<html lang="${lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="60;url=${here}">
 <meta name="robots" content="noindex">
-<title>EpiKairos — temporairement hors ligne</title>
+<title>${t.title}</title>
 <style>
-  :root { color-scheme: light dark; --bg: #fafafa; --fg: #18181b; --muted: #71717a; --line: #e4e4e7; --surface: #fff; --warn: #b45309; --link: #18181b; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #0c0c0e; --fg: #f4f4f5; --muted: #a1a1aa; --line: #27272a; --surface: #131316; --warn: #fbbf24; --link: #f4f4f5; } }
+  :root { color-scheme: light dark; --bg: #fafafa; --fg: #18181b; --muted: #71717a; --line: #e4e4e7; --surface: #fff; --warn: #b45309; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0c0c0e; --fg: #f4f4f5; --muted: #a1a1aa; --line: #27272a; --surface: #131316; --warn: #fbbf24; } }
   body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg);
          font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 32rem; padding: 2rem 1rem; }
-  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  main { width: 100%; max-width: 32rem; padding: 2rem 1rem; box-sizing: border-box; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+  h1 { font-size: 1.5rem; margin: 0; }
+  .lang { color: var(--fg); border: 1px solid var(--line); padding: .2rem .55rem; font-size: .75rem; font-weight: 700;
+          letter-spacing: .04em; text-decoration: none; }
+  .lang:hover { border-color: var(--muted); }
   .badge { display: inline-block; color: var(--warn); border: 1px solid currentColor; padding: .15rem .6rem; font-size: .85rem; font-weight: 600; margin-bottom: 1rem; }
   p { margin: 0 0 .75rem; }
-  a { color: var(--link); text-underline-offset: 2px; }
+  a { color: inherit; text-underline-offset: 2px; }
   .muted { color: var(--muted); }
   .small { font-size: .8rem; }
-  em { font-style: normal; color: var(--muted); }
-  .status { list-style: none; padding: 0; margin: 1.25rem 0 .4rem; border: 1px solid var(--line); background: var(--surface); }
+  .status { list-style: none; padding: 0; margin: 1.25rem 0; border: 1px solid var(--line); background: var(--surface); }
   .status li { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem .8rem; font-size: .9rem; }
   .status li + li { border-top: 1px solid var(--line); }
   .status strong { font-variant-numeric: tabular-nums; text-align: right; }
   .contact { border-top: 1px solid var(--line); margin-top: 1.25rem; padding-top: 1rem; }
+  .contact dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: .5rem 0 0; }
+  .contact dt { color: var(--muted); }
+  .contact dd { margin: 0; font-weight: 600; word-break: break-all; }
 </style>
 </head>
 <body>
 <main>
-  <h1>EpiKairos</h1>
-  <span class="badge">Temporairement hors ligne · Temporarily down</span>
-  <p>Le site est temporairement hors ligne. Il revient dès que possible.</p>
-  <p class="muted">Vos liens d'abonnement ne sont pas perdus : votre agenda garde les cours déjà reçus et se remettra à jour tout seul.</p>
-  <p class="muted">The site is temporarily down and will be back as soon as possible. Your subscription links are safe: your calendar keeps the courses it already has.</p>
-  ${statusBlock(status)}
+  <header>
+    <h1>EpiKairos</h1>
+    <a class="lang" href="?lang=${t.switchTo}" title="${t.switchTitle}" aria-label="${t.switchTitle}">${t.switchLabel}</a>
+  </header>
+  <span class="badge">${t.badge}</span>
+  <p>${t.intro}</p>
+  ${statusBlock(status, t)}
   <div class="contact">
-    <p>Un problème ou une question ? Contactez-moi sur Discord (<strong>${CONTACT_DISCORD}</strong>), ou par e-mail : <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
-    <p class="muted">Questions? Reach me on Discord (<strong>${CONTACT_DISCORD}</strong>) or by email at <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>.</p>
+    <p>${t.contact}</p>
+    <dl>
+      <dt>Discord</dt><dd>${CONTACT_DISCORD}</dd>
+      <dt>${t.email}</dt><dd><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></dd>
+    </dl>
   </div>
-  <p class="muted small">Cette page se recharge toute seule chaque minute.</p>
+  <p class="muted small" style="margin-top:1.25rem">${t.footer}</p>
 </main>
 </body>
 </html>`;
