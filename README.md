@@ -1,74 +1,56 @@
 # EpiKairos
 
-Application web auto-hébergeable pour les étudiants d'EPITA : connexion à **Auriga**, emploi du temps de la semaine, planning des groupes, salles libres sur le plan de l'étage, et export vers **Google Calendar**, **Apple Calendar** ou **Outlook**.
-
-Backend en Rust (Axum, MiniJinja, SQLite).
+Site web pour consulter son emploi du temps EPITA à partir d'Auriga, voir les salles libres et s'abonner à son planning depuis Google Calendar.
 
 ## Pages
 
-| Page | Adresse | Rôle |
-|---|---|---|
-| Mon planning | `/personal` | Vos cours en grille horaire, filtre par matière, export `.ics` et lien d'abonnement |
-| Planning | `/planning` | Emploi du temps de n'importe quel groupe EPITA |
-| Salles libres | `/rooms` | Plan du 3e étage : libre (vert), cours dans moins d'1 h (jaune), occupée (rouge) |
-| Admin | `/admin` | Réservé aux comptes de `ADMIN_USERS` (404 pour les autres) |
+- Mon planning : vos cours de la semaine, filtrables par matière, avec export `.ics` ou lien d'abonnement.
+- Planning : l'emploi du temps d'un groupe ou d'un professeur.
+- Salles libres : le plan du 3e étage avec l'état de chaque salle.
+- Admin : gestion des modérateurs, visible seulement par les comptes de `ADMIN_USERS`.
 
-## Démarrage
+À chaque connexion, les cours récupérés depuis Auriga sont ajoutés à une base commune. C'est elle qui alimente Planning et Salles libres.
 
-```bash
-cargo run --release            # http://localhost:5000
-PORT=8080 cargo run --release  # autre port
+## Lancer le serveur
+
+Il faut Rust (stable).
+
+```
+cargo run --release
 ```
 
-### Docker
+Le site écoute sur `http://localhost:5000`. Les options (port, chemins des bases, admins) sont décrites dans `.env.example`.
 
-```bash
+Avec Docker :
+
+```
 docker compose up -d
 ```
 
-Les bases SQLite et les clés (`.flask_secret` pour les sessions, `.server_secret` pour chiffrer les mots de passe des abonnements) sont dans `./data` et survivent aux reconstructions.
+Avec systemd, compiler avec `cargo build --release`, adapter les chemins dans `epikairos.service`, puis :
 
-### Service systemd
-
-```bash
-cargo build --release
-sudo cp epikairos.service /etc/systemd/system/   # adapter WorkingDirectory
-sudo systemctl daemon-reload
+```
+sudo cp epikairos.service /etc/systemd/system/
 sudo systemctl enable --now epikairos
 ```
 
-Toutes les variables d'environnement sont documentées dans `.env.example`.
+## Données
 
-## Abonnement Google Calendar
+Deux bases SQLite :
 
-1. Sur **Mon planning**, cliquez sur **Lien d'abonnement** et copiez l'URL.
-2. Dans Google Calendar : **Autres agendas** → **+** → **À partir de l'URL**, collez l'URL.
+- `school.db` : la base commune (cours, salles, professeurs, groupes, comptes).
+- `feeds.db` : les liens d'abonnement, avec le mot de passe Auriga chiffré quand il est fourni.
 
-Le serveur rafraîchit le flux depuis Auriga au plus toutes les 12 h (`FEED_CACHE_DURATION`). Google le relit à son propre rythme (souvent 12 à 24 h).
-
-## Sécurité
-
-- Connexion via le Keycloak d'Auriga (PKCE). La session (cookie signé HMAC, `HttpOnly`, `SameSite=Lax`, 30 jours) porte le nom renvoyé par Keycloak, pas celui saisi.
-- Le mot de passe Auriga n'est jamais gardé dans le navigateur. Pour un lien d'abonnement auto-actualisé, il est stocké chiffré (Fernet) côté serveur.
-- 10 tentatives de connexion par minute et par IP. Corps de requête limité à 2 Mo.
-- Seules les données renvoyées par Auriga alimentent la base commune.
-- Derrière un reverse proxy HTTPS : `TRUSTED_PROXY=true` et `SESSION_COOKIE_SECURE=true`.
-
-## Administration
-
-- `ADMIN_USERS` (par défaut `fernand.huttois`) liste les administrateurs.
-- Depuis `/admin`, l'administrateur nomme des modérateurs.
-- Les calendriers de clubs (API `/api/community/*`) sont désactivés dans l'interface pour l'instant (`EVENTS_ENABLED` dans `static/js/zeus_classic.js`).
+Deux fichiers de clés sont créés au premier lancement : `.flask_secret` pour les sessions et `.server_secret` pour le chiffrement des mots de passe. Il faut les garder : sans `.server_secret`, les liens d'abonnement existants ne se mettent plus à jour.
 
 ## Tests
 
-```bash
+```
 cargo test
 ```
 
-- `tests/` : tests d'intégration qui lancent l'application complète en mémoire (pages, authentification, API, abonnements, salles, administration, sécurité).
-- `src/` : tests unitaires des fonctions internes.
+Les tests dans `tests/` démarrent l'application complète avec des bases temporaires.
 
 ## Problèmes connus
 
-Voir [KNOWN_ISSUES.md](KNOWN_ISSUES.md) : sécurité restante (HTTPS en priorité), données et déploiement.
+Voir `KNOWN_ISSUES.md`. Le plus important : le site tourne encore en HTTP.
