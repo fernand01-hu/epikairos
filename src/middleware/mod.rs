@@ -97,6 +97,8 @@ pub async fn auth_middleware(
         || path == "/api/database/free-rooms"
         || path == "/manifest.json"
         || path == "/robots.txt"
+        || path == "/confidentialite"
+        || path == "/privacy"
         || path == "/sw.js"
         || path == "/offline"
         || path == "/health";

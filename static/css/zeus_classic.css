@@ -519,3 +519,39 @@
     font-variant-numeric: tabular-nums;
     margin-left: 6px;
 }
+
+/* ==========================================================================
+   Phones: the menu becomes a full-screen panel over the calendar, the top bar
+   takes two rows, and the page shows one day at a time (zeus_classic.js).
+   ========================================================================== */
+@media (max-width: 767.98px) {
+    .zeus-app-body {
+        height: calc(100dvh - 110px);
+        min-height: 480px;
+    }
+    .zeus-sidebar {
+        position: absolute;
+        inset: 0;
+        z-index: 40;
+        width: 100%;
+        min-width: 0;
+        border-right: 0;
+    }
+    .zeus-timetable-topbar {
+        padding: 8px 10px;
+        gap: 8px;
+    }
+    .topbar-title {
+        order: -1;
+        flex-basis: 100%;
+        text-align: left;
+        font-size: 0.95rem;
+    }
+    .topbar-nav,
+    .topbar-views {
+        gap: 4px;
+    }
+    .topbar-views #topbarDatePicker {
+        max-width: 9.5rem;
+    }
+}

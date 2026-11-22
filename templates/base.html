@@ -77,6 +77,7 @@
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="/personal">{{ _('Mon planning') }}</a></li>
                             <li><a class="dropdown-item" href="/login">{{ _('Recharger les cours') }}</a></li>
+                            <li><a class="dropdown-item" href="/confidentialite">{{ _('Confidentialité et données') }}</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="post" action="/logout" class="m-0">
@@ -101,7 +102,7 @@
     <!-- Footer -->
     <footer class="app-footer py-3 mt-auto">
         <div class="container d-flex justify-content-between flex-wrap gap-2">
-            <span>EpiKairos</span>
+            <span>EpiKairos · <a href="/confidentialite">{{ _("Confidentialité") }}</a></span>
             <a href="mailto:fernand.huttois@epita.fr">fernand.huttois@epita.fr</a>
         </div>
     </footer>

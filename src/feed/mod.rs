@@ -266,6 +266,15 @@ pub fn list_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite::
     Ok(rows)
 }
 
+/// Deletes every link of the account (both "login" and "login@epita.fr" forms).
+pub fn delete_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite::Result<usize> {
+    let key = login_key(username);
+    if key.is_empty() {
+        return Ok(0);
+    }
+    conn.execute(&format!("DELETE FROM feeds WHERE {OWNER_MATCH}"), params![key])
+}
+
 /// True when the link belongs to that account.
 pub fn feed_owned_by(conn: &rusqlite::Connection, feed_id: &str, username: &str) -> rusqlite::Result<bool> {
     let key = login_key(username);

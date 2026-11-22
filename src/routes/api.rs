@@ -207,6 +207,26 @@ fn session_username(state: &AppState, cookies: &Cookies) -> Option<String> {
         .filter(|u| !u.trim().is_empty())
 }
 
+// POST /api/account/delete — forgets the logged-in account: its login entry and
+// all its subscription links, then logs out. Shared courses are not tied to anyone.
+pub async fn delete_account_handler(State(state): State<AppState>, cookies: Cookies) -> Response {
+    let Some(user) = session_username(&state, &cookies) else {
+        return json_status(StatusCode::UNAUTHORIZED, "Authentification requise.");
+    };
+    let (Ok(school), Ok(feeds)) = (state.db_pool.get(), state.feed_pool.get()) else {
+        return internal_error();
+    };
+    let links = match crate::feed::delete_feeds_for(&feeds, &user) {
+        Ok(n) => n,
+        Err(_) => return internal_error(),
+    };
+    if crate::accounts::delete_user(&school, &user).is_err() {
+        return internal_error();
+    }
+    crate::routes::web::clear_session_cookie(&cookies);
+    Json(serde_json::json!({ "success": true, "deleted_links": links })).into_response()
+}
+
 fn json_status(status: StatusCode, message: &str) -> Response {
     (status, Json(serde_json::json!({ "success": false, "error": message }))).into_response()
 }

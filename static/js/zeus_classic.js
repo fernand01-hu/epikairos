@@ -721,9 +721,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 btnToggleSidebar.classList.add("btn-outline-secondary");
             }
         }
-        try {
-            localStorage.setItem("zeus_sidebar_collapsed", collapsed ? "1" : "0");
-        } catch (e) {}
+        if (window.matchMedia("(min-width: 768px)").matches) {
+            try {
+                localStorage.setItem("zeus_sidebar_collapsed", collapsed ? "1" : "0");
+            } catch (e) {}
+        }
     }
 
     if (btnToggleSidebar) {
@@ -739,11 +741,32 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    try {
-        if (localStorage.getItem("zeus_sidebar_collapsed") === "1") {
-            setSidebarCollapsed(true);
+    // Phones: "Voir le planning" closes the full-screen menu
+    document.getElementById("btnShowTimetable")?.addEventListener("click", () => setSidebarCollapsed(true));
+
+    // Phones: one day at a time, and the menu (a full-screen panel there) starts closed
+    const isPhone = window.matchMedia("(max-width: 767.98px)").matches;
+    if (isPhone) {
+        currentViewMode = "day";
+        // A weekend day is empty: open on the coming Monday instead
+        const dow = currentCalendarDate.getDay();
+        if (dow === 0 || dow === 6) {
+            currentCalendarDate.setDate(currentCalendarDate.getDate() + (dow === 0 ? 1 : 2));
+            if (topbarDatePicker) {
+                const d = currentCalendarDate;
+                topbarDatePicker.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            }
         }
-    } catch (e) {}
+        btnViewDay.classList.add("active");
+        btnViewWeek.classList.remove("active");
+        setSidebarCollapsed(true);
+    } else {
+        try {
+            if (localStorage.getItem("zeus_sidebar_collapsed") === "1") {
+                setSidebarCollapsed(true);
+            }
+        } catch (e) {}
+    }
 
     // Initial Load (the group tree loads the schedule once ready)
     loadGroupTree();

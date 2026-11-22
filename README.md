@@ -59,6 +59,10 @@ Deux bases SQLite :
 
 Le fichier `.flask_secret`, créé au premier lancement, signe les cookies de session. Il faut le garder, sinon tout le monde est déconnecté.
 
+Sauvegardes : `scripts/backup-epikairos.sh` copie les deux bases (copie cohérente même site lancé) et garde 14 jours. Sur le serveur, il tourne chaque nuit à 3 h 30 par cron.
+
+La page `/confidentialite` dit ce qui est enregistré et permet à chacun de supprimer son identifiant et ses liens d'abonnement.
+
 ## Tests
 
 ```

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _("Confidentialité") }} — EpiKairos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7 privacy-page">
+        <h1 class="h4 mb-2">{{ _("Confidentialité") }}</h1>
+        <p class="text-muted">{{ _("EpiKairos est un projet étudiant. Voici exactement ce qu'il garde, et comment tout effacer.") }}</p>
+
+        {% if deleted %}
+        <div class="alert alert-success" role="status">{{ _("Vos données ont été supprimées et vous avez été déconnecté.") }}</div>
+        {% endif %}
+
+        <h2 class="section-label mt-4">{{ _("Ce qui est enregistré") }}</h2>
+        <ul>
+            <li>{{ _("Votre identifiant EPITA, avec la date de votre première et de votre dernière connexion. Seul l'administrateur le voit.") }}</li>
+            <li>{{ _("Vos liens d'abonnement : leurs filtres et une copie de vos cours, pour que votre agenda puisse les lire.") }}</li>
+            <li>{{ _("Les cours récupérés à la connexion (matière, horaire, salle, enseignants, groupes) rejoignent la base commune qui alimente Planning et Salles libres. Ils ne sont reliés à aucun compte. Pour ne pas y contribuer, décochez « Contribuer à la base commune » à la connexion.") }}</li>
+            <li>{{ _("Dans votre navigateur seulement : vos cours récupérés et le thème choisi. La déconnexion efface les cours.") }}</li>
+        </ul>
+
+        <h2 class="section-label mt-4">{{ _("Ce qui n'est jamais enregistré") }}</h2>
+        <ul>
+            <li>{{ _("Votre mot de passe : il est envoyé une seule fois à Auriga pour récupérer vos cours, puis oublié.") }}</li>
+            <li>{{ _("Les jetons Auriga.") }}</li>
+            <li>{{ _("Votre adresse IP : elle reste une minute en mémoire pour limiter les tentatives de connexion, puis disparaît. Les journaux du serveur ne contiennent ni identifiant ni adresse IP.") }}</li>
+            <li>{{ _("Aucune publicité, aucun outil de statistiques. Deux cookies seulement : la session (30 jours) et la langue choisie.") }}</li>
+        </ul>
+
+        <h2 class="section-label mt-4">{{ _("Hébergement") }}</h2>
+        <ul>
+            <li>{{ _("Le site tourne sur un serveur personnel et passe par Cloudflare pour le HTTPS.") }}</li>
+            <li>{{ _("Les bases sont sauvegardées chaque nuit ; chaque sauvegarde est gardée 14 jours.") }}</li>
+        </ul>
+
+        <h2 class="section-label mt-4">{{ _("Supprimer vos données") }}</h2>
+        {% if session.get('logged_in') %}
+        <p>{{ _("Supprime votre identifiant et tous vos liens d'abonnement, puis vous déconnecte. Les agendas abonnés à vos liens ne seront plus mis à jour. Les cours de la base commune restent, puisqu'ils ne sont reliés à personne, et les copies dans les sauvegardes disparaissent sous 14 jours.") }}</p>
+        <div id="deleteError" class="alert alert-danger d-none" role="alert"></div>
+        <button type="button" class="btn btn-outline-danger" id="deleteAccountBtn">{{ _("Supprimer mes données") }}</button>
+        {% else %}
+        <p>{{ _("Connectez-vous pour supprimer votre identifiant et vos liens d'abonnement.") }} <a href="/login">{{ _("Connexion") }}</a></p>
+        {% endif %}
+
+        <p class="text-muted small mt-4">{{ _("Une question ? Écrivez à l'adresse en bas de la page.") }}</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/privacy.js') }}?v=20261122u"></script>
+{% endblock %}

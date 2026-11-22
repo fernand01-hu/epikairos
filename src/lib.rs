@@ -69,6 +69,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/my-calendar", get(routes::web::personal_handler))
         .route("/custom-calendar", get(routes::web::custom_calendar_handler))
         .route("/rooms", get(routes::web::rooms_handler))
+        .route("/confidentialite", get(routes::web::privacy_handler))
+        .route("/privacy", get(routes::web::privacy_handler))
         .route("/robots.txt", get(routes::web::robots_handler))
         .route("/manifest.json", get(routes::web::manifest_handler))
         .route("/sw.js", get(routes::web::service_worker_handler))
@@ -98,6 +100,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/feed/:feed_id", get(routes::api::serve_feed_handler))
         // Admin page
         .route("/api/admin/users", get(routes::admin::admin_list_users_handler))
+        .route("/api/account/delete", post(routes::api::delete_account_handler))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))
         // Request body limit layer (2 MB)

@@ -4,7 +4,7 @@
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122o">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122u">
 {% endblock %}
 
 {% block main_container_class %}container-fluid px-3 py-3{% endblock %}
@@ -52,6 +52,8 @@
                 <button type="button" class="btn-clear-selection" id="btnClearSelection">
                     <i class="bi bi-x-lg"></i> {{ _("Effacer la sélection") }}
                 </button>
+                <!-- Phones: the menu covers the calendar, this closes it -->
+                <button type="button" class="btn btn-primary w-100 mt-2 d-md-none" id="btnShowTimetable">{{ _("Voir le planning") }}</button>
             </div>
         </div>
 
@@ -136,5 +138,5 @@
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122r"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122u"></script>
 {% endblock %}

@@ -74,6 +74,12 @@ pub fn record_login(conn: &Connection, username: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// Forgets the account: its login and dates. Returns true if it existed.
+pub fn delete_user(conn: &Connection, username: &str) -> rusqlite::Result<bool> {
+    let user = normalize_username(username);
+    Ok(conn.execute("DELETE FROM users WHERE username = ?1", params![user])? > 0)
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UserRow {
     pub username: String,

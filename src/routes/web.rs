@@ -116,6 +116,12 @@ pub async fn logout_page_handler() -> Redirect {
 }
 
 pub async fn logout_handler(cookies: Cookies) -> Redirect {
+    clear_session_cookie(&cookies);
+    Redirect::to("/login?logged_out=1")
+}
+
+/// Removes the session cookie (same attributes as when it was set).
+pub fn clear_session_cookie(cookies: &Cookies) {
     let mut cookie = Cookie::new("session", "");
     cookie.set_path("/");
     cookie.set_http_only(true);
@@ -125,7 +131,32 @@ pub async fn logout_handler(cookies: Cookies) -> Redirect {
         .unwrap_or(false);
     cookie.set_secure(secure_cookie);
     cookies.remove(cookie);
-    Redirect::to("/login?logged_out=1")
+}
+
+#[derive(Deserialize)]
+pub struct PrivacyQuery {
+    deleted: Option<String>,
+}
+
+/// What the site stores, and the button to delete your data. Public.
+pub async fn privacy_handler(
+    State(state): State<AppState>,
+    Query(query): Query<PrivacyQuery>,
+    cookies: Cookies,
+) -> Result<Html<String>, StatusCode> {
+    let session_val = session_context(&state, &cookies).await;
+    let tmpl = state
+        .jinja
+        .get_template("privacy.html")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let rendered = tmpl
+        .render(minijinja::context! {
+            active_page => "privacy",
+            deleted => query.deleted.is_some(),
+            session => session_val,
+        })
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Html(rendered))
 }
 
 pub async fn personal_handler(
