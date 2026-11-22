@@ -1,6 +1,6 @@
 # 📅 EpiKairos (EPITA Calendar)
 
-Application web auto-hébergeable pour permettre à n'importe quel étudiant d'EPITA de se connecter à **Auriga**, de **prévisualiser et filtrer ses cours avec des expressions régulières (Regex)**, d'utiliser l'interface **Old Zeus**, et d'exporter son emploi du temps vers **Google Calendar**, **Apple Calendar** ou **Outlook**.
+Application web auto-hébergeable pour permettre à n'importe quel étudiant d'EPITA de se connecter à **Auriga**, de **prévisualiser et filtrer ses cours par matière**, de consulter le **Planning** des groupes, de voir les **salles libres** sur le plan, et d'exporter son emploi du temps vers **Google Calendar**, **Apple Calendar** ou **Outlook**.
 
 Conçu pour tourner sur votre **serveur personnel à la maison** (PC Linux, Raspberry Pi, NAS, Docker ou VPS) avec une interface super simple et intuitive.
 
@@ -12,7 +12,7 @@ Conçu pour tourner sur votre **serveur personnel à la maison** (PC Linux, Rasp
 - ⚡ **Interface épurée et réactive** :
   - Connexion rapide en 1 clic.
   - Statistiques en direct (nombre de cours trouvés, répartition CM / TD / TP / Examens, cours annulés).
-  - Tableau interactif avec sélection individuelle par cases à cocher.
+  - Semaine affichée en grille horaire, avec sélection individuelle par cases à cocher.
 - 🎯 **Filtrage puissant par Regex (Expressions Régulières)** :
   - **Filtre Regex d'Inclusion** : Ne garder que les cours correspondant au motif (ex: `ALGO|MATH|SYSTEME`).
   - **Filtre Regex d'Exclusion** : Retirer automatiquement les cours inutiles (ex: `Anglais|Sport|Soutenance`).
@@ -108,7 +108,7 @@ Les variables d'environnement disponibles (port, chemins des bases, `SECRET_DIR`
 
 - **Admin** : les comptes listés dans `ADMIN_USERS` (par défaut `fernand.huttois`) voient le lien **Admin** et la page `/admin`. Elle est introuvable (404) pour tous les autres.
 - **Modérateurs** : depuis `/admin`, l'administrateur nomme des modérateurs parmi les utilisateurs déjà connectés, ou par identifiant.
-- **Événements** : dans Old Zeus, l'onglet **Événements** affiche les calendriers des clubs à tous les étudiants connectés. Les modérateurs y créent leurs calendriers et leurs événements, et ne peuvent modifier que les leurs. L'administrateur peut tout modifier.
+- **Événements** : les calendriers de clubs (API `/api/community/*`) sont désactivés dans l'interface pour l'instant (`EVENTS_ENABLED` dans `static/js/zeus_classic.js`).
 
 ---
 

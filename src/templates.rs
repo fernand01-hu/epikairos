@@ -53,9 +53,9 @@ pub fn create_template_env() -> Environment<'static> {
                 }
                 "logout" => Ok("/logout".to_string()),
                 "personal_calendar" => Ok("/personal".to_string()),
-                "custom_calendar" => Ok("/custom-calendar".to_string()),
+                "custom_calendar" => Ok("/planning".to_string()),
                 "rooms_page" => Ok("/rooms".to_string()),
-                "old_zeus" => Ok("/old-zeus".to_string()),
+                "old_zeus" => Ok("/planning".to_string()),
                 _ => Ok(format!("/{}", endpoint)),
             }
         },

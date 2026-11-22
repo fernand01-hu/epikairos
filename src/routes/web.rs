@@ -142,28 +142,9 @@ pub async fn personal_handler(
     Ok(Html(rendered))
 }
 
-pub async fn custom_calendar_handler(
-    State(state): State<AppState>,
-    cookies: Cookies,
-) -> Result<Html<String>, StatusCode> {
-    let (start_date, end_date) = get_default_school_year_range();
-    let session_val = session_context(&state, &cookies).await;
-
-    let tmpl = state
-        .jinja
-        .get_template("custom_calendar.html")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let rendered = tmpl
-        .render(minijinja::context! {
-            default_start => start_date,
-            default_end => end_date,
-            active_page => "custom",
-            session => session_val,
-        })
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Html(rendered))
+/// The custom calendar builder was removed; old links land on the planning.
+pub async fn custom_calendar_handler() -> Redirect {
+    Redirect::to("/planning")
 }
 
 pub async fn rooms_handler(

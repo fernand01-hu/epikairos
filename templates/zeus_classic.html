@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Old Zeus — Emploi du Temps EPITA{% endblock %}
+{% block title %}Planning — EpiKairos{% endblock %}
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
@@ -15,21 +15,6 @@
 
     <!-- Left Sidebar -->
     <aside class="zeus-sidebar">
-        <!-- Sidebar header: tabs + collapse button -->
-        <div class="d-flex align-items-center gap-2 mb-2">
-            <ul class="nav nav-fill segmented flex-grow-1" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="tabGroupsBtn" type="button" role="tab" aria-controls="groupsPanel" aria-selected="true">Groupes</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="tabEventsBtn" type="button" role="tab" aria-controls="eventsPanel" aria-selected="false">Événements</button>
-                </li>
-            </ul>
-            <button type="button" class="btn btn-sm btn-link icon-btn" id="btnCloseSidebar" title="Masquer le menu" aria-label="Masquer le menu">
-                <i class="bi bi-chevron-left"></i>
-            </button>
-        </div>
-
         <!-- Panel 1: school groups -->
         <div class="zeus-panel" id="groupsPanel" role="tabpanel">
             <div class="zeus-search-box">
@@ -61,23 +46,6 @@
             </div>
         </div>
 
-        <!-- Panel 2: club & association calendars -->
-        <div class="zeus-panel d-none" id="eventsPanel" role="tabpanel">
-            <p class="small text-muted my-2">Calendriers des clubs et associations. Cochez-les pour les afficher dans l'emploi du temps.</p>
-
-            <div class="zeus-tree-container" id="communityCalendarList">
-                <div class="text-center py-4 text-muted small">
-                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                </div>
-            </div>
-
-            <div class="zeus-sidebar-actions d-none" id="moderatorActions">
-                <button type="button" class="btn btn-sm btn-primary w-100 mb-2" id="btnNewEvent">Nouvel événement</button>
-                <button type="button" class="btn-clear-selection" id="btnNewCalendar">
-                    <i class="bi bi-plus-lg"></i> Nouveau calendrier
-                </button>
-            </div>
-        </div>
     </aside>
 
     <!-- Right Timetable Area -->
@@ -85,9 +53,8 @@
         <!-- Timetable Top Bar -->
         <div class="zeus-timetable-topbar">
             <div class="topbar-nav d-flex align-items-center gap-2">
-                <button type="button" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 px-2 py-1" id="btnToggleSidebar" title="Masquer / Afficher le menu de sélection">
+                <button type="button" class="btn btn-sm btn-outline-secondary icon-btn px-2 py-1" id="btnToggleSidebar" title="Masquer le menu de sélection" aria-label="Masquer / afficher le menu">
                     <i class="bi bi-layout-sidebar-inset" id="toggleSidebarIcon"></i>
-                    <span class="small d-none d-sm-inline" id="toggleSidebarLabel">Masquer le menu</span>
                 </button>
                 <div class="vr mx-1 d-none d-sm-block"></div>
                 <button type="button" class="btn btn-sm btn-link icon-btn" id="btnPrevWeek" title="Semaine précédente" aria-label="Semaine précédente">
@@ -321,5 +288,5 @@
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122d"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122g"></script>
 {% endblock %}

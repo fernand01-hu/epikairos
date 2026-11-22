@@ -197,7 +197,7 @@ class TestFlaskApp(unittest.TestCase):
         # Old Zeus page on /old-zeus
         res = self.client.get("/old-zeus")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Old Zeus", res.data)
+        self.assertIn(b"groupTreeContainer", res.data)
 
         # Login page
         res = self.client.get("/login")
@@ -209,10 +209,10 @@ class TestFlaskApp(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn(b"Mon Emploi du Temps", res.data)
 
-        # Custom calendar page
+        # Custom calendar page was removed: redirects to the planning
         res = self.client.get("/custom-calendar")
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Agendas Sur-Mesure", res.data)
+        self.assertEqual(res.status_code, 302)
+        self.assertIn("/planning", res.headers.get("Location", ""))
 
         # Rooms page
         res = self.client.get("/rooms")
@@ -285,17 +285,18 @@ class TestFlaskApp(unittest.TestCase):
         # Old Zeus UI on /old-zeus
         res = self.client.get("/old-zeus")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Old Zeus", res.data)
+        self.assertIn(b"groupTreeContainer", res.data)
         self.assertIn(b"fernand.huttois@epita.fr", res.data)
         self.assertNotIn(b"Interface classique inspir", res.data)
         self.assertNotIn(b"btnFindRoom", res.data)
         self.assertIn(b"btnToggleSidebar", res.data)
-        self.assertIn(b"btnCloseSidebar", res.data)
+        self.assertNotIn(b"btnCloseSidebar", res.data)
+        self.assertNotIn(b"tabEventsBtn", res.data)
 
         # Alias on /zeus
         res_alias = self.client.get("/zeus")
         self.assertEqual(res_alias.status_code, 200)
-        self.assertIn(b"Old Zeus", res_alias.data)
+        self.assertIn(b"groupTreeContainer", res_alias.data)
 
         # Groups tree API
         tree_res = self.client.get("/api/groups/tree")

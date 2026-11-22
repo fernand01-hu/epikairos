@@ -8,7 +8,6 @@ let visibleCourses = [];
 let selectedCourseIds = new Set();
 let userCredentials = { username: "", password: "", access_token: "" };
 let currentCalendarDate = new Date();
-let currentViewMode = "week"; // "week" | "table"
 
 function escapeHtml(str) {
     if (str === null || str === undefined) return "";
@@ -19,6 +18,9 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+// Height of one hour in the week time grid, in pixels.
+const HOUR_PX = 56;
 
 document.addEventListener("DOMContentLoaded", () => {
     // DOM Elements - Login & Main UI
@@ -45,10 +47,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const openFeedModalBtn = document.getElementById("openFeedModalBtn");
 
     // Calendar & View Switcher Elements
-    const viewModeWeekBtn = document.getElementById("viewModeWeekBtn");
-    const viewModeListBtn = document.getElementById("viewModeListBtn");
-    const calendarWeekView = document.getElementById("calendarWeekView");
-    const calendarTableView = document.getElementById("calendarTableView");
     const weekDaysGrid = document.getElementById("weekDaysGrid");
     const noWeekCoursesMessage = document.getElementById("noWeekCoursesMessage");
     const weekNavControls = document.getElementById("weekNavControls");
@@ -430,7 +428,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Re-render both views
         renderWeekCalendar();
-        renderCourseTable();
         updateSelectedCounter();
     }
 
@@ -439,139 +436,125 @@ document.addEventListener("DOMContentLoaded", () => {
     // =========================================================================
     // 4. Real Calendar Weekly View & Navigation (Left & Right Arrows)
     // =========================================================================
+    function minutesOfDay(d) {
+        return d.getHours() * 60 + d.getMinutes();
+    }
+
+    /** Puts overlapping courses side by side: sets c._lane and c._lanes. */
+    function assignLanes(items) {
+        items.sort((x, y) => x._s - y._s || y._e - x._e);
+        let cluster = [];
+        let clusterEnd = -1;
+        const flush = () => {
+            const laneEnds = [];
+            cluster.forEach(it => {
+                let lane = laneEnds.findIndex(end => end <= it._s);
+                if (lane === -1) { lane = laneEnds.length; laneEnds.push(0); }
+                laneEnds[lane] = it._e;
+                it._lane = lane;
+            });
+            cluster.forEach(it => { it._lanes = laneEnds.length; });
+            cluster = [];
+        };
+        items.forEach(it => {
+            if (cluster.length && it._s >= clusterEnd) flush();
+            cluster.push(it);
+            clusterEnd = Math.max(clusterEnd, it._e);
+        });
+        if (cluster.length) flush();
+    }
+
     function renderWeekCalendar() {
         if (!weekDaysGrid) return;
-        weekDaysGrid.innerHTML = "";
 
         const monday = getMonday(currentCalendarDate);
         if (currentWeekLabel) {
             currentWeekLabel.textContent = formatWeekLabel(monday);
         }
 
-        // Check if there are Sunday courses in this week to decide if we show 6 or 7 days
-        const weekSunday = new Date(monday);
-        weekSunday.setDate(monday.getDate() + 6);
-
-        const hasSundayCourses = visibleCourses.some(c => {
-            const d = new Date(c.start);
-            return isSameDay(d, weekSunday);
-        });
-
-        const totalDaysToShow = hasSundayCourses ? 7 : 6;
-        weekDaysGrid.classList.toggle("has-sunday", hasSundayCourses);
-        const frenchDayNames = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-        const shortMonths = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-        const todayDate = new Date();
-
-        let totalCoursesInThisWeek = 0;
-
-        for (let i = 0; i < totalDaysToShow; i++) {
-            const currentDayDate = new Date(monday);
-            currentDayDate.setDate(monday.getDate() + i);
-
-            // Filter and sort courses on this day
-            const dayCourses = visibleCourses.filter(c => isSameDay(new Date(c.start), currentDayDate));
-            dayCourses.sort((a, b) => new Date(a.start) - new Date(b.start));
-            totalCoursesInThisWeek += dayCourses.length;
-
-            const isToday = isSameDay(currentDayDate, todayDate);
-
-            // Day Column container
-            const col = document.createElement("div");
-            col.className = `day-column ${isToday ? "is-today" : ""}`;
-
-            // Column Header
-            const dayName = frenchDayNames[i];
-            const dateNum = currentDayDate.getDate();
-            const monthStr = shortMonths[currentDayDate.getMonth()];
-
-            col.innerHTML = `
-                <div class="day-column-header">
-                    <div class="fw-semibold small">${dayName} ${dateNum} ${monthStr}</div>
-                    <div class="small text-muted">${dayCourses.length} cours</div>
-                </div>
-                <div class="day-events-list"></div>
-            `;
-
-            const eventsList = col.querySelector(".day-events-list");
-
-            if (dayCourses.length === 0) {
-                eventsList.innerHTML = '<div class="text-center text-muted small py-4">Aucun cours</div>';
-            } else {
-                dayCourses.forEach(c => {
-                    const info = getTypeInfo(c.activity_type);
-                    const isSelected = selectedCourseIds.has(c.id);
-
-                    const card = document.createElement("div");
-                    card.className = `calendar-card border-${info.key} ${!isSelected ? "deselected" : ""} ${c.is_cancelled ? "card-cancelled" : ""}`;
-                    card.dataset.id = c.id;
-
-                    const roomsStr = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join(", ") : "";
-                    const teachersStr = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join(", ") : "";
-                    const groupsStr = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join(", ") : "";
-
-                    card.innerHTML = `
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <span class="event-time">
-                                ${formatTime(c.start)} - ${formatTime(c.end)}
-                            </span>
-                            <div class="d-flex align-items-center gap-1">
-                                <span class="badge badge-${info.key}">
-                                    ${escapeHtml(c.activity_type)}
-                                </span>
-                                <input type="checkbox" class="form-check-input event-checkbox ms-1 m-0" data-id="${c.id}" ${isSelected ? "checked" : ""} title="Sélectionner pour export">
-                            </div>
-                        </div>
-                        <div class="event-title" title="${escapeHtml(c.course_name)}">
-                            ${c.is_cancelled ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">ANNULÉ</span>' : ''}
-                            ${escapeHtml(c.course_name)}
-                        </div>
-                        <div class="event-meta">
-                            ${roomsStr ? `<div class="text-truncate" title="Salle: ${roomsStr}">${roomsStr}</div>` : ""}
-                            ${teachersStr ? `<div class="text-truncate" title="Enseignant: ${teachersStr}">${teachersStr}</div>` : ""}
-                            ${groupsStr ? `<div class="text-truncate" title="Groupe: ${groupsStr}">${groupsStr}</div>` : ""}
-                        </div>
-                    `;
-
-                    // Checkbox toggle logic
-                    const cb = card.querySelector(".event-checkbox");
-                    cb.addEventListener("click", (e) => {
-                        e.stopPropagation();
-                        toggleCourseSelection(c.id, cb.checked);
-                    });
-
-                    // Card click toggles checkbox
-                    card.addEventListener("click", (e) => {
-                        if (e.target !== cb) {
-                            const newChecked = !selectedCourseIds.has(c.id);
-                            cb.checked = newChecked;
-                            toggleCourseSelection(c.id, newChecked);
-                        }
-                    });
-
-                    eventsList.appendChild(card);
-                });
-            }
-
-            weekDaysGrid.appendChild(col);
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(monday);
+            d.setDate(monday.getDate() + i);
+            days.push(d);
         }
 
-        // If entire week has no courses, show empty week alert
-        if (totalCoursesInThisWeek === 0 && visibleCourses.length > 0) {
+        const weekCourses = visibleCourses
+            .map(c => {
+                const start = new Date(c.start);
+                const end = new Date(c.end);
+                const dayIndex = days.findIndex(d => isSameDay(d, start));
+                return { c, start, end, dayIndex, _s: minutesOfDay(start), _e: Math.max(minutesOfDay(end), minutesOfDay(start) + 15) };
+            })
+            .filter(x => x.dayIndex !== -1);
+
+        // Sunday only when it has courses; hours span 8h–19h, widened to fit the week.
+        const showSunday = weekCourses.some(x => x.dayIndex === 6);
+        const dayCount = showSunday ? 7 : 6;
+        let firstHour = 8;
+        let lastHour = 19;
+        weekCourses.forEach(x => {
+            firstHour = Math.min(firstHour, Math.floor(x._s / 60));
+            lastHour = Math.max(lastHour, Math.ceil(x._e / 60));
+        });
+        firstHour = Math.max(0, firstHour);
+        lastHour = Math.min(24, lastHour);
+        const bodyHeight = (lastHour - firstHour) * HOUR_PX;
+        const toPx = m => ((m - firstHour * 60) / 60) * HOUR_PX;
+
+        const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+        const today = new Date();
+
+        let html = `<div class="tg" style="--days: ${dayCount}; --hour: ${HOUR_PX}px;">`;
+        html += '<div class="tg-head"><div class="tg-corner"></div>';
+        for (let i = 0; i < dayCount; i++) {
+            const d = days[i];
+            html += `<div class="tg-dayhead${isSameDay(d, today) ? " is-today" : ""}"><span>${dayNames[i]}</span> <strong>${d.getDate()}</strong></div>`;
+        }
+        html += `</div><div class="tg-body" style="height: ${bodyHeight}px;"><div class="tg-axis">`;
+        for (let h = firstHour + 1; h < lastHour; h++) {
+            html += `<span style="top: ${(h - firstHour) * HOUR_PX}px;">${String(h).padStart(2, "0")}:00</span>`;
+        }
+        html += "</div>";
+        for (let i = 0; i < dayCount; i++) {
+            html += `<div class="tg-col${isSameDay(days[i], today) ? " is-today" : ""}" data-day="${i}"></div>`;
+        }
+        html += "</div></div>";
+        weekDaysGrid.innerHTML = html;
+
+        const cols = weekDaysGrid.querySelectorAll(".tg-col");
+        for (let i = 0; i < dayCount; i++) {
+            const items = weekCourses.filter(x => x.dayIndex === i);
+            assignLanes(items);
+            items.forEach(x => cols[i].appendChild(buildEventCard(x, toPx)));
+        }
+
+        // Current time line
+        const todayIndex = days.findIndex(d => isSameDay(d, today));
+        const nowM = minutesOfDay(today);
+        if (todayIndex !== -1 && todayIndex < dayCount && nowM >= firstHour * 60 && nowM <= lastHour * 60) {
+            const line = document.createElement("div");
+            line.className = "tg-now";
+            line.style.top = `${toPx(nowM)}px`;
+            cols[todayIndex].appendChild(line);
+        }
+
+        if (weekCourses.length === 0 && visibleCourses.length > 0) {
             noWeekCoursesMessage.classList.remove("d-none");
             noWeekCoursesMessage.innerHTML = `
-                <i class="bi bi-calendar-x fs-1 d-block mb-2 text-secondary"></i>
-                <div class="fw-semibold fs-5">Aucun cours cette semaine</div>
-                <div class="small text-muted mt-1">Utilisez les flèches <strong>&larr;</strong> et <strong>&rarr;</strong> ci-dessus pour naviguer dans votre calendrier.</div>
-                <button type="button" class="btn btn-sm btn-outline-primary mt-3 fw-semibold" id="jumpToClosestCourseBtn">
-                    <i class="bi bi-arrow-right-circle me-1"></i> Aller à la semaine avec des cours
-                </button>
+                <div class="empty-title">Aucun cours cette semaine</div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="jumpToClosestCourseBtn">Aller à la prochaine semaine avec des cours</button>
             `;
             const jumpBtn = document.getElementById("jumpToClosestCourseBtn");
             if (jumpBtn) {
                 jumpBtn.addEventListener("click", () => {
-                    if (visibleCourses.length > 0) {
-                        currentCalendarDate = new Date(visibleCourses[0].start);
+                    const ref = getMonday(currentCalendarDate);
+                    const upcoming = visibleCourses
+                        .map(c => new Date(c.start))
+                        .sort((x, y) => x - y);
+                    const next = upcoming.find(d => d >= ref) || upcoming[upcoming.length - 1];
+                    if (next) {
+                        currentCalendarDate = new Date(next);
                         renderWeekCalendar();
                     }
                 });
@@ -579,6 +562,47 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             noWeekCoursesMessage.classList.add("d-none");
         }
+    }
+
+    function buildEventCard(x, toPx) {
+        const c = x.c;
+        const info = getTypeInfo(c.activity_type);
+        const isSelected = selectedCourseIds.has(c.id);
+        const top = toPx(x._s);
+        const height = Math.max(22, toPx(x._e) - top - 2);
+
+        const card = document.createElement("div");
+        card.className = `calendar-card tg-event border-${info.key}${!isSelected ? " deselected" : ""}${c.is_cancelled ? " card-cancelled" : ""}${height < 60 ? " is-compact" : ""}`;
+        card.dataset.id = c.id;
+        card.style.top = `${top}px`;
+        card.style.height = `${height}px`;
+        card.style.left = `calc(${(x._lane / x._lanes) * 100}% + 2px)`;
+        card.style.width = `calc(${100 / x._lanes}% - 4px)`;
+
+        const rooms = c.rooms && c.rooms.length ? c.rooms.join(", ") : "";
+        const teachers = c.teachers && c.teachers.length ? c.teachers.join(", ") : "";
+        card.title = [`${formatTime(c.start)} - ${formatTime(c.end)}`, c.course_name, rooms, teachers].filter(Boolean).join("\n");
+
+        card.innerHTML = `
+            <input type="checkbox" class="form-check-input event-checkbox" data-id="${escapeHtml(c.id)}" ${isSelected ? "checked" : ""} title="Sélectionner pour l'export" aria-label="Sélectionner pour l'export">
+            <div class="event-time">${formatTime(c.start)} – ${formatTime(c.end)} · ${escapeHtml(c.activity_type || "")}</div>
+            <div class="event-title">${c.is_cancelled ? "[Annulé] " : ""}${escapeHtml(c.course_name)}</div>
+            ${rooms ? `<div class="event-meta">${escapeHtml(rooms)}</div>` : ""}
+        `;
+
+        const cb = card.querySelector(".event-checkbox");
+        cb.addEventListener("click", (e) => {
+            e.stopPropagation();
+            toggleCourseSelection(c.id, cb.checked);
+        });
+        card.addEventListener("click", (e) => {
+            if (e.target !== cb) {
+                const newChecked = !selectedCourseIds.has(c.id);
+                cb.checked = newChecked;
+                toggleCourseSelection(c.id, newChecked);
+            }
+        });
+        return card;
     }
 
     function toggleCourseSelection(id, isSelected) {
@@ -597,11 +621,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             const cb = card.querySelector(".event-checkbox");
             if (cb) cb.checked = isSelected;
-        });
-
-        // Update row checkbox in table view
-        document.querySelectorAll(`.row-select-cb[data-id="${id}"]`).forEach(cb => {
-            cb.checked = isSelected;
         });
 
         updateSelectedCounter();
@@ -633,7 +652,6 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("keydown", (e) => {
         if (["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
         if (planningSection.classList.contains("d-none")) return;
-        if (currentViewMode !== "week") return;
 
         if (e.key === "ArrowLeft") {
             currentCalendarDate.setDate(currentCalendarDate.getDate() - 7);
@@ -643,116 +661,6 @@ document.addEventListener("DOMContentLoaded", () => {
             renderWeekCalendar();
         }
     });
-
-    // View Mode Toggle (Semaine / Tableau)
-    if (viewModeWeekBtn && viewModeListBtn) {
-        viewModeWeekBtn.addEventListener("click", () => {
-            currentViewMode = "week";
-            viewModeWeekBtn.classList.add("btn-primary");
-            viewModeWeekBtn.classList.remove("btn-outline-secondary");
-            viewModeListBtn.classList.remove("btn-primary");
-            viewModeListBtn.classList.add("btn-outline-secondary");
-            calendarWeekView.classList.remove("d-none");
-            calendarTableView.classList.add("d-none");
-            weekNavControls.classList.remove("d-none");
-        });
-
-        viewModeListBtn.addEventListener("click", () => {
-            currentViewMode = "table";
-            viewModeListBtn.classList.add("btn-primary");
-            viewModeListBtn.classList.remove("btn-outline-secondary");
-            viewModeWeekBtn.classList.remove("btn-primary");
-            viewModeWeekBtn.classList.add("btn-outline-secondary");
-            calendarTableView.classList.remove("d-none");
-            calendarWeekView.classList.add("d-none");
-            weekNavControls.classList.add("d-none");
-        });
-    }
-
-    // =========================================================================
-    // 5. Render Course Table (Alternative View)
-    // =========================================================================
-    function formatFrenchDateTime(isoStart, isoEnd) {
-        if (!isoStart) return "";
-        try {
-            const dStart = new Date(isoStart);
-            const dateStr = dStart.toLocaleDateString("fr-FR", {
-                weekday: "short",
-                day: "numeric",
-                month: "short"
-            });
-            const startH = dStart.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-
-            let endH = "";
-            if (isoEnd) {
-                const dEnd = new Date(isoEnd);
-                endH = " - " + dEnd.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-            }
-            return `<span class="fw-semibold text-capitalize">${dateStr}</span><br><span class="text-muted small">${startH}${endH}</span>`;
-        } catch {
-            return isoStart;
-        }
-    }
-
-    function renderCourseTable() {
-        const tbody = document.getElementById("coursesTableBody");
-        const noMsg = document.getElementById("noCoursesMessage");
-        if (!tbody) return;
-
-        tbody.innerHTML = "";
-
-        if (visibleCourses.length === 0) {
-            if (noMsg) noMsg.classList.remove("d-none");
-        } else {
-            if (noMsg) noMsg.classList.add("d-none");
-        }
-
-        const fragment = document.createDocumentFragment();
-
-        visibleCourses.forEach(c => {
-            const tr = document.createElement("tr");
-            const isChecked = selectedCourseIds.has(c.id);
-            if (c.is_cancelled) {
-                tr.classList.add("course-row-cancelled");
-            }
-
-            const info = getTypeInfo(c.activity_type);
-
-            const roomsFormatted = c.rooms && c.rooms.length > 0 ? c.rooms.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
-            const teachersFormatted = c.teachers && c.teachers.length > 0 ? c.teachers.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
-            const groupsFormatted = c.groups && c.groups.length > 0 ? c.groups.map(escapeHtml).join("<br>") : '<span class="text-muted small">-</span>';
-
-            tr.innerHTML = `
-                <td class="text-center">
-                    <input class="form-check-input row-select-cb" type="checkbox" data-id="${c.id}" ${isChecked ? "checked" : ""}>
-                </td>
-                <td>${formatFrenchDateTime(c.start, c.end)}</td>
-                <td>
-                    <span class="badge badge-${info.key} px-2 py-1">
-                        ${c.is_cancelled ? "[ANNULÉ] " : ""}${escapeHtml(c.activity_type)}
-                    </span>
-                </td>
-                <td>
-                    <div class="fw-semibold">${escapeHtml(c.course_name)}</div>
-                    <div class="small text-muted font-monospace">${escapeHtml(c.course_code || "")}</div>
-                </td>
-                <td>${roomsFormatted}</td>
-                <td>${teachersFormatted}</td>
-                <td>${groupsFormatted}</td>
-            `;
-
-            fragment.appendChild(tr);
-        });
-
-        tbody.appendChild(fragment);
-
-        tbody.querySelectorAll(".row-select-cb").forEach(cb => {
-            cb.addEventListener("change", (e) => {
-                const id = e.target.dataset.id;
-                toggleCourseSelection(id, e.target.checked);
-            });
-        });
-    }
 
     function updateSelectedCounter() {
         const visibleSelectedCount = visibleCourses.filter(c => selectedCourseIds.has(c.id)).length;

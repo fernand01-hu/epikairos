@@ -13,6 +13,8 @@ let communityCalendars = [];
 let canCreateCalendars = false;
 let selectedCalendarIds = null; // Set of ids, null until loaded
 
+// Club & association calendars are switched off in the UI for now.
+const EVENTS_ENABLED = false;
 const CALENDAR_STORAGE_KEY = "zeus_community_calendars";
 const CALENDAR_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#ec4899", "#64748b"];
 
@@ -388,7 +390,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchEvents() {
-        if (!selectedCalendarIds || selectedCalendarIds.size === 0) {
+        if (!EVENTS_ENABLED || !selectedCalendarIds || selectedCalendarIds.size === 0) {
             activeEvents = [];
             return;
         }
@@ -879,9 +881,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (isEvents) setSidebarCollapsed(false);
     }
 
-    tabGroupsBtn.addEventListener("click", () => showSidebarTab("groups"));
-    tabEventsBtn.addEventListener("click", () => showSidebarTab("events"));
-    if (window.location.hash === "#events") showSidebarTab("events");
+    if (tabGroupsBtn && tabEventsBtn && eventsPanel) {
+        tabGroupsBtn.addEventListener("click", () => showSidebarTab("groups"));
+        tabEventsBtn.addEventListener("click", () => showSidebarTab("events"));
+        if (window.location.hash === "#events") showSidebarTab("events");
+    }
 
     // =========================================================================
     // 9. Community calendars (clubs & associations)
@@ -1006,7 +1010,7 @@ document.addEventListener("DOMContentLoaded", () => {
         calendarModal.show();
     }
 
-    document.getElementById("btnNewCalendar").addEventListener("click", () => openCalendarModal(null));
+    document.getElementById("btnNewCalendar")?.addEventListener("click", () => openCalendarModal(null));
 
     calendarForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -1085,7 +1089,7 @@ document.addEventListener("DOMContentLoaded", () => {
         eventModal.show();
     }
 
-    document.getElementById("btnNewEvent").addEventListener("click", () => openEventModal(null));
+    document.getElementById("btnNewEvent")?.addEventListener("click", () => openEventModal(null));
 
     eventForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -1154,7 +1158,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Initial Load
-    loadCommunityCalendars().then(() => fetchSchedule());
+    if (EVENTS_ENABLED) {
+        loadCommunityCalendars().then(() => fetchSchedule());
+    } else {
+        fetchSchedule();
+    }
     loadGroupTree();
 
 });

@@ -179,6 +179,7 @@ def dashboard():
     return redirect("/personal")
 
 
+@app.route("/planning")
 @app.route("/old-zeus")
 @app.route("/zeus")
 def old_zeus():
@@ -226,14 +227,8 @@ def personal_calendar():
 
 @app.route("/custom-calendar")
 def custom_calendar():
-    """Custom calendar builder (by teachers, rooms, or groups)."""
-    start_date, end_date = get_default_school_year_range()
-    return render_template(
-        "custom_calendar.html",
-        default_start=start_date,
-        default_end=end_date,
-        active_page="custom",
-    )
+    """The custom calendar builder was removed; old links land on the planning."""
+    return redirect("/planning")
 
 
 @app.route("/rooms")

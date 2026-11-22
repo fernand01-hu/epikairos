@@ -78,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Web views
         .route("/", get(routes::web::dashboard_handler))
         .route("/dashboard", get(routes::web::dashboard_handler))
+        .route("/planning", get(routes::web::old_zeus_handler))
         .route("/old-zeus", get(routes::web::old_zeus_handler))
         .route("/zeus", get(routes::web::old_zeus_handler))
         .route("/login", get(routes::web::login_handler))

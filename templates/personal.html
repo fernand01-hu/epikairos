@@ -14,11 +14,7 @@
 <!-- Planning workspace -->
 <div id="planningWorkspace" class="d-none">
 
-    <div class="page-header d-flex align-items-end justify-content-between flex-wrap gap-2">
-        <div>
-            <h1>Mon planning</h1>
-            <p id="statsSummary" class="small"></p>
-        </div>
+    <div class="d-flex align-items-center justify-content-end flex-wrap gap-2 mb-3">
         <div class="d-flex align-items-center gap-2">
             <button class="btn btn-sm btn-outline-secondary d-none" id="contributeBtn">Contribuer à la base commune</button>
             <a href="/login" class="btn btn-sm btn-outline-secondary">Recharger depuis Auriga</a>
@@ -62,12 +58,7 @@
     <!-- Calendar -->
     <div class="card mb-5">
         <div class="card-header py-2 px-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <div class="btn-group btn-group-sm" role="group">
-                <button type="button" class="btn btn-primary" id="viewModeWeekBtn">Semaine</button>
-                <button type="button" class="btn btn-outline-secondary" id="viewModeListBtn">Tableau</button>
-            </div>
-
-            <div class="d-flex align-items-center gap-1" id="weekNavControls">
+            <div class="d-flex align-items-center gap-1 ms-auto" id="weekNavControls">
                 <button class="btn btn-sm btn-link icon-btn" id="prevWeekBtn" title="Semaine précédente" aria-label="Semaine précédente">
                     <i class="bi bi-chevron-left"></i>
                 </button>
@@ -81,34 +72,13 @@
 
         <div class="card-body p-2">
             <div id="calendarWeekView">
-                <div class="week-calendar-container" id="weekDaysGrid">
+                <div class="tg-scroll" id="weekDaysGrid">
                     <!-- Populated by app.js -->
                 </div>
                 <div id="noWeekCoursesMessage" class="empty-state d-none">
                     <div class="empty-title">Aucun cours cette semaine</div>
                     <div class="small">Utilisez les flèches pour changer de semaine.</div>
                 </div>
-            </div>
-
-            <div id="calendarTableView" class="table-responsive d-none">
-                <table class="table table-hover align-middle mb-0" id="coursesTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th style="width: 45px;" class="text-center">
-                                <input class="form-check-input" type="checkbox" id="masterCheckbox" checked>
-                            </th>
-                            <th>Date</th>
-                            <th>Type</th>
-                            <th>Matière</th>
-                            <th>Salle</th>
-                            <th>Enseignant</th>
-                            <th>Groupe</th>
-                        </tr>
-                    </thead>
-                    <tbody id="coursesTableBody">
-                        <!-- Populated by app.js -->
-                    </tbody>
-                </table>
             </div>
 
             <div id="noCoursesMessage" class="empty-state d-none">
@@ -205,5 +175,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122d"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122g"></script>
 {% endblock %}

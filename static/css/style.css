@@ -1259,3 +1259,134 @@ a {
 .fp-course-time { font-size: 0.75rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .fp-course-title { font-weight: 600; }
 .fp-course-meta { font-size: 0.75rem; color: var(--text-2); }
+
+/* ==========================================================================
+   Week time grid (Mon planning)
+   ========================================================================== */
+
+.tg-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.tg {
+    min-width: 680px;
+    --axis: 52px;
+}
+
+.tg-head,
+.tg-body {
+    display: grid;
+    grid-template-columns: var(--axis) repeat(var(--days), minmax(0, 1fr));
+}
+
+.tg-head {
+    border-bottom: 1px solid var(--border);
+}
+
+.tg-dayhead {
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--text-2);
+    border-left: 1px solid var(--border);
+}
+
+.tg-dayhead strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.tg-dayhead.is-today,
+.tg-dayhead.is-today strong {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.tg-body {
+    position: relative;
+}
+
+.tg-axis {
+    position: relative;
+}
+
+.tg-axis span {
+    position: absolute;
+    right: 8px;
+    transform: translateY(-50%);
+    font-size: 0.6875rem;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.tg-col {
+    position: relative;
+    border-left: 1px solid var(--border);
+    background-image: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent calc(var(--hour) - 1px),
+        var(--border) calc(var(--hour) - 1px),
+        var(--border) var(--hour)
+    );
+}
+
+.tg-col.is-today {
+    background-color: var(--accent-soft);
+}
+
+.calendar-card.tg-event {
+    position: absolute;
+    padding: 0.25rem 0.4rem;
+    z-index: 1;
+}
+
+.tg-event .event-time {
+    font-size: 0.6875rem;
+    margin: 0 1.1rem 0.1rem 0;
+}
+
+.tg-event .event-title {
+    font-size: 0.75rem;
+    line-height: 1.25;
+    margin-bottom: 0.1rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tg-event .event-meta {
+    font-size: 0.6875rem;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.tg-event .event-checkbox {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    width: 0.8rem;
+    height: 0.8rem;
+    margin: 0;
+}
+
+.tg-event.is-compact .event-title {
+    -webkit-line-clamp: 1;
+}
+
+.tg-event.is-compact .event-meta {
+    display: none;
+}
+
+.tg-now {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--danger);
+    z-index: 2;
+    pointer-events: none;
+}
