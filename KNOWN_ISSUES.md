@@ -63,6 +63,4 @@ Les supprimer demande une migration (et une sauvegarde) ; sans urgence.
 
 ## Déploiement
 
-- Le serveur suit encore la branche `rust-backend`. Après la fusion dans `main`, le passer sur `main` (`git checkout main && git pull`).
 - `epikairos.service` pointe vers `/home/fernand/playground/zeus-v2` ; sur le serveur, l'application est dans `~/epikairos`.
-- Le dépôt GitHub a été renommé `epikairos` ; l'ancienne adresse `zeus-v2` redirige encore.
