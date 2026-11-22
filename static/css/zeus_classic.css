@@ -312,6 +312,7 @@
 
 /* Days header */
 .zeus-grid-header {
+    box-sizing: border-box;
     height: 36px;
     background-color: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -331,10 +332,16 @@
 }
 
 .grid-day-header {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    /* Same sizing as .grid-day-column so headers stay over their columns */
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    line-height: 36px;
+    text-align: center;
     font-size: 12.5px;
     font-weight: 500;
     color: var(--text-2);
@@ -395,10 +402,10 @@
 }
 
 .grid-day-column {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     position: relative;
     border-right: 1px solid var(--border);
-    min-width: 110px;
 }
 
 .grid-day-column:last-child {

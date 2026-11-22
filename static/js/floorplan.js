@@ -164,15 +164,7 @@
         applyView(box);
     }
 
-    function zoomCenter(box, factor) {
-        const r = box.getBoundingClientRect();
-        zoomAt(box, factor, r.left + r.width / 2, r.top + r.height / 2);
-    }
 
-    function resetView(box) {
-        box.fpView = defaultView(boxAspect(box));
-        applyView(box);
-    }
 
     function enableZoom(box) {
         if (box.fpZoomReady) return;
@@ -227,10 +219,11 @@
         box.addEventListener("pointerup", end);
         box.addEventListener("pointercancel", end);
 
+        // Mouse wheel over the map zooms it (trackpad pinch arrives as Ctrl+wheel too)
         box.addEventListener("wheel", e => {
-            if (!e.ctrlKey && !e.metaKey) return;   // plain wheel scrolls the page
             e.preventDefault();
-            zoomAt(box, Math.exp(-e.deltaY / 300), e.clientX, e.clientY);
+            const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;   // lines -> pixels
+            zoomAt(box, Math.exp(-step / 300), e.clientX, e.clientY);
         }, { passive: false });
 
         box.addEventListener("dblclick", e => {
@@ -270,7 +263,6 @@
                 "data-room": def.id,
             });
             if (!office) {
-                g.setAttribute("tabindex", "0");
                 g.setAttribute("role", "button");
                 g.setAttribute("aria-label", `${entry ? entry.name : t("Salle {room}", { room: def.id })}, ${STATE_LABELS[state]}`);
             }
@@ -292,9 +284,6 @@
                     onSelect(def.id);
                 };
                 g.addEventListener("click", activate);
-                g.addEventListener("keydown", e => {
-                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(def.id); }
-                });
             }
             svg.appendChild(g);
         });
@@ -309,11 +298,5 @@
         applyView(container);
     }
 
-    window.FloorPlan = {
-        render,
-        roomNumber,
-        zoomIn: (box) => zoomCenter(box, 1.6),
-        zoomOut: (box) => zoomCenter(box, 1 / 1.6),
-        reset: resetView,
-    };
+    window.FloorPlan = { render, roomNumber };
 })();

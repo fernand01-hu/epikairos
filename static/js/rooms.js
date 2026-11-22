@@ -87,8 +87,6 @@ document.addEventListener("DOMContentLoaded", () => {
             onSelect: (id) => {
                 selectedRoom = id;
                 render();
-                const g = planContainer.querySelector(`[data-room="${id}"]`);
-                if (g) g.focus({ preventScroll: true });
             },
         });
 
@@ -237,9 +235,6 @@ document.addEventListener("DOMContentLoaded", () => {
     prevDayBtn.addEventListener("click", () => shiftDay(-1));
     nextDayBtn.addEventListener("click", () => shiftDay(1));
 
-    document.getElementById("zoomInBtn").addEventListener("click", () => window.FloorPlan.zoomIn(planContainer));
-    document.getElementById("zoomOutBtn").addEventListener("click", () => window.FloorPlan.zoomOut(planContainer));
-    document.getElementById("zoomResetBtn").addEventListener("click", () => window.FloorPlan.reset(planContainer));
 
     dayInput.addEventListener("change", () => {
         if (!dayInput.value) dayInput.value = todayStr();

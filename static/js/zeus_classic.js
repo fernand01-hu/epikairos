@@ -516,6 +516,19 @@ document.addEventListener("DOMContentLoaded", () => {
         return card;
     }
 
+    /** Keeps the day headers over their columns and on one line. */
+    function fitDayHeaders() {
+        const header = gridDaysHeaderContainer && gridDaysHeaderContainer.parentElement;
+        const body = document.getElementById("gridBody");
+        if (header && body) header.style.paddingRight = `${body.offsetWidth - body.clientWidth}px`;
+        const cells = gridDaysHeaderContainer ? [...gridDaysHeaderContainer.children] : [];
+        cells.forEach(c => { if (c.dataset.full) c.textContent = c.dataset.full; });
+        if (cells.some(c => c.scrollWidth > c.clientWidth + 1)) {
+            cells.forEach(c => { if (c.dataset.short) c.textContent = c.dataset.short; });
+        }
+    }
+    window.addEventListener("resize", fitDayHeaders);
+
     function renderTimetableGrid() {
         const monday = getMonday(currentCalendarDate);
         const weekNum = getIsoWeekNumber(monday);
@@ -555,6 +568,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const headerCell = document.createElement("div");
             headerCell.className = `grid-day-header ${isToday ? "is-today" : ""}`;
             headerCell.textContent = `${dayName} ${dateNum} ${monthStr}`;
+            // Shorter label used when the column is too narrow (browser zoom, small screens)
+            headerCell.dataset.full = headerCell.textContent;
+            headerCell.dataset.short = `${dayDate.toLocaleDateString(LOCALE, { weekday: "short" }).replace(/\.$/, "")} ${dateNum}`;
+            headerCell.title = headerCell.textContent;
             gridDaysHeaderContainer.appendChild(headerCell);
 
             // 2. Day Column in Grid
@@ -612,6 +629,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // Auto-scroll to earliest course or 08:00
         const scrollTarget = Math.max((earliestCourseMinutes / 60) * HOUR_HEIGHT - 20, 0);
         gridBody.scrollTop = scrollTarget;
+        fitDayHeaders();
     }
 
     function showCourseDetailModal(c) {

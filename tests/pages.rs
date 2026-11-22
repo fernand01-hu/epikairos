@@ -100,13 +100,13 @@ async fn rooms_page_is_the_floor_plan_with_a_day_picker() {
     assert!(body.contains(r#"id="floorPlanContainer""#));
     assert!(body.contains(r#"id="dayBtn""#));
     assert!(body.contains("Pris dans moins d"), "legend of the soon state");
-    for id in ["prevDayBtn", "nextDayBtn", "zoomInBtn", "zoomOutBtn", "zoomResetBtn", "dayClock"] {
+    for id in ["prevDayBtn", "nextDayBtn", "dayClock"] {
         assert!(body.contains(&format!(r#"id="{id}""#)), "{id}");
     }
     // The status time sits on the map, not in the day block
     let map = &body[body.find(r#"id="floorPlanContainer""#).unwrap()..body.find(r#"id="prevDayBtn""#).unwrap()];
     assert!(map.contains(r#"id="dayClock""#));
-    for gone in ["roomSearchForm", "roomFilterInput", "viewListBtn", "page-header", "offPlanCard", "Autres étages"] {
+    for gone in ["roomSearchForm", "roomFilterInput", "viewListBtn", "page-header", "offPlanCard", "Autres étages", "zoomInBtn", "zoomResetBtn"] {
         assert!(!body.contains(gone), "{gone} should be gone");
     }
 }

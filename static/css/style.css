@@ -848,23 +848,6 @@ i.bi[class*="text-"] {
     font-variant-numeric: tabular-nums;
     pointer-events: none;
 }
-.fp-zoom {
-    right: 0.25rem;
-    bottom: 0.25rem;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--border);
-    background: var(--surface);
-}
-.fp-zoom .btn {
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    border: 0;
-    color: var(--text);
-}
-.fp-zoom .btn + .btn { border-top: 1px solid var(--border); }
-.fp-zoom .btn:hover { background: var(--surface-2); }
 
 .fp-outline {
     fill: var(--surface-2);

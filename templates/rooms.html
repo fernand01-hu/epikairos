@@ -18,11 +18,6 @@
             <div class="fp-viewport" id="floorPlanContainer">
                 <div class="fp-loading small text-muted p-4">{{ _("Chargement…") }}</div>
                 <div class="fp-overlay fp-clock" id="dayClock"></div>
-                <div class="fp-overlay fp-zoom" role="group" aria-label="{{ _("Zoom") }}">
-                    <button type="button" class="btn btn-sm" id="zoomInBtn" title="{{ _("Zoom avant") }}" aria-label="{{ _("Zoom avant") }}"><i class="bi bi-plus-lg"></i></button>
-                    <button type="button" class="btn btn-sm" id="zoomOutBtn" title="{{ _("Zoom arrière") }}" aria-label="{{ _("Zoom arrière") }}"><i class="bi bi-dash-lg"></i></button>
-                    <button type="button" class="btn btn-sm" id="zoomResetBtn" title="{{ _("Vue d'ensemble") }}" aria-label="{{ _("Vue d'ensemble") }}"><i class="bi bi-arrows-angle-contract"></i></button>
-                </div>
             </div>
         </div>
     </div>
@@ -47,6 +42,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/floorplan.js') }}?v=20261122t"></script>
-<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261122s"></script>
+<script src="{{ url_for('static', filename='js/floorplan.js') }}?v=20261122w"></script>
+<script src="{{ url_for('static', filename='js/rooms.js') }}?v=20261122w"></script>
 {% endblock %}
