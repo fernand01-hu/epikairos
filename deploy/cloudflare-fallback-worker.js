@@ -18,7 +18,8 @@ const TIMEOUT_MS = 15000;
 const DOWN_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524, 525, 526, 530]);
 const CONTACT_EMAIL = "fernand.huttois@gmail.com";
 const CONTACT_DISCORD = "fernandhu_92257";
-const STATUS_CACHE_SECONDS = 60;   // UptimeRobot free API: 10 requests a minute
+const STATUS_CACHE_SECONDS = 60;
+const DAYS = 30;                   // bars in the uptime strip   // UptimeRobot free API: 10 requests a minute
 
 export default {
     async fetch(request, env, ctx) {
@@ -63,7 +64,8 @@ async function unavailable(request, env, ctx) {
 }
 
 /**
- * { downSince: unix seconds | null, uptime7: "99.12" | null, uptime30: ... } or null.
+ * { downSince: unix seconds | null, uptime30: "99.12" | null,
+ *   days: [{ start: unix seconds, ratio: number | null }] (oldest first, last 30 days) } or null.
  * Cached for a minute; any error just hides the block.
  */
 async function monitorStatus(key, ctx) {
@@ -73,12 +75,16 @@ async function monitorStatus(key, ctx) {
         const hit = cache && (await cache.match(cacheKey));
         if (hit) return await hit.json();
 
+        // One range per day (rolling 24 h windows ending now), oldest first
+        const now = Math.floor(Date.now() / 1000);
+        const starts = Array.from({ length: DAYS }, (_, i) => now - (DAYS - i) * 86400);
         const body = new URLSearchParams({
             api_key: key,
             format: "json",
             logs: "1",
             logs_limit: "10",
-            custom_uptime_ratios: "7-30",
+            custom_uptime_ratios: "30",
+            custom_uptime_ranges: starts.map(s => `${s}_${s + 86400}`).join("-"),
         });
         const res = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
             method: "POST",
@@ -93,11 +99,16 @@ async function monitorStatus(key, ctx) {
         // Status 8/9 = seems down / down; the latest "down" log gives the start time
         const isDown = m.status === 8 || m.status === 9;
         const lastDown = (m.logs || []).find(l => l.type === 1);
-        const [u7, u30] = String(m.custom_uptime_ratio || "").split("-");
+        const ratios = String(m.custom_uptime_ranges || "").split("-").map(Number);
+        const created = Number(m.create_datetime) || 0;
         const status = {
             downSince: isDown && lastDown ? lastDown.datetime : null,
-            uptime7: u7 || null,
-            uptime30: u30 || null,
+            uptime30: String(m.custom_uptime_ratio || "") || null,
+            // Days that ended before the monitor existed have no data
+            days: starts.map((start, i) => ({
+                start,
+                ratio: start + 86400 <= created || !Number.isFinite(ratios[i]) ? null : ratios[i],
+            })),
         };
         if (cache) {
             const stored = new Response(JSON.stringify(status), {
@@ -119,8 +130,9 @@ const TEXT = {
         badge: "Temporairement hors ligne",
         intro: "Le site revient dès que possible. Vos liens d'abonnement continuent de fonctionner : votre agenda garde les cours déjà reçus.",
         downSince: "Hors ligne depuis",
-        uptime7: "Disponibilité sur 7 jours",
-        uptime30: "Disponibilité sur 30 jours",
+        uptime30: "sur 30 jours",
+        uptimeTitle: "Disponibilité",
+        noData: "pas de données",
         contact: "Une question ?",
         email: "E-mail",
         footer: "Page mise à jour chaque minute · données UptimeRobot",
@@ -132,8 +144,9 @@ const TEXT = {
         badge: "Temporarily down",
         intro: "The site will be back as soon as possible. Your subscription links keep working: your calendar keeps the courses it already has.",
         downSince: "Down since",
-        uptime7: "Uptime over 7 days",
-        uptime30: "Uptime over 30 days",
+        uptime30: "over 30 days",
+        uptimeTitle: "Uptime",
+        noData: "no data",
         contact: "Questions?",
         email: "Email",
         footer: "Page refreshed every minute · data from UptimeRobot",
@@ -153,15 +166,37 @@ function percent(value) {
     return Number.isFinite(n) ? `${n.toFixed(2)} %` : null;
 }
 
+function dayLabel(unixSeconds, locale) {
+    return new Intl.DateTimeFormat(locale, { timeZone: "Europe/Paris", day: "numeric", month: "short" })
+        .format(new Date(unixSeconds * 1000));
+}
+
+function barClass(ratio) {
+    if (ratio === null) return "none";
+    if (ratio >= 99.9) return "up";
+    if (ratio >= 99.5) return "warn";
+    return "down";
+}
+
 function statusBlock(status, t) {
     if (!status) return "";
-    const rows = [];
-    if (status.downSince) rows.push([t.downSince, parisTime(status.downSince, t.locale)]);
-    const u7 = percent(status.uptime7), u30 = percent(status.uptime30);
-    if (u7) rows.push([t.uptime7, u7]);
-    if (u30) rows.push([t.uptime30, u30]);
-    if (!rows.length) return "";
-    return `<ul class="status">${rows.map(([k, v]) => `<li><span>${k}</span><strong>${v}</strong></li>`).join("")}</ul>`;
+    let html = "";
+    if (status.downSince) {
+        html += `<ul class="status"><li><span>${t.downSince}</span><strong>${parisTime(status.downSince, t.locale)}</strong></li></ul>`;
+    }
+    const days = status.days || [];
+    if (days.some(d => d.ratio !== null)) {
+        const bars = days.map(d => {
+            const label = `${dayLabel(d.start + 86400, t.locale)} : ${d.ratio === null ? t.noData : d.ratio.toFixed(2) + " %"}`;
+            return `<i class="bar is-${barClass(d.ratio)}" title="${label}"></i>`;
+        }).join("");
+        const total = percent(status.uptime30);
+        html += `<div class="uptime">
+    <div class="uptime-head"><span>${t.uptimeTitle}</span>${total ? `<strong>${total} <span class="muted">${t.uptime30}</span></strong>` : ""}</div>
+    <div class="bars" role="img" aria-label="${t.uptimeTitle} ${total || ""} ${t.uptime30}">${bars}</div>
+  </div>`;
+    }
+    return html;
 }
 
 function page(status, lang, path) {
@@ -195,6 +230,16 @@ function page(status, lang, path) {
   .status li { display: flex; justify-content: space-between; gap: 1rem; padding: .55rem .8rem; font-size: .9rem; }
   .status li + li { border-top: 1px solid var(--line); }
   .status strong { font-variant-numeric: tabular-nums; text-align: right; }
+  .uptime { margin: 1.25rem 0; padding: .75rem .8rem; border: 1px solid var(--line); background: var(--surface); }
+  .uptime-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: .9rem; margin-bottom: .55rem; }
+  .uptime-head strong { font-variant-numeric: tabular-nums; }
+  .uptime-head .muted { font-weight: 400; font-size: .8rem; }
+  .bars { display: flex; gap: 3px; height: 26px; }
+  .bar { flex: 1; border-radius: 2px; background: #3f3f46; }
+  .bar.is-up { background: #22c55e; }
+  .bar.is-warn { background: #f59e0b; }
+  .bar.is-down { background: #ef4444; }
+  .bar.is-none { background: var(--line); }
   .contact { border-top: 1px solid var(--line); margin-top: 1.25rem; padding-top: 1rem; }
   .contact dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: .5rem 0 0; }
   .contact dt { color: var(--muted); }
