@@ -53,7 +53,8 @@ pub fn create_template_env() -> Environment<'static> {
         .filter(|d| !d.is_empty())
         .map(|d| if d.starts_with("http") { d } else { format!("https://{d}") })
         .unwrap_or_default();
-    env.add_global("site_url", site_url);
+    // Server config, not user input: written as-is so bots read a plain https:// URL
+    env.add_global("site_url", Value::from_safe_string(site_url));
     env.add_global("i18n_en", Value::from_safe_string(crate::i18n::english_json().to_string()));
 
     // Custom url_for helper
