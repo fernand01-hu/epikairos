@@ -886,8 +886,10 @@ pub async fn serve_feed_handler(
 
     let cache_age = now - feed_opt.last_cached_at;
 
-    // If cache is fresh and no query overrides, return cached directly
+    // If cache is fresh and no query overrides, return cached directly. Links without a
+    // password are rebuilt every time, so classmates' latest logins show up.
     if !has_query_overrides
+        && feed_opt.password.is_some()
         && !feed_opt.last_cached_ics.is_empty()
         && cache_age < feed_cache_duration()
     {
@@ -926,6 +928,7 @@ pub async fn serve_feed_handler(
         .await
         .unwrap_or(false);
     }
+    let mut refreshed_from_auriga = false;
     if let (true, Some(pw)) = (may_refresh, feed_opt.password.as_ref()) {
         {
             let mut client = AurigaClient::new(&feed_opt.username, pw);
@@ -934,6 +937,7 @@ pub async fn serve_feed_handler(
                 if let Ok(raw_interventions) = client.get_planning(&start_d, &end_d).await {
                     let normalized: Vec<Course> = raw_interventions.iter().map(normalize_course).collect();
                     if !normalized.is_empty() {
+                        refreshed_from_auriga = true;
                         raw_courses = normalized.clone();
                         let f_pool = state.feed_pool.clone();
                         let f_id_clone = feed_id.to_string();
@@ -945,6 +949,29 @@ pub async fn serve_feed_handler(
                     }
                 }
             }
+        }
+    }
+
+    // Bring in what classmates' logins added to the shared database for this class
+    if !refreshed_from_auriga && !raw_courses.is_empty() {
+        let pool = state.db_pool.clone();
+        let personal = raw_courses.clone();
+        let merged = tokio::task::spawn_blocking(move || -> Option<Vec<Course>> {
+            let conn = pool.get().ok()?;
+            let ids: Vec<String> = personal.iter().map(|c| c.id.clone()).collect();
+            let known = fetch_course_groups_batched(&conn, &ids).ok()?;
+            let groups = student_groups(&personal, &known);
+            let since = (Utc::now().with_timezone(&Paris) - chrono::Duration::days(7))
+                .format("%Y-%m-%d")
+                .to_string();
+            let shared = courses_of_groups(&conn, &groups, &since).ok()?;
+            Some(merge_shared_courses(personal, shared))
+        })
+        .await
+        .ok()
+        .flatten();
+        if let Some(m) = merged {
+            raw_courses = m;
         }
     }
 

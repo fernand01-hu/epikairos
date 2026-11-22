@@ -440,6 +440,36 @@ pub fn update_feeds_for_user(
     )
 }
 
+/// Groups the student belongs to: those listed on their own courses, plus those the
+/// shared database knows for the same course ids (older links were stored before
+/// groups were read from Auriga).
+pub fn student_groups(personal: &[Course], known_groups: &std::collections::HashMap<String, Vec<String>>) -> Vec<String> {
+    let mut groups: Vec<String> = personal
+        .iter()
+        .flat_map(|c| c.groups.iter().cloned())
+        .chain(personal.iter().filter_map(|c| known_groups.get(&c.id)).flatten().cloned())
+        .map(|g| g.trim().to_string())
+        .filter(|g| !g.is_empty())
+        .collect();
+    groups.sort();
+    groups.dedup();
+    groups
+}
+
+/// Overlays the shared database's version of the student's class courses on their
+/// own list: classmates' logins bring new courses, time and room changes and
+/// cancellations; courses only the student has stay as they were.
+pub fn merge_shared_courses(personal: Vec<Course>, shared: Vec<Course>) -> Vec<Course> {
+    let mut by_id: std::collections::HashMap<String, Course> =
+        personal.into_iter().map(|c| (c.id.clone(), c)).collect();
+    for c in shared {
+        by_id.insert(c.id.clone(), c);
+    }
+    let mut merged: Vec<Course> = by_id.into_values().collect();
+    merged.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| a.id.cmp(&b.id)));
+    merged
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

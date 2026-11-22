@@ -333,3 +333,63 @@ async fn a_login_refreshes_the_users_links_without_a_password() {
     let other: String = conn.query_row("SELECT last_cached_ics FROM feeds WHERE feed_id = ?1", [&other_id], |r| r.get(0)).unwrap();
     assert_eq!(other, "BEGIN:VCALENDAR");
 }
+
+// --- links kept current by classmates' logins -------------------------------------
+
+#[tokio::test]
+async fn classmates_logins_keep_a_password_less_link_current() {
+    let app = TestApp::new();
+    let mut option = course("p2", "2027-03-02T08:00:00Z", "2027-03-02T09:00:00Z", "Japonais", "Salle 330", "Option Japonais");
+    option.teachers = vec!["Yuki Sato".into()];
+    let mine = vec![
+        course("p1", "2027-03-01T08:00:00Z", "2027-03-01T10:00:00Z", "Algorithmique", "Salle 301", "2627 - S3 Lyon L3"),
+        option,
+    ];
+    let created = create_feed(&app, serde_json::json!({ "courses": mine, "hide_cancelled": true }), "localhost:5000").await.json();
+    let feed_url = created["feed_url"].as_str().unwrap().to_string();
+
+    // A classmate of the same group logs in later: room change, a new course, a cancellation...
+    let moved = course("p1", "2027-03-01T08:00:00Z", "2027-03-01T10:00:00Z", "Algorithmique", "Salle 309", "2627 - S3 Lyon L3");
+    let added = course("c9", "2027-03-03T13:00:00Z", "2027-03-03T15:00:00Z", "Graphes", "Salle 305", "2627 - S3 Lyon L3");
+    let gone = cancelled(course("c8", "2027-03-04T08:00:00Z", "2027-03-04T09:00:00Z", "Physique", "Salle 302", "2627 - S3 Lyon L3"));
+    // ...and a student of another class
+    let other = course("o1", "2027-03-01T08:00:00Z", "2027-03-01T09:00:00Z", "Autre classe", "Salle 303", "2627 - S3 Lyon L1");
+    app.ingest(&[moved, added, gone, other]);
+
+    let body = app.get(&feed_url, None).await.body;
+    assert!(body.contains("LOCATION:Salle 309") && !body.contains("LOCATION:Salle 301"), "room change picked up");
+    assert!(body.contains("Graphes"), "new class course picked up");
+    assert!(!body.contains("Physique"), "cancelled course hidden (hide_cancelled)");
+    assert!(!body.contains("Autre classe"), "other classes never leak in");
+    assert!(body.contains("Japonais"), "the student's own option is kept");
+}
+
+#[tokio::test]
+async fn links_stored_without_groups_find_them_through_the_shared_database() {
+    let app = TestApp::new();
+    // Old link: its courses were saved before groups were read from Auriga
+    let old = course("p1", "2027-03-01T08:00:00Z", "2027-03-01T10:00:00Z", "Algorithmique", "Salle 301", "");
+    let created = create_feed(&app, serde_json::json!({ "courses": [old] }), "localhost:5000").await.json();
+    let feed_url = created["feed_url"].as_str().unwrap().to_string();
+
+    app.ingest(&[
+        course("p1", "2027-03-01T08:00:00Z", "2027-03-01T10:00:00Z", "Algorithmique", "Salle 301", "2627 - S3 Lyon L3"),
+        course("c9", "2027-03-03T13:00:00Z", "2027-03-03T15:00:00Z", "Graphes", "Salle 305", "2627 - S3 Lyon L3"),
+    ]);
+    assert!(app.get(&feed_url, None).await.body.contains("Graphes"));
+}
+
+#[test]
+fn merge_prefers_the_shared_version_and_keeps_personal_only_courses() {
+    let personal = vec![
+        course("a", "2027-03-01T08:00:00Z", "2027-03-01T09:00:00Z", "Old title", "Salle 301", "G"),
+        course("b", "2027-03-02T08:00:00Z", "2027-03-02T09:00:00Z", "Option", "", "Opt"),
+    ];
+    let shared = vec![
+        course("a", "2027-03-01T08:00:00Z", "2027-03-01T09:00:00Z", "New title", "Salle 309", "G"),
+        course("c", "2027-02-28T08:00:00Z", "2027-02-28T09:00:00Z", "Earlier", "", "G"),
+    ];
+    let merged = feed::merge_shared_courses(personal, shared);
+    let names: Vec<&str> = merged.iter().map(|c| c.course_name.as_str()).collect();
+    assert_eq!(names, ["Earlier", "New title", "Option"], "sorted by start");
+}

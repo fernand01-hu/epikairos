@@ -1118,6 +1118,15 @@ pub fn query_courses_by_groups(
     }
     conditions.push(format!("({})", selection.join(" OR ")));
 
+    load_courses(conn, &conditions, &params)
+}
+
+/// Loads full courses (with teachers, rooms and groups) matching SQL conditions on `courses c`.
+fn load_courses(
+    conn: &Connection,
+    conditions: &[String],
+    params: &[rusqlite::types::Value],
+) -> rusqlite::Result<Vec<Course>> {
     let sql = format!(
         "SELECT c.id, c.start, c.end, c.duration, c.course_name, c.course_code,
                 c.activity_type, c.activity_name, c.is_exam, c.is_cancelled,
@@ -1276,4 +1285,26 @@ pub fn list_teachers(conn: &Connection) -> rusqlite::Result<Vec<(String, i64)>> 
         .filter_map(Result::ok)
         .collect();
     Ok(rows)
+}
+
+/// Every course (cancelled ones included) of the given groups, matched by exact
+/// name, from `from_date` on. Lets a subscription link pick up what classmates'
+/// logins brought into the shared database.
+pub fn courses_of_groups(conn: &Connection, groups: &[String], from_date: &str) -> rusqlite::Result<Vec<Course>> {
+    let groups: Vec<&String> = groups.iter().filter(|g| !g.trim().is_empty()).take(50).collect();
+    if groups.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; groups.len()].join(", ");
+    let mut params: Vec<rusqlite::types::Value> = vec![safe_truncate(from_date, 10).to_string().into()];
+    params.extend(groups.iter().map(|g| rusqlite::types::Value::from(g.trim().to_string())));
+    let conditions = vec![
+        "c.date_str >= ?".to_string(),
+        format!(
+            "c.id IN (SELECT cg.course_id FROM course_groups cg JOIN groups g ON cg.group_id = g.id
+                      WHERE g.name COLLATE NOCASE IN ({}))",
+            placeholders
+        ),
+    ];
+    load_courses(conn, &conditions, &params)
 }
