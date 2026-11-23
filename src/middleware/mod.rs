@@ -60,9 +60,9 @@ pub async fn security_headers_middleware(req: Request<Body>, next: Next) -> Resp
         header::HeaderName::from_static("content-security-policy"),
         HeaderValue::from_static(
             "default-src 'self'; \
-             script-src 'self' https://cdn.jsdelivr.net; \
-             style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; \
-             font-src 'self' https://cdn.jsdelivr.net data:; \
+             script-src 'self'; \
+             style-src 'self' 'unsafe-inline'; \
+             font-src 'self' data:; \
              img-src 'self' data: https:; \
              connect-src 'self'; \
              frame-ancestors 'self';",

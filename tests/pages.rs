@@ -196,3 +196,36 @@ async fn pages_carry_a_link_preview() {
     let img = app.get("/static/img/og.png", None).await;
     assert_eq!(img.status, StatusCode::OK, "preview image is public");
 }
+
+#[tokio::test]
+async fn planning_can_save_timetables_for_offline_use() {
+    let app = TestApp::new();
+    let body = app.get("/planning", None).await.body;
+    for id in ["offlinePanel", "btnSaveOffline", "offlineList", "offlineBanner"] {
+        assert!(body.contains(&format!(r#"id="{id}""#)), "{id}");
+    }
+    assert!(body.contains("Mon planning est toujours enregistré sur cet appareil"));
+}
+
+#[tokio::test]
+async fn bootstrap_is_served_by_the_site_for_offline_pages() {
+    let app = TestApp::new();
+    let page = app.get("/login", None).await;
+    assert!(!page.body.contains("cdn.jsdelivr.net"), "no CDN left in pages");
+    assert!(!page.header("content-security-policy").contains("jsdelivr"), "CSP allows only the site");
+    for path in [
+        "/static/vendor/bootstrap/bootstrap.min.css",
+        "/static/vendor/bootstrap/bootstrap.bundle.min.js",
+        "/static/vendor/bootstrap-icons/bootstrap-icons.min.css",
+        "/static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2",
+    ] {
+        let res = app.get(path, None).await;
+        assert_eq!(res.status, StatusCode::OK, "{path}");
+    }
+    for path in ["/static/vendor/bootstrap/bootstrap.min.css", "/static/vendor/bootstrap/bootstrap.bundle.min.js"] {
+        assert!(page.body.contains(path), "{path} referenced by the page");
+    }
+    // The worker fetches them up front, the font included
+    let sw = app.get("/sw.js", None).await.body;
+    assert!(sw.contains("/static/vendor/bootstrap/bootstrap.min.css") && sw.contains("bootstrap-icons.woff2"));
+}

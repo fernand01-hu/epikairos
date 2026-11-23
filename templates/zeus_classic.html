@@ -4,7 +4,7 @@
 
 {% block head %}
 <!-- Zeus Classic Custom CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261122w">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/zeus_classic.css') }}?v=20261123a">
 {% endblock %}
 
 {% block main_container_class %}container-fluid px-3 py-3{% endblock %}
@@ -47,6 +47,18 @@
             <div class="zeus-tree-container" id="teacherListContainer">
                 <div class="small text-muted py-2">{{ _("Chargement des professeurs...") }}</div>
             </div>
+
+            <!-- Offline: timetables saved on this device -->
+            <details class="zeus-offline" id="offlinePanel">
+                <summary>
+                    <span><i class="bi bi-download" aria-hidden="true"></i> {{ _("Hors ligne") }}</span>
+                    <span class="zeus-count" id="offlineCount"></span>
+                </summary>
+                <p class="zeus-offline-note">{{ _("Mon planning est toujours enregistré sur cet appareil. Les autres plannings ne le sont que si vous les ajoutez ici.") }}</p>
+                <button type="button" class="btn btn-sm btn-outline-secondary w-100" id="btnSaveOffline">{{ _("Enregistrer la sélection") }}</button>
+                <div id="offlineMessage" class="zeus-offline-msg d-none" role="status"></div>
+                <ul class="zeus-offline-list" id="offlineList"></ul>
+            </details>
 
             <div class="zeus-sidebar-actions">
                 <button type="button" class="btn-clear-selection" id="btnClearSelection">
@@ -91,6 +103,8 @@
                 <input type="date" class="form-control form-control-sm" id="topbarDatePicker" value="{{ today_date }}" style="width: auto;">
             </div>
         </div>
+
+        <div class="zeus-offline-banner d-none" id="offlineBanner" role="status"></div>
 
         <!-- Days Column Header Row -->
         <div class="zeus-grid-header">
@@ -138,5 +152,5 @@
 
 {% block scripts %}
 <!-- Zeus Classic Script -->
-<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261122y"></script>
+<script src="{{ url_for('static', filename='js/zeus_classic.js') }}?v=20261123a"></script>
 {% endblock %}

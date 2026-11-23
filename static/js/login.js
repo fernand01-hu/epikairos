@@ -14,6 +14,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (window.location.search.includes("logged_out=1")) {
         try {
             localStorage.removeItem("zeus_courses");
+            localStorage.removeItem("zeus_offline_v1");     // timetables saved for offline use
+            localStorage.removeItem("zeus_group_tree");
+            localStorage.removeItem("zeus_teachers_cache");
             localStorage.removeItem("zeus_credentials");
             localStorage.removeItem("zeus_stats");
             localStorage.removeItem("zeus_consent");

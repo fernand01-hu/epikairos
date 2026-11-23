@@ -1,11 +1,17 @@
 /**
  * EpiKairos Service Worker
- * Version: 1.1.0
+ * Version: 1.2.0
  */
 
-const CACHE_NAME = 'epikairos-shell-v9';
+const CACHE_NAME = 'epikairos-shell-v10';
+// Pages and scripts are added as they are visited; these are fetched up front so
+// visited pages keep their look offline (same URLs as in base.html).
 const CORE_ASSETS = [
     '/manifest.json',
+    '/static/vendor/bootstrap/bootstrap.min.css?v=5.3.3',
+    '/static/vendor/bootstrap/bootstrap.bundle.min.js?v=5.3.3',
+    '/static/vendor/bootstrap-icons/bootstrap-icons.min.css?v=1.11.3',
+    '/static/vendor/bootstrap-icons/fonts/bootstrap-icons.woff2?dd67030699838ea613ee6dbda90effa6',
     '/static/css/style.css',
     '/static/icons/icon-192.png',
     '/static/icons/icon-512.png',

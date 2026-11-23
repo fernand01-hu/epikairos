@@ -135,13 +135,228 @@ document.addEventListener("DOMContentLoaded", () => {
     // =========================================================================
     // 3. Hierarchical Group Treeview
     // =========================================================================
+    // =========================================================================
+    // Offline: timetables saved on this device (Mon planning is always saved)
+    // =========================================================================
+    const OFFLINE_KEY = "zeus_offline_v1";
+    const TREE_KEY = "zeus_group_tree";
+    const TEACHERS_KEY = "zeus_teachers_cache";
+    const OFFLINE_MAX = 6;
+    const OFFLINE_DAYS_BEFORE = 14;
+    const OFFLINE_DAYS_AFTER = 183;
+    const OFFLINE_STALE_MS = 12 * 3600 * 1000;
+    const offlineList = document.getElementById("offlineList");
+    const offlineCount = document.getElementById("offlineCount");
+    const offlineMessage = document.getElementById("offlineMessage");
+    const offlineBanner = document.getElementById("offlineBanner");
+    const btnSaveOffline = document.getElementById("btnSaveOffline");
+
+    function readOffline() {
+        try {
+            const items = JSON.parse(localStorage.getItem(OFFLINE_KEY) || "[]");
+            return Array.isArray(items) ? items : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    /** Throws when the browser storage is full. */
+    function writeOffline(items) {
+        localStorage.setItem(OFFLINE_KEY, JSON.stringify(items));
+    }
+
+    function selectionKey(patterns, teachers) {
+        return JSON.stringify([[...patterns].sort(), [...teachers].sort()]);
+    }
+
+    /** Names of the checked groups (the top ones, not each sub-group) and teachers. */
+    function selectionLabel() {
+        const names = [];
+        groupTreeContainer.querySelectorAll(".tree-checkbox:checked").forEach(cb => {
+            const node = cb.closest(".tree-node");
+            const parent = node && node.parentElement ? node.parentElement.closest(".tree-node") : null;
+            const parentCb = parent ? parent.querySelector(":scope > .tree-node-content .tree-checkbox") : null;
+            if (parentCb && parentCb.checked) return;
+            const label = node && node.querySelector(":scope > .tree-node-content .tree-label");
+            if (label) names.push(label.textContent.trim());
+        });
+        selectedTeachers.forEach(name => names.push(name));
+        if (names.length === 0) names.push(...selectedGroupPatterns);
+        return names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", ");
+    }
+
+    function dateOffset(days) {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        return toLocalDateStr(d);
+    }
+
+    async function downloadTimetable(patterns, teachers) {
+        const data = await apiJson("/api/groups/schedule", {
+            method: "POST",
+            body: JSON.stringify({
+                patterns,
+                teachers,
+                start_date: dateOffset(-OFFLINE_DAYS_BEFORE),
+                end_date: dateOffset(OFFLINE_DAYS_AFTER),
+            }),
+        });
+        return data.courses || [];
+    }
+
+    function showOfflineMessage(text, isError) {
+        offlineMessage.textContent = text;
+        offlineMessage.classList.toggle("is-error", !!isError);
+        offlineMessage.classList.toggle("d-none", !text);
+    }
+
+    function formatSavedAt(ms) {
+        return new Date(ms).toLocaleString(LOCALE, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    }
+
+    function renderOfflineList() {
+        const items = readOffline();
+        offlineCount.textContent = items.length ? String(items.length) : "";
+        offlineList.innerHTML = items.map(item => `
+            <li data-id="${escapeHtml(item.id)}">
+                <div class="name">
+                    <strong title="${escapeHtml(item.label)}">${escapeHtml(item.label)}</strong>
+                    <span>${t("{n} cours · {date}", { n: item.courses.length, date: escapeHtml(formatSavedAt(item.saved_at)) })}</span>
+                </div>
+                <button type="button" class="refresh" title="${t("Mettre à jour")}" aria-label="${t("Mettre à jour")}"><i class="bi bi-arrow-clockwise"></i></button>
+                <button type="button" class="del" title="${t("Supprimer")}" aria-label="${t("Supprimer")}"><i class="bi bi-trash"></i></button>
+            </li>`).join("");
+    }
+
+    /** Saves (or refreshes) one timetable. Returns the saved entry. */
+    async function saveOffline(patterns, teachers, label) {
+        const courses = await downloadTimetable(patterns, teachers);
+        const id = selectionKey(patterns, teachers);
+        const items = readOffline().filter(it => it.id !== id);
+        if (items.length >= OFFLINE_MAX) {
+            throw new Error(t("{max} plannings enregistrés au maximum : supprimez-en un.", { max: OFFLINE_MAX }));
+        }
+        const entry = { id, label, patterns, teachers, saved_at: Date.now(), courses };
+        items.unshift(entry);
+        try {
+            writeOffline(items);
+        } catch (e) {
+            throw new Error(t("Plus de place sur cet appareil : supprimez un planning enregistré."));
+        }
+        return entry;
+    }
+
+    btnSaveOffline.addEventListener("click", async () => {
+        const patterns = Array.from(selectedGroupPatterns);
+        const teachers = Array.from(selectedTeachers);
+        if (patterns.length === 0 && teachers.length === 0) {
+            showOfflineMessage(t("Sélectionnez d'abord un groupe ou un professeur."), true);
+            return;
+        }
+        btnSaveOffline.disabled = true;
+        showOfflineMessage(t("Enregistrement..."));
+        try {
+            const entry = await saveOffline(patterns, teachers, selectionLabel());
+            showOfflineMessage(t("Enregistré : {n} cours, disponibles sans connexion.", { n: entry.courses.length }));
+            renderOfflineList();
+        } catch (err) {
+            showOfflineMessage(err.message, true);
+        } finally {
+            btnSaveOffline.disabled = false;
+        }
+    });
+
+    offlineList.addEventListener("click", async (e) => {
+        const btn = e.target.closest("button");
+        const li = btn && btn.closest("li");
+        if (!li) return;
+        const item = readOffline().find(it => it.id === li.dataset.id);
+        if (!item) return;
+        if (btn.classList.contains("del")) {
+            writeOffline(readOffline().filter(it => it.id !== item.id));
+            showOfflineMessage("");
+            renderOfflineList();
+            return;
+        }
+        btn.disabled = true;
+        try {
+            await saveOffline(item.patterns, item.teachers, item.label);
+            showOfflineMessage(t("Mis à jour"));
+            renderOfflineList();
+        } catch (err) {
+            showOfflineMessage(err.message, true);
+            btn.disabled = false;
+        }
+    });
+
+    /** Saved courses matching the selection and week, like the server would pick them. */
+    function offlineCourses(patterns, teachers, range) {
+        const pats = patterns.map(p => p.toLowerCase());
+        const used = [];
+        const byId = new Map();
+        readOffline().forEach(item => {
+            let usedItem = false;
+            item.courses.forEach(c => {
+                const day = String(c.start || "").slice(0, 10);
+                if (day < range.start || day > range.end || c.is_cancelled) return;
+                const groupHit = (c.groups || []).some(g => pats.some(p => g.toLowerCase().includes(p)));
+                const teacherHit = (c.teachers || []).some(name => teachers.includes(name));
+                if (!groupHit && !teacherHit) return;
+                byId.set(c.id, c);
+                usedItem = true;
+            });
+            if (usedItem || item.id === selectionKey(patterns, teachers)) used.push(item);
+        });
+        return { courses: [...byId.values()], items: used };
+    }
+
+    function showOfflineBanner(saved) {
+        if (!saved) {
+            offlineBanner.classList.add("d-none");
+            return;
+        }
+        if (saved.items.length === 0) {
+            offlineBanner.textContent = t("Hors ligne : ce planning n'est pas enregistré sur cet appareil.");
+        } else {
+            const oldest = Math.min(...saved.items.map(it => it.saved_at));
+            offlineBanner.textContent = t("Hors ligne : planning enregistré le {date}.", { date: formatSavedAt(oldest) });
+        }
+        offlineBanner.classList.remove("d-none");
+    }
+
+    /** Online: quietly refresh saved timetables older than 12 hours, one at a time. */
+    async function refreshStaleOffline() {
+        if (!navigator.onLine) return;
+        for (const item of readOffline()) {
+            if (Date.now() - item.saved_at < OFFLINE_STALE_MS) continue;
+            try {
+                await saveOffline(item.patterns, item.teachers, item.label);
+            } catch (e) {
+                return;   // offline or server down: try again next visit
+            }
+        }
+        renderOfflineList();
+    }
+
+    renderOfflineList();
+
     async function loadGroupTree() {
         try {
-            const res = await fetch("/api/groups/tree");
-            if (!res.ok) throw new Error(t("Erreur de chargement de l'arbre"));
-            groupTreeData = await res.json();
+            let tree = null;
+            try {
+                const res = await fetch("/api/groups/tree");
+                if (!res.ok) throw new Error(t("Erreur de chargement de l'arbre"));
+                tree = await res.json();
+                try { localStorage.setItem(TREE_KEY, JSON.stringify(tree)); } catch (e) { /* full: fine */ }
+            } catch (err) {
+                // Offline: the copy kept from the last visit
+                tree = JSON.parse(localStorage.getItem(TREE_KEY) || "null");
+                if (!tree) throw err;
+            }
+            groupTreeData = tree;
             renderTree(groupTreeData);
             fetchSchedule();
+            refreshStaleOffline();
         } catch (err) {
             groupTreeContainer.innerHTML = `<div class="text-danger small p-2">Erreur: ${escapeHtml(err.message)}</div>`;
         }
@@ -293,8 +508,15 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         try {
-            const data = await apiJson("/api/teachers");
-            renderTeachers(data.teachers || []);
+            let list;
+            try {
+                list = (await apiJson("/api/teachers")).teachers || [];
+                try { localStorage.setItem(TEACHERS_KEY, JSON.stringify(list)); } catch (e) { /* full: fine */ }
+            } catch (err) {
+                list = JSON.parse(localStorage.getItem(TEACHERS_KEY) || "null");
+                if (!list) throw err;
+            }
+            renderTeachers(list);
         } catch (err) {
             teacherListContainer.innerHTML = `<div class="text-danger small p-2">Erreur: ${escapeHtml(err.message)}</div>`;
         }
@@ -443,9 +665,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const range = visibleWeekRange();
         try {
-            const res = await fetch("/api/groups/schedule", {
+            const data = await apiJson("/api/groups/schedule", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     patterns: patterns,
                     teachers: teachers,
@@ -453,13 +674,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     end_date: range.end
                 })
             });
-
-            const data = await res.json();
-            if (data.success) {
-                activeCourses = data.courses || [];
-            }
+            activeCourses = data.courses || [];
+            showOfflineBanner(null);
         } catch (e) {
-            console.error("Error fetching group schedule", e);
+            // No connection, or the server is down: use the timetables saved on this device
+            const saved = offlineCourses(patterns, teachers, range);
+            activeCourses = saved.courses;
+            showOfflineBanner(saved);
         }
     }
 

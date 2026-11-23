@@ -209,6 +209,64 @@
 }
 
 /* Sidebar actions */
+/* Offline section: timetables saved on this device */
+.zeus-offline {
+    border-top: 1px solid var(--border);
+    padding: 8px 0;
+    font-size: 12.5px;
+}
+.zeus-offline summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--text-2);
+    list-style: none;
+}
+.zeus-offline summary::-webkit-details-marker { display: none; }
+.zeus-offline summary i { margin-right: 4px; }
+.zeus-offline-note { color: var(--text-3); margin: 8px 0; line-height: 1.35; }
+.zeus-offline-msg { margin-top: 6px; color: var(--text-2); }
+.zeus-offline-msg.is-error { color: var(--danger); }
+.zeus-offline-list {
+    list-style: none;
+    padding: 0;
+    margin: 8px 0 0;
+    max-height: 160px;
+    overflow-y: auto;
+}
+.zeus-offline-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 0;
+    border-top: 1px solid var(--border);
+}
+.zeus-offline-list .name { flex: 1; min-width: 0; }
+.zeus-offline-list .name strong { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zeus-offline-list .name span { color: var(--text-3); font-size: 11.5px; }
+.zeus-offline-list button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    flex: 0 0 auto;
+}
+.zeus-offline-list button:hover { color: var(--text); border-color: var(--border-strong); }
+.zeus-offline-list button.del:hover { color: var(--danger); }
+
+/* Shown above the grid when the timetable comes from this device */
+.zeus-offline-banner {
+    padding: 6px 16px;
+    font-size: 12.5px;
+    color: var(--text-2);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+}
+
 .zeus-sidebar-actions {
     padding-top: 8px;
     border-top: 1px solid var(--border);
