@@ -21,8 +21,13 @@
     </div>
 
     <!-- Filters -->
-    <div class="card p-4 mb-3">
-        <div>
+    <div class="card p-4 mb-3 filters-card" id="filtersCard">
+        <!-- Phones: the subject filters fold away so the calendar comes first -->
+        <button type="button" class="filters-toggle d-md-none" id="toggleFiltersBtn" aria-expanded="false" aria-controls="filtersBody">
+            <span><i class="bi bi-funnel" aria-hidden="true"></i> {{ _("Filtres") }}</span>
+            <span class="filters-summary"><span id="filtersSummary"></span> <i class="bi bi-chevron-down" aria-hidden="true"></i></span>
+        </button>
+        <div id="filtersBody">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
                 <div class="d-flex align-items-center gap-2">
                     <span class="section-label">{{ _("Matières") }}</span>
@@ -137,5 +142,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/app.js') }}?v=20261122r"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}?v=20261128d"></script>
 {% endblock %}

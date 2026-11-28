@@ -19,6 +19,10 @@
       {
         "fr": "Les plannings enregistrés hors ligne suivent aussi ces changements : la semaine affichée en ligne remplace celle enregistrée, et l'enregistrement complet se met à jour toutes les heures.",
         "en": "Timetables saved for offline use follow these changes too: the week shown online replaces the saved one, and the whole save refreshes every hour."
+      },
+      {
+        "fr": "Sur téléphone, les filtres de Mon planning se replient derrière un bouton « Filtres » : le calendrier s'affiche directement.",
+        "en": "On phones, My timetable's filters fold behind a \"Filters\" button, so the calendar shows straight away."
       }
     ]
   },

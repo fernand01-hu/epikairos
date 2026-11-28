@@ -226,7 +226,31 @@ document.addEventListener("DOMContentLoaded", () => {
     // =========================================================================
     // 3. Filter application
     // =========================================================================
+    // Phones: subject filters folded by default, the choice is remembered
+    const filtersCard = document.getElementById("filtersCard");
+    const toggleFiltersBtn = document.getElementById("toggleFiltersBtn");
+    function setFiltersOpen(open) {
+        filtersCard.classList.toggle("is-open", open);
+        toggleFiltersBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        try { localStorage.setItem("zeus_filters_open", open ? "1" : "0"); } catch (e) { /* ignore */ }
+    }
+    // Called from applyFilters, which already runs while the page loads
+    function updateFiltersSummary() {
+        const filtersSummary = document.getElementById("filtersSummary");
+        if (!filtersSummary) return;
+        const all = document.querySelectorAll(".type-filter-chip").length;
+        const active = document.querySelectorAll(".type-filter-chip:not(.unchecked)").length;
+        filtersSummary.textContent = all === 0 ? "" : active === all ? t("Toutes les matières") : t("{n} / {total} matières", { n: active, total: all });
+    }
+    if (toggleFiltersBtn) {
+        let open = false;
+        try { open = localStorage.getItem("zeus_filters_open") === "1"; } catch (e) { /* ignore */ }
+        setFiltersOpen(open);
+        toggleFiltersBtn.addEventListener("click", () => setFiltersOpen(!filtersCard.classList.contains("is-open")));
+    }
+
     function applyFilters() {
+        updateFiltersSummary();
         const hideCancelled = hideCancelledSwitch.checked;
 
         // Collect checked course names (chips without .unchecked)

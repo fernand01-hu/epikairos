@@ -1346,3 +1346,27 @@ a {
 .update-entry li { margin-bottom: 0.25rem; font-size: 0.9rem; }
 .update-kind { font-size: 0.75rem; font-weight: 600; color: var(--ok); margin-top: 0.4rem; margin-bottom: 0.2rem; }
 .update-kind.is-fix { color: #d97706; }
+
+/* Mon planning on phones: subject filters fold behind a "Filtres" button */
+.filters-toggle {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.filters-toggle i { margin-right: 0.35rem; }
+.filters-summary { color: var(--text-2); font-weight: 400; font-size: 0.85rem; }
+.filters-summary i { margin: 0 0 0 0.25rem; transition: transform 0.15s ease; }
+@media (max-width: 767.98px) {
+    .filters-card { padding: 0.85rem 1rem !important; }
+    .filters-card #filtersBody { display: none; margin-top: 0.85rem; }
+    .filters-card.is-open #filtersBody { display: block; }
+    .filters-card.is-open .filters-summary i { transform: rotate(180deg); }
+}
