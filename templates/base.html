@@ -55,7 +55,6 @@
                     <li class="nav-item"><a class="nav-link {% if active_page == 'personal' %}active{% endif %}" href="/personal">{{ _('Mon planning') }}</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_page == 'old-zeus' %}active{% endif %}" href="/planning">{{ _('Planning') }}</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_page == 'rooms' %}active{% endif %}" href="/rooms">{{ _('Salles libres') }}</a></li>
-                    <li class="nav-item"><a class="nav-link {% if active_page == 'updates' %}active{% endif %}" href="/mises-a-jour">{{ _('Mises à jour') }}</a></li>
                     {% if session.get('role') == 'admin' %}
                     <li class="nav-item"><a class="nav-link {% if active_page == 'admin' %}active{% endif %}" href="/admin">Admin</a></li>
                     {% endif %}
@@ -103,7 +102,7 @@
     <!-- Footer -->
     <footer class="app-footer py-3 mt-auto">
         <div class="container d-flex justify-content-between flex-wrap gap-2">
-            <span>EpiKairos · <a href="/confidentialite">{{ _("Confidentialité") }}</a></span>
+            <span class="footer-links">EpiKairos · <a href="/mises-a-jour">{{ _("Mises à jour") }}</a> · <a href="/health">{{ _("État du service") }}</a> · <a href="/confidentialite">{{ _("Confidentialité") }}</a></span>
             <a href="mailto:fernand.huttois@epita.fr">fernand.huttois@epita.fr</a>
         </div>
     </footer>

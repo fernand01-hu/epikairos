@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const OFFLINE_MAX = 6;
     const OFFLINE_DAYS_BEFORE = 14;
     const OFFLINE_DAYS_AFTER = 183;
-    const OFFLINE_STALE_MS = 12 * 3600 * 1000;
+    const OFFLINE_STALE_MS = 3600 * 1000;   // whole saves refresh after an hour
     const offlineList = document.getElementById("offlineList");
     const offlineCount = document.getElementById("offlineCount");
     const offlineMessage = document.getElementById("offlineMessage");
@@ -288,6 +288,27 @@ document.addEventListener("DOMContentLoaded", () => {
             btn.disabled = false;
         }
     });
+
+    /** Online: the week just shown replaces that week in a matching save, so courses
+     *  deleted or moved on Auriga leave the save right away. */
+    function syncSavedWeek(patterns, teachers, range, fresh) {
+        const id = selectionKey(patterns, teachers);
+        const items = readOffline();
+        const item = items.find(it => it.id === id);
+        if (!item) return;
+        const inWeek = c => {
+            const day = String(c.start || "").slice(0, 10);
+            return day >= range.start && day <= range.end;
+        };
+        const before = JSON.stringify(item.courses.filter(inWeek).map(c => [c.id, c.start, c.end, c.rooms]));
+        const after = JSON.stringify(fresh.map(c => [c.id, c.start, c.end, c.rooms]));
+        if (before === after) return;
+        item.courses = item.courses.filter(c => !inWeek(c)).concat(fresh);
+        try {
+            writeOffline(items);
+            renderOfflineList();
+        } catch (e) { /* storage full: the hourly refresh will retry */ }
+    }
 
     /** Saved courses matching the selection and week, like the server would pick them. */
     function offlineCourses(patterns, teachers, range) {
@@ -676,6 +697,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             activeCourses = data.courses || [];
             showOfflineBanner(null);
+            syncSavedWeek(patterns, teachers, range, activeCourses);
         } catch (e) {
             // No connection, or the server is down: use the timetables saved on this device
             const saved = offlineCourses(patterns, teachers, range);

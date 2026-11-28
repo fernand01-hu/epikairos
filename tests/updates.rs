@@ -38,6 +38,10 @@ async fn updates_page_is_public_in_both_languages() {
     assert_eq!(en.status, StatusCode::OK);
     assert!(en.body.contains("Updates"));
 
-    // In the menu of every page
-    assert!(app.get("/rooms", None).await.body.contains(r#"href="/mises-a-jour""#));
+    // Linked from the footer of every page, not from the top menu
+    let rooms = app.get("/rooms", None).await.body;
+    let footer = &rooms[rooms.find("<footer").unwrap()..];
+    assert!(footer.contains(r#"href="/mises-a-jour""#) && footer.contains(r#"href="/health""#));
+    let nav = &rooms[rooms.find("<nav").unwrap()..rooms.find("</nav>").unwrap()];
+    assert!(!nav.contains("/mises-a-jour") && !nav.contains("/health"));
 }
