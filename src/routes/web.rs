@@ -133,6 +133,20 @@ pub fn clear_session_cookie(cookies: &Cookies) {
     cookies.remove(cookie);
 }
 
+/// The site's updates, newest first. Public.
+pub async fn updates_handler(State(state): State<AppState>, cookies: Cookies) -> Result<Html<String>, StatusCode> {
+    let session_val = session_context(&state, &cookies).await;
+    let entries = crate::changelog::view(crate::i18n::current_lang(&cookies));
+    let tmpl = state
+        .jinja
+        .get_template("updates.html")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let rendered = tmpl
+        .render(minijinja::context! { active_page => "updates", entries => entries, session => session_val })
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Html(rendered))
+}
+
 #[derive(Deserialize)]
 pub struct PrivacyQuery {
     deleted: Option<String>,

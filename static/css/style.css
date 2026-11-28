@@ -1309,3 +1309,40 @@ a {
 .uptime-bar.is-warn { background: #f59e0b; }
 .uptime-bar.is-down { background: #ef4444; }
 .uptime-bar.is-none { background: var(--border); }
+
+/* Admin: courses of an account's last login */
+.admin-courses { max-height: 520px; overflow-y: auto; border: 1px solid var(--border); }
+.admin-courses-day {
+    position: sticky; top: 0;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem; font-weight: 600; text-transform: capitalize;
+    color: var(--text-2);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+}
+.admin-course {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+}
+.admin-course .time { width: 6.5rem; flex: 0 0 auto; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.admin-course .name { flex: 1; min-width: 0; }
+.admin-course .name small { display: block; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-course .tag { flex: 0 0 auto; font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.45rem; border: 1px solid var(--border); color: var(--text-3); }
+.admin-course .tag.is-added { color: var(--ok); border-color: currentColor; }
+.admin-course .tag.is-updated { color: #d97706; border-color: currentColor; }
+
+/* Updates page */
+.update-entry {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 1rem 1.1rem;
+    margin-bottom: 1rem;
+}
+.update-entry header { margin-bottom: 0.6rem; }
+.update-entry time { display: block; font-size: 0.75rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.update-entry ul { margin: 0 0 0.5rem; padding-left: 1.1rem; }
+.update-entry li { margin-bottom: 0.25rem; font-size: 0.9rem; }
+.update-kind { font-size: 0.75rem; font-weight: 600; color: var(--ok); margin-top: 0.4rem; margin-bottom: 0.2rem; }
+.update-kind.is-fix { color: #d97706; }

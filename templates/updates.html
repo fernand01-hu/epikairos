@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _("Mises à jour") }} — EpiKairos{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+        <h1 class="h4 mb-1">{{ _("Mises à jour") }}</h1>
+        <p class="text-muted mb-4">{{ _("Les nouveautés et corrections du site, les plus récentes en premier.") }}</p>
+
+        {% for e in entries %}
+        <article class="update-entry" id="u-{{ e.date }}">
+            <header>
+                <time datetime="{{ e.date }}">{{ e.date_label }}</time>
+                <h2 class="h6 mb-0">{{ e.title }}</h2>
+            </header>
+            {% if e.new %}
+            <div class="update-kind">{{ _("Nouveautés") }}</div>
+            <ul>{% for line in e.new %}<li>{{ line }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if e.fixes %}
+            <div class="update-kind is-fix">{{ _("Corrections") }}</div>
+            <ul>{% for line in e.fixes %}<li>{{ line }}</li>{% endfor %}</ul>
+            {% endif %}
+        </article>
+        {% endfor %}
+
+        <p class="text-muted small mt-4">{{ _("Un bug ou une idée ?") }} Discord <strong>fernandhu_92257</strong> · <a href="mailto:fernand.huttois@gmail.com">fernand.huttois@gmail.com</a></p>
+    </div>
+</div>
+{% endblock %}

@@ -97,6 +97,8 @@ pub async fn auth_middleware(
         || path == "/manifest.json"
         || path == "/robots.txt"
         || path == "/confidentialite"
+        || path == "/mises-a-jour"
+        || path == "/updates"
         || path == "/privacy"
         || path == "/sw.js"
         || path == "/offline"

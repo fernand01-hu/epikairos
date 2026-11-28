@@ -17,17 +17,52 @@
                     <th>{{ _("Identifiant") }}</th>
                     <th>{{ _("Première connexion") }}</th>
                     <th>{{ _("Dernière connexion") }}</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody id="userTableBody">
-                <tr><td colspan="3" class="text-muted small">{{ _("Chargement...") }}</td></tr>
+                <tr><td colspan="4" class="text-muted small">{{ _("Chargement...") }}</td></tr>
             </tbody>
         </table>
     </div>
     <div class="form-text mt-2">{{ _("Les utilisateurs apparaissent ici après leur première connexion. Les administrateurs se règlent avec <code>ADMIN_USERS</code> sur le serveur.")|safe }}</div>
 </div>
+
+<!-- One account's logins: what each brought to the shared database -->
+<div class="card p-4 mt-3 d-none" id="loginsCard">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <span class="section-label">{{ _("Connexions de") }} <span id="loginsUser"></span></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="loginsClose">{{ _("Fermer") }}</button>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0 admin-logins">
+            <thead class="table-light">
+                <tr>
+                    <th>{{ _("Date") }}</th>
+                    <th>{{ _("Période demandée") }}</th>
+                    <th class="text-end">{{ _("Reçus") }}</th>
+                    <th class="text-end">{{ _("Nouveaux") }}</th>
+                    <th class="text-end">{{ _("Modifiés") }}</th>
+                    <th class="text-end">{{ _("Supprimés") }}</th>
+                    <th>{{ _("Groupes") }}</th>
+                </tr>
+            </thead>
+            <tbody id="loginsBody"></tbody>
+        </table>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-4 mb-2">
+        <span class="section-label">{{ _("Cours de la dernière connexion") }} <span class="text-muted" id="lastCount"></span></span>
+        <div class="btn-group btn-group-sm" role="group" id="lastFilter">
+            <button type="button" class="btn btn-outline-secondary active" data-filter="all">{{ _("Tous") }}</button>
+            <button type="button" class="btn btn-outline-secondary" data-filter="added">{{ _("Nouveaux") }}</button>
+            <button type="button" class="btn btn-outline-secondary" data-filter="updated">{{ _("Modifiés") }}</button>
+        </div>
+    </div>
+    <div id="lastCourses" class="admin-courses"></div>
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/admin.js') }}?v=20261122r"></script>
+<script src="{{ url_for('static', filename='js/admin.js') }}?v=20261128a"></script>
 {% endblock %}

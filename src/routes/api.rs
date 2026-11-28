@@ -220,7 +220,7 @@ pub async fn delete_account_handler(State(state): State<AppState>, cookies: Cook
         Ok(n) => n,
         Err(_) => return internal_error(),
     };
-    if crate::accounts::delete_user(&school, &user).is_err() {
+    if crate::accounts::delete_user(&school, &user).is_err() || crate::logins::delete_for(&school, &user).is_err() {
         return internal_error();
     }
     crate::routes::web::clear_session_cookie(&cookies);
@@ -381,16 +381,6 @@ pub async fn fetch_planning_handler(
 
     let normalized: Vec<Course> = raw_courses.iter().map(normalize_course).collect();
 
-    // Ingest into database if consented
-    if consent && !normalized.is_empty() {
-        let pool = state.db_pool.clone();
-        let courses_to_ingest = normalized.clone();
-        tokio::task::spawn_blocking(move || {
-            if let Ok(mut conn) = pool.get() {
-                let _ = ingest_courses(&mut conn, &courses_to_ingest, true);
-            }
-        });
-    }
 
     // Statistics
     let mut types_count: HashMap<String, usize> = HashMap::new();
@@ -426,13 +416,34 @@ pub async fn fetch_planning_handler(
         });
     }
 
-    // Remember the account so the admin can assign roles from the user list
-    if user_display != "Étudiant Auriga" {
-        let pool = state.db_pool.clone();
-        let login_name = user_display.clone();
+    // Shared database: save the courses (with consent), remove those Auriga deleted
+    // since this account's previous login, and record the login for the admin page.
+    {
+        let school_pool = state.db_pool.clone();
+        let feed_pool = state.feed_pool.clone();
+        let login_name = (user_display != "Étudiant Auriga").then(|| user_display.clone());
+        let courses = normalized.clone();
+        let (range_start, range_end) = (start_date.clone(), end_date.clone());
         tokio::task::spawn_blocking(move || {
-            if let Ok(conn) = pool.get() {
-                let _ = crate::accounts::record_login(&conn, &login_name);
+            let Ok(mut school) = school_pool.get() else { return };
+            if let Some(name) = &login_name {
+                let _ = crate::accounts::record_login(&school, name);
+            }
+            let feeds = feed_pool.get().ok();
+            let input = crate::logins::LoginInput {
+                username: login_name.as_deref(),
+                consent,
+                range_start: &range_start,
+                range_end: &range_end,
+                courses: &courses,
+                now: Utc::now().timestamp() as f64,
+            };
+            match crate::logins::process_login(&mut school, feeds.as_deref(), &input) {
+                Ok(r) if !r.removed.is_empty() => {
+                    println!("[*] Removed {} course(s) deleted on Auriga", r.removed.len());
+                }
+                Ok(_) => {}
+                Err(e) => eprintln!("[!] Saving a login's courses failed: {e}"),
             }
         });
     }

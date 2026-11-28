@@ -1,0 +1,38 @@
+[
+  {
+    "date": "2026-11-28",
+    "title": { "fr": "Cours déplacés et page des mises à jour", "en": "Moved courses and an updates page" },
+    "new": [
+      { "fr": "Cette page, qui liste les nouveautés et corrections du site.", "en": "This page, listing what's new and what was fixed." }
+    ],
+    "fixes": [
+      { "fr": "Un cours supprimé puis recréé ailleurs sur Auriga n'apparaît plus en double : il disparaît de Planning, des salles libres et des liens d'abonnement dès la connexion suivante d'un étudiant concerné.", "en": "A course deleted and re-created elsewhere on Auriga no longer shows twice: it leaves Timetable, free rooms and subscription links at the next login of a student who has it." }
+    ]
+  },
+  {
+    "date": "2026-11-23",
+    "title": { "fr": "Hors ligne", "en": "Offline" },
+    "new": [
+      { "fr": "Planning > Hors ligne : enregistrez les plannings de votre choix sur l'appareil pour les consulter sans connexion.", "en": "Timetable > Offline: save the timetables you choose on your device to view them without a connection." },
+      { "fr": "Mon planning s'ouvre aussi sans connexion.", "en": "My timetable also opens without a connection." }
+    ],
+    "fixes": [
+      { "fr": "Les pages gardent leur apparence hors ligne.", "en": "Pages keep their look offline." }
+    ]
+  },
+  {
+    "date": "2026-11-22",
+    "title": { "fr": "Lancement", "en": "Launch" },
+    "new": [
+      { "fr": "Mon planning : vos cours, filtrables par matière, export .ics et jusqu'à 3 liens d'abonnement pour Google Calendar, Apple ou Outlook.", "en": "My timetable: your courses, filtered by subject, .ics export and up to 3 subscription links for Google Calendar, Apple or Outlook." },
+      { "fr": "Planning : l'emploi du temps de n'importe quel groupe, et des professeurs une fois connecté.", "en": "Timetable: any group's timetable, and teachers' once logged in." },
+      { "fr": "Salles libres : plan du 3e étage avec l'état de chaque salle et sa journée, zoomable sur téléphone.", "en": "Free rooms: 3rd-floor plan with each room's status and day, zoomable on phones." },
+      { "fr": "Connexion par jeton Auriga temporaire, sans donner son mot de passe.", "en": "Log in with a temporary Auriga token, without giving your password." },
+      { "fr": "Version anglaise, thème clair ou sombre.", "en": "English version, light or dark theme." }
+    ],
+    "fixes": [
+      { "fr": "Les en-têtes de Planning restent alignés quand on zoome.", "en": "Timetable headers stay aligned when zooming." },
+      { "fr": "Les noms des professeurs ne sont visibles qu'une fois connecté.", "en": "Teacher names are only visible once logged in." }
+    ]
+  }
+]

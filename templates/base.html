@@ -36,7 +36,7 @@
     <link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css?v=1.11.3">
 
     <!-- Custom Styles -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261122x">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20261128b">
     {% block head %}{% endblock %}
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -55,6 +55,7 @@
                     <li class="nav-item"><a class="nav-link {% if active_page == 'personal' %}active{% endif %}" href="/personal">{{ _('Mon planning') }}</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_page == 'old-zeus' %}active{% endif %}" href="/planning">{{ _('Planning') }}</a></li>
                     <li class="nav-item"><a class="nav-link {% if active_page == 'rooms' %}active{% endif %}" href="/rooms">{{ _('Salles libres') }}</a></li>
+                    <li class="nav-item"><a class="nav-link {% if active_page == 'updates' %}active{% endif %}" href="/mises-a-jour">{{ _('Mises à jour') }}</a></li>
                     {% if session.get('role') == 'admin' %}
                     <li class="nav-item"><a class="nav-link {% if active_page == 'admin' %}active{% endif %}" href="/admin">Admin</a></li>
                     {% endif %}

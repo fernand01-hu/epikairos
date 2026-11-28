@@ -426,6 +426,27 @@ pub fn init_db(conn: &Connection) -> rusqlite::Result<()> {
 
 const KNOWN_CLASSROOMS: &[&str] = &["Salle 317", "Salle 327", "Salle 329", "Salle 332"];
 
+/// What saving one course did to the shared database.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CourseChange {
+    /// Never seen before
+    Added,
+    /// Already known; its time, name, type, status, cancellation or rooms changed
+    Updated,
+    /// Already known, nothing changed
+    Unchanged,
+}
+
+impl CourseChange {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CourseChange::Added => "added",
+            CourseChange::Updated => "updated",
+            CourseChange::Unchanged => "unchanged",
+        }
+    }
+}
+
 pub fn ingest_courses(
     conn: &mut Connection,
     courses: &[Course],
@@ -439,13 +460,27 @@ pub fn ingest_courses(
             "updated": 0
         }));
     }
+    let report = ingest_courses_report(conn, courses)?;
+    let inserted = report.iter().filter(|(_, c)| *c == CourseChange::Added).count();
+    let changed = report.iter().filter(|(_, c)| *c == CourseChange::Updated).count();
+    let known = report.len() - inserted;
+    Ok(json!({
+        "success": true,
+        "inserted": inserted,
+        "updated": known,
+        "changed": changed,
+        "total": report.len(),
+    }))
+}
 
+/// Saves the courses into the shared database and says, for each saved id,
+/// whether it was new, changed or unchanged.
+pub fn ingest_courses_report(
+    conn: &mut Connection,
+    courses: &[Course],
+) -> rusqlite::Result<Vec<(String, CourseChange)>> {
     if courses.is_empty() {
-        return Ok(json!({
-            "success": true,
-            "inserted": 0,
-            "updated": 0
-        }));
+        return Ok(Vec::new());
     }
 
     let table_exists: bool = conn
@@ -464,8 +499,7 @@ pub fn ingest_courses(
         .map(|d| d.as_secs_f64())
         .unwrap_or(0.0);
 
-    let mut inserted_count = 0;
-    let mut updated_count = 0;
+    let mut report: Vec<(String, CourseChange)> = Vec::with_capacity(courses.len());
 
     let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
 
@@ -499,13 +533,47 @@ pub fn ingest_courses(
         };
 
         let actual_id = c_id;
-        let exists: bool = tx
+        // What is stored now, to tell "changed" from "unchanged"
+        let previous: Option<(String, String, String, String, i64, String)> = tx
             .query_row(
-                "SELECT 1 FROM courses WHERE id = ?1",
+                "SELECT start, end, course_name, activity_type, is_cancelled, COALESCE(status, '')
+                 FROM courses WHERE id = ?1",
                 params![actual_id],
-                |_| Ok(true),
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
             )
-            .unwrap_or(false);
+            .ok();
+        let exists = previous.is_some();
+
+        if let Some(prev) = &previous {
+            let old_rooms: String = tx
+                .query_row(
+                    "SELECT COALESCE(group_concat(name, '|'), '') FROM (
+                        SELECT r.name FROM course_rooms cr JOIN rooms r ON r.id = cr.room_id
+                        WHERE cr.course_id = ?1 ORDER BY r.name)",
+                    params![actual_id],
+                    |r| r.get(0),
+                )
+                .unwrap_or_default();
+            // An empty room list from Auriga keeps the stored rooms (see below)
+            let new_rooms = if c.rooms.is_empty() {
+                old_rooms.clone()
+            } else {
+                let mut names: Vec<String> = c.rooms.iter().map(|r| sanitize_room_name(r)).filter(|r| !r.is_empty()).collect();
+                names.sort();
+                names.dedup();
+                names.join("|")
+            };
+            let same = prev.0 == start
+                && prev.1 == end
+                && prev.2 == course_name
+                && prev.3 == activity_type
+                && prev.4 == is_cancelled
+                && prev.5 == status
+                && old_rooms == new_rooms;
+            report.push((actual_id.to_string(), if same { CourseChange::Unchanged } else { CourseChange::Updated }));
+        } else {
+            report.push((actual_id.to_string(), CourseChange::Added));
+        }
 
         if exists {
             tx.execute(
@@ -522,7 +590,6 @@ pub fn ingest_courses(
                     description, searchable_text, now, actual_id
                 ],
             )?;
-            updated_count += 1;
         } else {
             tx.execute(
                 "INSERT INTO courses (
@@ -538,7 +605,6 @@ pub fn ingest_courses(
                     description, searchable_text, now
                 ],
             )?;
-            inserted_count += 1;
         }
 
         // Teachers
@@ -622,13 +688,7 @@ pub fn ingest_courses(
     }
 
     tx.commit()?;
-
-    Ok(json!({
-        "success": true,
-        "inserted": inserted_count,
-        "updated": updated_count,
-        "total": inserted_count + updated_count,
-    }))
+    Ok(report)
 }
 
 pub fn fetch_course_teachers_batched(

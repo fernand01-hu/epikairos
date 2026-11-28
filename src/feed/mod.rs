@@ -172,6 +172,38 @@ pub fn count_feeds_for(conn: &rusqlite::Connection, username: &str) -> rusqlite:
     )
 }
 
+/// Drops courses that no longer exist on Auriga from every link's saved copy.
+/// Returns how many links changed.
+pub fn remove_courses_from_feeds(conn: &rusqlite::Connection, ids: &[String]) -> rusqlite::Result<usize> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let gone: std::collections::HashSet<&str> = ids.iter().map(String::as_str).collect();
+    let rows: Vec<(String, String)> = conn
+        .prepare("SELECT feed_id, cached_courses_json FROM feeds WHERE cached_courses_json IS NOT NULL")?
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .filter_map(Result::ok)
+        .collect();
+    let mut changed = 0;
+    for (feed_id, json) in rows {
+        // Quick check before parsing: Auriga ids appear verbatim in the JSON
+        if !gone.iter().any(|id| json.contains(id)) {
+            continue;
+        }
+        let Ok(courses) = serde_json::from_str::<Vec<Course>>(&json) else { continue };
+        let before = courses.len();
+        let kept: Vec<Course> = courses.into_iter().filter(|c| !gone.contains(c.id.as_str())).collect();
+        if kept.len() != before {
+            conn.execute(
+                "UPDATE feeds SET cached_courses_json = ?2 WHERE feed_id = ?1",
+                params![feed_id, serde_json::to_string(&kept).unwrap_or_default()],
+            )?;
+            changed += 1;
+        }
+    }
+    Ok(changed)
+}
+
 /// Gives every link of `username` the courses just downloaded at login.
 pub fn update_feeds_for_user(conn: &rusqlite::Connection, username: &str, courses: &[Course]) -> rusqlite::Result<usize> {
     let key = login_key(username);

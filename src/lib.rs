@@ -4,7 +4,9 @@ pub mod auriga;
 pub mod accounts;
 pub mod db;
 pub mod feed;
+pub mod changelog;
 pub mod i18n;
+pub mod logins;
 pub mod middleware;
 pub mod routes;
 pub mod session;
@@ -43,6 +45,7 @@ pub fn init_databases(state: &AppState) -> Result<(), Box<dyn std::error::Error>
         let conn = state.db_pool.get()?;
         db::init_db(&conn)?;
         accounts::init_db(&conn)?;
+        logins::init_db(&conn)?;
     }
     let conn = state.feed_pool.get()?;
     let removed = feed::init_db(&conn)?;
@@ -72,6 +75,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/custom-calendar", get(routes::web::custom_calendar_handler))
         .route("/rooms", get(routes::web::rooms_handler))
         .route("/confidentialite", get(routes::web::privacy_handler))
+        .route("/mises-a-jour", get(routes::web::updates_handler))
+        .route("/updates", get(routes::web::updates_handler))
         .route("/privacy", get(routes::web::privacy_handler))
         .route("/robots.txt", get(routes::web::robots_handler))
         .route("/manifest.json", get(routes::web::manifest_handler))
@@ -102,6 +107,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/feed/:feed_id", get(routes::api::serve_feed_handler))
         // Admin page
         .route("/api/admin/users", get(routes::admin::admin_list_users_handler))
+        .route("/api/admin/logins", get(routes::admin::admin_user_logins_handler))
         .route("/api/account/delete", post(routes::api::delete_account_handler))
         // Static assets
         .nest_service("/static", ServeDir::new("static"))

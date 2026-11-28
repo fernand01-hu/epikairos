@@ -71,3 +71,43 @@ pub async fn admin_list_users_handler(
             .into_response(),
     }
 }
+
+#[derive(Deserialize)]
+pub struct LoginsQuery {
+    pub user: String,
+}
+
+// GET /api/admin/logins?user=<login> — what each login of that account brought to
+// the shared database, and the courses of its last login.
+pub async fn admin_user_logins_handler(
+    State(state): State<AppState>,
+    cookies: Cookies,
+    Query(query): Query<LoginsQuery>,
+) -> Response {
+    if logged_in_admin(&state, &cookies).is_none() {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "success": false, "error": "Réservé à l'administrateur." })),
+        )
+            .into_response();
+    }
+    let user: String = query.user.chars().take(64).collect();
+    let pool = state.db_pool.clone();
+    let res = tokio::task::spawn_blocking(move || {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let events = crate::logins::events_for(&conn, &user).map_err(|e| e.to_string())?;
+        let snapshot = crate::logins::snapshot_for(&conn, &user).map_err(|e| e.to_string())?;
+        Ok::<_, String>((events, snapshot))
+    })
+    .await;
+    match res {
+        Ok(Ok((events, snapshot))) => {
+            Json(serde_json::json!({ "success": true, "events": events, "last": snapshot })).into_response()
+        }
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "success": false, "error": "Erreur interne du serveur." })),
+        )
+            .into_response(),
+    }
+}
